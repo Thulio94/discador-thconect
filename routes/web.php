@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\Tenant\ComingSoonController;
+use App\Http\Controllers\Tenant\NotificationController;
 use App\Http\Controllers\Tenant\RoleController;
 use App\Http\Controllers\Tenant\TeamController;
 use App\Http\Controllers\Tenant\UserController;
@@ -30,6 +31,8 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::resource('teams', TeamController::class)->except(['create', 'show', 'edit']);
         Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
         Route::get('integrations', ComingSoonController::class)->name('integrations.index');
+        Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+        Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     });
 
 Route::middleware('auth')->group(function (): void {

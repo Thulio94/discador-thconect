@@ -1,8 +1,8 @@
 @php
     $user = Auth::user();
     $theme = $user?->theme_preference ?: 'thconectclaro';
-    $notifications = collect();
-    $unreadCount = 0;
+    $notifications = $user?->appNotifications()->latest()->limit(8)->get() ?? collect();
+    $unreadCount = $user?->appNotifications()->whereNull('read_at')->count() ?? 0;
     $navItems = [
         ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
         ['label' => 'Campanhas', 'href' => '#', 'icon' => 'chat', 'active' => false],
