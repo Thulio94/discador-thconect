@@ -1,0 +1,124 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Company;
+use App\Models\Role;
+use App\Models\Team;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class TenantUserCrudTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_extension_is_required_for_tenant_users(): void
+    {
+        [$admin, $role] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.users.store'), [
+                'name' => 'Agente',
+                'email' => 'agente@demo.test',
+                'user_type' => 'agent',
+                'role_id' => $role->id,
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('extension');
+    }
+
+    public function test_tenant_admin_can_create_agent_with_team_membership(): void
+    {
+        [$admin, $role, $team] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.users.store'), [
+                'name' => 'Agente',
+                'email' => 'agente@demo.test',
+                'phone' => '31999990000',
+                'user_type' => 'agent',
+                'extension' => '2001',
+                'role_id' => $role->id,
+                'status' => 'active',
+                'team_ids' => [$team->id],
+            ])
+            ->assertRedirect(route('tenant.users.index'))
+            ->assertSessionHas('status');
+
+        $agent = User::where('email', 'agente@demo.test')->sole();
+
+        $this->assertSame($admin->company_id, $agent->company_id);
+        $this->assertSame('2001', $agent->extension);
+        $this->assertSame('agent', $agent->teams()->first()->pivot->membership_type);
+    }
+
+    public function test_license_max_users_is_enforced_for_active_users(): void
+    {
+        [$admin, $role] = $this->tenantAdmin(maxUsers: 1);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.users.store'), [
+                'name' => 'Agente',
+                'email' => 'agente@demo.test',
+                'user_type' => 'agent',
+                'extension' => '2001',
+                'role_id' => $role->id,
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('status');
+    }
+
+    public function test_extension_is_unique_inside_company_only(): void
+    {
+        [$admin, $role] = $this->tenantAdmin();
+
+        User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $role->id,
+            'extension' => '2001',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.users.store'), [
+                'name' => 'Agente',
+                'email' => 'agente@demo.test',
+                'user_type' => 'agent',
+                'extension' => '2001',
+                'role_id' => $role->id,
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('extension');
+    }
+
+    private function tenantAdmin(int $maxUsers = 10): array
+    {
+        $company = Company::create(['name' => 'Tenant A']);
+        $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => now()->subDay()->toDateString(),
+            'ends_at' => now()->addMonth()->toDateString(),
+            'max_users' => $maxUsers,
+        ]);
+        $role = Role::create([
+            'company_id' => $company->id,
+            'name' => 'Administrador',
+            'slug' => 'administrador',
+            'is_admin' => true,
+        ]);
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Equipe',
+            'slug' => 'equipe',
+        ]);
+        $admin = User::factory()->create([
+            'company_id' => $company->id,
+            'role_id' => $role->id,
+            'user_type' => 'company_admin',
+            'extension' => '1000',
+            'status' => 'active',
+        ]);
+
+        return [$admin, $role, $team];
+    }
+}
