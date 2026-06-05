@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class SaaSDataModelTest extends TestCase
@@ -187,5 +188,20 @@ class SaaSDataModelTest extends TestCase
 
         $this->assertSame($activeLicense->id, $company->fresh()->license->id);
         $this->assertSame(4, $company->license->max_calls_per_available_agent);
+    }
+
+    public function test_global_role_slugs_are_unique_even_without_company_id(): void
+    {
+        Role::create([
+            'name' => 'Global Admin',
+            'slug' => 'global-admin',
+        ]);
+
+        $this->expectException(ValidationException::class);
+
+        Role::create([
+            'name' => 'Global Admin Copy',
+            'slug' => 'global-admin',
+        ]);
     }
 }
