@@ -19,7 +19,7 @@ Route::middleware(['auth', 'super.admin'])
     ->prefix('super-admin')
     ->name('super-admin.')
     ->group(function (): void {
-        Route::resource('companies', CompanyController::class)->only(['index']);
+        Route::resource('companies', CompanyController::class)->except(['create', 'show', 'edit']);
     });
 
 Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
