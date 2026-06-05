@@ -27,8 +27,8 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
     ->name('tenant.')
     ->group(function (): void {
         Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
-        Route::resource('teams', TeamController::class)->only(['index']);
-        Route::resource('roles', RoleController::class)->only(['index']);
+        Route::resource('teams', TeamController::class)->except(['create', 'show', 'edit']);
+        Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
         Route::get('integrations', ComingSoonController::class)->name('integrations.index');
     });
 
