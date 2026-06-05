@@ -1,0 +1,19 @@
+.th-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.th-focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+
+.th-focus:focus-visible {
+    box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.th-muted {
+    color: var(--fg-muted);
+}
