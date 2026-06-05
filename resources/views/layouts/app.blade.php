@@ -1,36 +1,93 @@
+@php
+    $user = Auth::user();
+    $theme = $user?->theme_preference ?: 'thconectclaro';
+    $notifications = collect();
+    $unreadCount = 0;
+    $navItems = [
+        ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
+        ['label' => 'Campanhas', 'href' => '#', 'icon' => 'chat', 'active' => false],
+        ['label' => 'Agente', 'href' => '#', 'icon' => 'users', 'active' => false],
+        ['label' => 'Supervisao', 'href' => '#', 'icon' => 'view', 'active' => false],
+        ['label' => 'Relatorios', 'href' => '#', 'icon' => 'download', 'active' => false],
+        ['label' => 'Cadastros', 'href' => '#', 'icon' => 'add', 'active' => false],
+        ['label' => 'Telefonia', 'href' => '#', 'icon' => 'chat', 'active' => false],
+        ['label' => 'Configuracoes', 'href' => '#', 'icon' => 'lock', 'active' => false],
+        ['label' => 'Integracoes', 'href' => '#', 'icon' => 'open', 'active' => false, 'soon' => true],
+    ];
+@endphp
+
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="{{ $theme }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+        <title>{{ config('app.name', 'Discador THCONECT') }}</title>
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
-        <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100">
-            @include('layouts.navigation')
-
-            <!-- Page Heading -->
-            @isset($header)
-                <header class="bg-white shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
+    <body class="font-sans antialiased" style="background: var(--bg); color: var(--fg);">
+        <div class="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)_320px]">
+            <aside class="border-r px-4 py-5" style="background: var(--surface); border-color: var(--border);">
+                <div class="flex items-center gap-3 px-2">
+                    <div class="grid h-10 w-10 place-items-center rounded-lg font-bold" style="background: var(--primary); color: #fff;">
+                        TH
                     </div>
-                </header>
-            @endisset
+                    <div>
+                        <p class="text-sm font-bold">Discador THCONECT</p>
+                        <p class="text-xs" style="color: var(--fg-muted);">Painel SaaS</p>
+                    </div>
+                </div>
 
-            <!-- Page Content -->
-            <main>
+                <nav class="mt-8 grid gap-1">
+                    @foreach ($navItems as $item)
+                        <a
+                            href="{{ $item['href'] }}"
+                            class="th-focus flex min-h-11 items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold transition"
+                            style="{{ $item['active'] ? 'background: var(--primary-soft); color: var(--fg);' : 'color: var(--fg-muted);' }}"
+                        >
+                            <span class="flex items-center gap-3">
+                                <x-ui.icon :name="$item['icon']" />
+                                {{ $item['label'] }}
+                            </span>
+                            @if ($item['soon'] ?? false)
+                                <span class="rounded-full px-2 py-0.5 text-[10px] uppercase" style="background: var(--bg-subtle); color: var(--fg-muted);">
+                                    Em breve
+                                </span>
+                            @endif
+                        </a>
+                    @endforeach
+                </nav>
+            </aside>
+
+            <main class="min-w-0 px-4 py-5 sm:px-6 lg:px-8">
+                @isset($header)
+                    <header class="mb-6">
+                        {{ $header }}
+                    </header>
+                @endisset
+
                 {{ $slot }}
             </main>
+
+            <x-ui.notification-panel :notifications="$notifications" :unread-count="$unreadCount" />
         </div>
+
+        <x-ui.toast-stack />
+
+        @if (session('status'))
+            <script>
+                window.addEventListener('DOMContentLoaded', () => {
+                    window.dispatchEvent(new CustomEvent('toast', {
+                        detail: {
+                            title: 'Tudo certo',
+                            message: @js(session('status')),
+                            severity: 'success',
+                        },
+                    }));
+                });
+            </script>
+        @endif
     </body>
 </html>
