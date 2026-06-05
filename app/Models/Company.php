@@ -36,6 +36,11 @@ class Company extends Model
         return $this->hasMany(Team::class);
     }
 
+    public function roles(): HasMany
+    {
+        return $this->hasMany(Role::class);
+    }
+
     public function appNotifications(): HasMany
     {
         return $this->hasMany(AppNotification::class);
