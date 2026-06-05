@@ -97,4 +97,95 @@ class SaaSDataModelTest extends TestCase
             'severity' => 'info',
         ]);
     }
+
+    public function test_permissions_do_not_cross_tenant_boundaries(): void
+    {
+        $company = Company::create(['name' => 'Tenant A']);
+        $otherCompany = Company::create(['name' => 'Tenant B']);
+
+        $permission = Permission::create([
+            'key' => 'users.delete',
+            'name' => 'Delete users',
+            'module' => 'users',
+        ]);
+
+        $otherRole = Role::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Other Admin',
+            'slug' => 'other-admin',
+        ]);
+
+        $otherRole->permissions()->attach($permission);
+
+        $user = User::factory()->create([
+            'company_id' => $company->id,
+            'role_id' => $otherRole->id,
+            'user_type' => 'company_admin',
+            'is_super_admin' => false,
+        ]);
+
+        $this->assertFalse($user->hasPermission('users.delete'));
+    }
+
+    public function test_super_admin_user_type_does_not_bypass_permissions_without_flag(): void
+    {
+        $user = User::factory()->create([
+            'user_type' => 'super_admin',
+            'is_super_admin' => false,
+        ]);
+
+        $this->assertFalse($user->hasPermission('users.delete'));
+    }
+
+    public function test_team_relationships_do_not_expose_users_from_other_companies(): void
+    {
+        $company = Company::create(['name' => 'Tenant A']);
+        $otherCompany = Company::create(['name' => 'Tenant B']);
+
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Sales',
+            'slug' => 'sales',
+        ]);
+
+        $sameTenantAgent = User::factory()->create([
+            'company_id' => $company->id,
+            'user_type' => 'agent',
+            'extension' => '1001',
+        ]);
+
+        $otherTenantAgent = User::factory()->create([
+            'company_id' => $otherCompany->id,
+            'user_type' => 'agent',
+            'extension' => '1001',
+        ]);
+
+        $team->users()->attach($sameTenantAgent, ['membership_type' => 'agent']);
+        $team->users()->attach($otherTenantAgent, ['membership_type' => 'agent']);
+
+        $this->assertTrue($team->fresh()->agents->contains($sameTenantAgent));
+        $this->assertFalse($team->fresh()->agents->contains($otherTenantAgent));
+    }
+
+    public function test_company_license_returns_current_active_license(): void
+    {
+        $company = Company::create(['name' => 'Tenant A']);
+
+        $activeLicense = $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => now()->subDay()->toDateString(),
+            'ends_at' => now()->addMonth()->toDateString(),
+            'max_calls_per_available_agent' => 4,
+        ]);
+
+        $company->licenses()->create([
+            'status' => 'expired',
+            'starts_at' => now()->addMonth()->toDateString(),
+            'ends_at' => now()->addMonths(2)->toDateString(),
+            'max_calls_per_available_agent' => 9,
+        ]);
+
+        $this->assertSame($activeLicense->id, $company->fresh()->license->id);
+        $this->assertSame(4, $company->license->max_calls_per_available_agent);
+    }
 }

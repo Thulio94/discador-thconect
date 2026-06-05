@@ -12,7 +12,13 @@ class Company extends Model
 {
     public function license(): HasOne
     {
-        return $this->hasOne(CompanyLicense::class)->latestOfMany();
+        return $this->hasOne(CompanyLicense::class)->ofMany(
+            ['starts_at' => 'max', 'id' => 'max'],
+            fn ($query) => $query
+                ->where('status', 'active')
+                ->where('starts_at', '<=', today())
+                ->where('ends_at', '>=', today())
+        );
     }
 
     public function licenses(): HasMany

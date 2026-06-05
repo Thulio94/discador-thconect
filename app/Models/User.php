@@ -48,23 +48,26 @@ class User extends Authenticatable
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class)
+            ->where('teams.company_id', $this->company_id)
             ->withPivot('membership_type')
             ->withTimestamps();
     }
 
     public function hasPermission(string $permissionKey): bool
     {
-        if ($this->is_super_admin || $this->user_type === 'super_admin') {
+        if ($this->is_super_admin) {
             return true;
         }
 
-        if (! $this->role) {
+        $role = $this->role;
+
+        if (! $role || $role->company_id !== $this->company_id) {
             return false;
         }
 
-        return $this->role->permissions()
-            ->where('key', $permissionKey)
-            ->exists();
+        $role->loadMissing('permissions');
+
+        return $role->permissions->contains('key', $permissionKey);
     }
 
     /**
