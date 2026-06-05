@@ -19,12 +19,14 @@ return new class extends Migration
             $table->unsignedInteger('items_per_page')->default(15)->after('theme_preference');
 
             $table->unique(['company_id', 'extension']);
+            $table->unique(['company_id', 'id']);
         });
     }
 
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
+            $table->dropUnique(['company_id', 'id']);
             $table->dropUnique(['company_id', 'extension']);
             $table->dropConstrainedForeignId('role_id');
             $table->dropConstrainedForeignId('company_id');

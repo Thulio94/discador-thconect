@@ -10,12 +10,15 @@ return new class extends Migration
     {
         Schema::create('team_user', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('team_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('company_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('team_id');
+            $table->unsignedBigInteger('user_id');
             $table->string('membership_type');
             $table->timestamps();
 
-            $table->unique(['team_id', 'user_id', 'membership_type']);
+            $table->unique(['company_id', 'team_id', 'user_id', 'membership_type']);
+            $table->foreign(['company_id', 'team_id'])->references(['company_id', 'id'])->on('teams')->cascadeOnDelete();
+            $table->foreign(['company_id', 'user_id'])->references(['company_id', 'id'])->on('users')->cascadeOnDelete();
         });
     }
 

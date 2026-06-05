@@ -8,7 +8,9 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -162,10 +164,12 @@ class SaaSDataModelTest extends TestCase
         ]);
 
         $team->users()->attach($sameTenantAgent, ['membership_type' => 'agent']);
-        $team->users()->attach($otherTenantAgent, ['membership_type' => 'agent']);
 
         $this->assertTrue($team->fresh()->agents->contains($sameTenantAgent));
-        $this->assertFalse($team->fresh()->agents->contains($otherTenantAgent));
+
+        $this->expectException(QueryException::class);
+
+        $team->users()->attach($otherTenantAgent, ['membership_type' => 'agent']);
     }
 
     public function test_company_license_returns_current_active_license(): void
@@ -202,6 +206,54 @@ class SaaSDataModelTest extends TestCase
         Role::create([
             'name' => 'Global Admin Copy',
             'slug' => 'global-admin',
+        ]);
+    }
+
+    public function test_global_role_slug_uniqueness_is_enforced_by_database(): void
+    {
+        DB::table('roles')->insert([
+            'name' => 'Global Admin',
+            'slug' => 'global-admin',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        DB::table('roles')->insert([
+            'name' => 'Global Admin Copy',
+            'slug' => 'global-admin',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function test_cross_tenant_team_membership_is_rejected_by_database(): void
+    {
+        $company = Company::create(['name' => 'Tenant A']);
+        $otherCompany = Company::create(['name' => 'Tenant B']);
+
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Sales',
+            'slug' => 'sales',
+        ]);
+
+        $otherTenantAgent = User::factory()->create([
+            'company_id' => $otherCompany->id,
+            'user_type' => 'agent',
+            'extension' => '1001',
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        DB::table('team_user')->insert([
+            'company_id' => $company->id,
+            'team_id' => $team->id,
+            'user_id' => $otherTenantAgent->id,
+            'membership_type' => 'agent',
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 }

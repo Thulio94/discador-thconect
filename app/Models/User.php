@@ -49,6 +49,7 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Team::class)
             ->where('teams.company_id', $this->company_id)
+            ->withPivotValue('company_id', $this->company_id)
             ->withPivot('membership_type')
             ->withTimestamps();
     }

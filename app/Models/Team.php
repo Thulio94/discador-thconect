@@ -19,6 +19,7 @@ class Team extends Model
     {
         return $this->belongsToMany(User::class)
             ->where('users.company_id', $this->company_id)
+            ->withPivotValue('company_id', $this->company_id)
             ->withPivot('membership_type')
             ->withTimestamps();
     }
