@@ -71,6 +71,26 @@ class User extends Authenticatable
         return $role->permissions->contains('key', $permissionKey);
     }
 
+    public function hasValidTenantAccess(): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        if ($this->status !== 'active' || ! $this->company_id) {
+            return false;
+        }
+
+        $this->loadMissing('company.license');
+        $license = $this->company?->license;
+
+        return $this->company?->status === 'active'
+            && $license
+            && $license->status === 'active'
+            && ! $license->starts_at->isAfter(today())
+            && ! $license->ends_at->isBefore(today());
+    }
+
     /**
      * Get the attributes that should be cast.
      *
