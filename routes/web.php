@@ -9,6 +9,7 @@ use App\Http\Controllers\Tenant\ComingSoonController;
 use App\Http\Controllers\Tenant\ContactListController;
 use App\Http\Controllers\Tenant\NotificationController;
 use App\Http\Controllers\Tenant\RoleController;
+use App\Http\Controllers\Tenant\SupervisionController;
 use App\Http\Controllers\Tenant\TeamController;
 use App\Http\Controllers\Tenant\UserController;
 use Illuminate\Support\Facades\Route;
@@ -40,7 +41,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->name('agent.pause');
         Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->name('agent.calls.store');
         Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->name('agent.calls.end');
-        Route::get('supervision', ComingSoonController::class)->defaults('module', 'supervision')->name('supervision.index');
+        Route::get('supervision', [SupervisionController::class, 'index'])->name('supervision.index');
         Route::get('reports', ComingSoonController::class)->defaults('module', 'reports')->name('reports.index');
         Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
         Route::get('settings', ComingSoonController::class)->defaults('module', 'settings')->name('settings.index');
