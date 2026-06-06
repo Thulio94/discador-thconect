@@ -16,6 +16,7 @@
 
     <label class="grid gap-1 text-sm">
         <span class="font-semibold">Contatos</span>
+        <span class="text-xs" style="color: var(--fg-muted);">Use um contato por linha. Numeros duplicados, invalidos ou na blacklist ativa serao ignorados.</span>
         <textarea
             name="contacts"
             rows="7"

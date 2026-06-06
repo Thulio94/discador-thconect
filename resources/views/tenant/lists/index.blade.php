@@ -10,7 +10,7 @@
         <div class="flex items-center justify-between gap-4">
             <div>
                 <h2 class="text-lg font-semibold">Listas de contatos</h2>
-                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Cada campanha pode usar uma ou varias listas.</p>
+                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Cada campanha pode usar uma ou varias listas. Blacklist aplicada automaticamente.</p>
             </div>
             <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'list-create')">Nova lista</x-ui.button>
         </div>

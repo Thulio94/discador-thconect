@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Models\BlacklistNumber;
 use App\Models\ContactList;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -37,9 +38,9 @@ class ContactListController extends Controller
             'status' => $data['status'],
         ]);
 
-        $this->syncContacts($list, $data['contacts'] ?? '');
+        $summary = $this->syncContacts($list, $data['contacts'] ?? '');
 
-        return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso.');
+        return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso. '.$this->summaryMessage($summary));
     }
 
     public function update(Request $request, ContactList $list): RedirectResponse
@@ -55,10 +56,10 @@ class ContactListController extends Controller
         ]);
 
         if (array_key_exists('contacts', $data)) {
-            $this->syncContacts($list, $data['contacts'] ?? '');
+            $summary = $this->syncContacts($list, $data['contacts'] ?? '');
         }
 
-        return redirect()->route('tenant.lists.index')->with('status', 'Lista atualizada com sucesso.');
+        return redirect()->route('tenant.lists.index')->with('status', 'Lista atualizada com sucesso. '.$this->summaryMessage($summary ?? null));
     }
 
     public function destroy(Request $request, ContactList $list): RedirectResponse
@@ -80,21 +81,51 @@ class ContactListController extends Controller
         ];
     }
 
-    private function syncContacts(ContactList $list, string $contacts): void
+    private function syncContacts(ContactList $list, string $contacts): array
     {
+        $summary = [
+            'imported' => 0,
+            'blocked' => 0,
+            'invalid' => 0,
+            'duplicated' => 0,
+        ];
+        $seen = [];
+        $blockedPhones = BlacklistNumber::query()
+            ->where('company_id', $list->company_id)
+            ->where('status', 'active')
+            ->pluck('phone')
+            ->map(fn (string $phone): string => $this->normalizePhone($phone))
+            ->all();
+
         collect(preg_split('/\r\n|\r|\n/', $contacts) ?: [])
             ->map(fn (string $line): string => trim($line))
             ->filter()
-            ->each(function (string $line) use ($list): void {
+            ->each(function (string $line) use ($list, $blockedPhones, &$seen, &$summary): void {
                 [$name, $phone] = str_contains($line, ';')
                     ? array_pad(array_map('trim', explode(';', $line, 2)), 2, null)
                     : [null, $line];
 
-                $phone = preg_replace('/\D+/', '', (string) $phone);
+                $phone = $this->normalizePhone((string) $phone);
 
-                if ($phone === '') {
+                if (strlen($phone) < 10) {
+                    $summary['invalid']++;
+
                     return;
                 }
+
+                if (in_array($phone, $blockedPhones, true)) {
+                    $summary['blocked']++;
+
+                    return;
+                }
+
+                if (isset($seen[$phone])) {
+                    $summary['duplicated']++;
+
+                    return;
+                }
+
+                $seen[$phone] = true;
 
                 $list->contacts()->updateOrCreate(
                     ['phone' => $phone],
@@ -104,6 +135,29 @@ class ContactListController extends Controller
                         'status' => 'new',
                     ]
                 );
+                $summary['imported']++;
             });
+
+        return $summary;
+    }
+
+    private function normalizePhone(string $phone): string
+    {
+        return preg_replace('/\D+/', '', $phone) ?: '';
+    }
+
+    private function summaryMessage(?array $summary): string
+    {
+        if (! $summary) {
+            return '';
+        }
+
+        return sprintf(
+            '%d contatos importados, %d bloqueado, %d invalido, %d duplicado.',
+            $summary['imported'],
+            $summary['blocked'],
+            $summary['invalid'],
+            $summary['duplicated'],
+        );
     }
 }

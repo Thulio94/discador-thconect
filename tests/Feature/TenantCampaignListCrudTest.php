@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BlacklistNumber;
 use App\Models\Campaign;
 use App\Models\Company;
 use App\Models\ContactList;
@@ -36,6 +37,52 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertTrue($list->contacts()->where('phone', '31999990001')->exists());
     }
 
+    public function test_contact_list_import_sanitizes_deduplicates_and_applies_tenant_blacklist(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        $otherCompany = Company::create(['name' => 'Outra Empresa']);
+
+        BlacklistNumber::create([
+            'company_id' => $admin->company_id,
+            'phone' => '31999990002',
+            'reason' => 'DNC',
+            'status' => 'active',
+        ]);
+        BlacklistNumber::create([
+            'company_id' => $otherCompany->id,
+            'phone' => '31999990003',
+            'reason' => 'Outro tenant',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Higienizada',
+                'description' => 'Com blacklist',
+                'status' => 'active',
+                'contacts' => implode("\n", [
+                    'Maria;(31) 99999-0001',
+                    'Maria duplicada;31999990001',
+                    'Bloqueado;31999990002',
+                    'Outro tenant;31999990003',
+                    'Invalido;12345',
+                ]),
+            ])
+            ->assertRedirect(route('tenant.lists.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '2 contatos importados')
+                && str_contains($message, '1 bloqueado')
+                && str_contains($message, '1 invalido')
+                && str_contains($message, '1 duplicado'));
+
+        $list = ContactList::where('company_id', $admin->company_id)->where('name', 'Lista Higienizada')->sole();
+
+        $this->assertSame(2, $list->contacts()->count());
+        $this->assertTrue($list->contacts()->where('phone', '31999990001')->exists());
+        $this->assertTrue($list->contacts()->where('phone', '31999990003')->exists());
+        $this->assertFalse($list->contacts()->where('phone', '31999990002')->exists());
+        $this->assertFalse($list->contacts()->where('phone', '12345')->exists());
+    }
+
     public function test_tenant_admin_can_view_contact_lists_index(): void
     {
         [$admin] = $this->tenantAdmin();
@@ -50,7 +97,8 @@ class TenantCampaignListCrudTest extends TestCase
             ->get(route('tenant.lists.index'))
             ->assertOk()
             ->assertSee('Lista Existente')
-            ->assertSee('Nova lista');
+            ->assertSee('Nova lista')
+            ->assertSee('Blacklist aplicada automaticamente');
     }
 
     public function test_tenant_admin_can_update_and_inactivate_contact_list(): void
