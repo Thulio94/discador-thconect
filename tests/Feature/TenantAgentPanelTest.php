@@ -7,6 +7,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\Disposition;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
@@ -96,6 +97,22 @@ class TenantAgentPanelTest extends TestCase
     public function test_agent_panel_route_loads_real_panel(): void
     {
         [$agent] = $this->tenantUser('agent');
+        Disposition::create([
+            'company_id' => $agent->company_id,
+            'name' => 'Venda concluida',
+            'code' => 'VENDA',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+        Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990001',
+            'started_at' => now(),
+        ]);
 
         $this->actingAs($agent)
             ->get(route('tenant.agent.index'))
@@ -106,6 +123,8 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('Offline')
             ->assertSee('Chamada simulada')
             ->assertSee('agent-pause')
+            ->assertSee('Venda concluida')
+            ->assertSee('call-disposition')
             ->assertDontSee('Modulo em breve');
     }
 
@@ -135,6 +154,15 @@ class TenantAgentPanelTest extends TestCase
     public function test_agent_can_start_and_end_simulated_call(): void
     {
         [$agent] = $this->tenantUser('agent');
+        $disposition = Disposition::create([
+            'company_id' => $agent->company_id,
+            'name' => 'Cliente comprou',
+            'code' => 'VENDA',
+            'category' => 'success',
+            'status' => 'active',
+            'ends_call' => true,
+            'is_success' => true,
+        ]);
 
         $this->actingAs($agent)
             ->post(route('tenant.agent.calls.store'), ['phone' => '31999990001'])
@@ -149,14 +177,72 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('31999990001', $call->phone);
 
         $this->actingAs($agent)
-            ->patch(route('tenant.agent.calls.end'), ['call_id' => $call->id])
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+                'disposition_notes' => 'Venda validada no simulador',
+            ])
             ->assertRedirect(route('tenant.agent.index'))
             ->assertSessionHas('status');
 
         $agent->refresh();
+        $call->refresh();
 
         $this->assertSame('available', $agent->currentAgentStatus->status);
-        $this->assertSame('ended', $call->fresh()->status);
+        $this->assertSame('ended', $call->status);
+        $this->assertSame($disposition->id, $call->disposition_id);
+        $this->assertSame('VENDA', $call->disposition_code);
+        $this->assertSame('Cliente comprou', $call->disposition_name);
+        $this->assertSame('Venda validada no simulador', $call->disposition_notes);
+        $this->assertTrue($call->disposition->is($disposition));
+    }
+
+    public function test_agent_must_use_active_disposition_from_own_company_to_end_call(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        [$otherAgent] = $this->tenantUser('agent');
+        $otherDisposition = Disposition::create([
+            'company_id' => $otherAgent->company_id,
+            'name' => 'Outra empresa',
+            'code' => 'OUTRA',
+            'category' => 'neutral',
+            'status' => 'active',
+        ]);
+        $inactiveDisposition = Disposition::create([
+            'company_id' => $agent->company_id,
+            'name' => 'Inativa',
+            'code' => 'INATIVA',
+            'category' => 'neutral',
+            'status' => 'inactive',
+        ]);
+        $call = Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), ['call_id' => $call->id])
+            ->assertSessionHasErrors('disposition_id');
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $otherDisposition->id,
+            ])
+            ->assertSessionHasErrors('disposition_id');
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $inactiveDisposition->id,
+            ])
+            ->assertSessionHasErrors('disposition_id');
+
+        $this->assertSame('in_progress', $call->fresh()->status);
     }
 
     private function tenantUser(string $type, ?Company $company = null): array

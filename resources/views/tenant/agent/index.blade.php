@@ -52,12 +52,7 @@
                     </div>
 
                     @if ($currentCall)
-                        <form method="POST" action="{{ route('tenant.agent.calls.end') }}">
-                            @csrf
-                            @method('PATCH')
-                            <input type="hidden" name="call_id" value="{{ $currentCall->id }}">
-                            <x-ui.button type="submit" variant="danger">Encerrar chamada</x-ui.button>
-                        </form>
+                        <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'call-disposition')">Tabular e encerrar</x-ui.button>
                     @else
                         <form method="POST" action="{{ route('tenant.agent.calls.store') }}" class="flex flex-col gap-2 sm:flex-row">
                             @csrf
@@ -141,4 +136,60 @@
             </div>
         </form>
     </x-ui.modal>
+
+    @if ($currentCall)
+        <x-ui.modal name="call-disposition" title="Tabular chamada" max-width="lg">
+            @if ($dispositions->isNotEmpty())
+                <form method="POST" action="{{ route('tenant.agent.calls.end') }}" class="grid gap-4">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="call_id" value="{{ $currentCall->id }}">
+
+                    <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border); background: var(--surface-alt);">
+                        <p class="font-semibold">{{ $currentCall->phone ?? 'Sem numero' }}</p>
+                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">Chamada simulada em andamento.</p>
+                    </div>
+
+                    <label class="grid gap-1 text-sm">
+                        <span class="font-semibold">Resultado</span>
+                        <select
+                            name="disposition_id"
+                            class="rounded-lg border px-3 py-2"
+                            style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                            required
+                        >
+                            @foreach ($dispositions as $disposition)
+                                <option value="{{ $disposition->id }}">{{ $disposition->name }} | {{ $disposition->code }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <label class="grid gap-1 text-sm">
+                        <span class="font-semibold">Observacoes</span>
+                        <textarea
+                            name="disposition_notes"
+                            rows="4"
+                            class="rounded-lg border px-3 py-2"
+                            style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                            placeholder="Resumo do atendimento"
+                        ></textarea>
+                    </label>
+
+                    <div class="flex justify-end gap-2">
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'call-disposition')">Cancelar</x-ui.button>
+                        <x-ui.button type="submit" variant="danger">Salvar tabulacao</x-ui.button>
+                    </div>
+                </form>
+            @else
+                <div class="grid gap-4">
+                    <p class="rounded-lg border p-4 text-sm" style="border-color: var(--border); color: var(--fg-muted);">
+                        Cadastre uma tabulacao ativa em Configuracoes para encerrar chamadas.
+                    </p>
+                    <div class="flex justify-end">
+                        <a href="{{ route('tenant.settings.index') }}" class="th-focus inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold" style="background: var(--primary); color: #fff; border-radius: var(--radius-md);">Abrir configuracoes</a>
+                    </div>
+                </div>
+            @endif
+        </x-ui.modal>
+    @endif
 </x-app-layout>

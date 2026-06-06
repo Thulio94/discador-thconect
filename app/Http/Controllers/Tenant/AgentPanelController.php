@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
+use App\Models\Disposition;
 use App\Models\PauseReason;
 use App\Services\Dialer\AgentCapacityService;
 use Illuminate\Contracts\View\View;
@@ -28,6 +29,12 @@ class AgentPanelController extends Controller
             'pauseReasons' => PauseReason::query()
                 ->where('company_id', $user->company_id)
                 ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
+            'dispositions' => Disposition::query()
+                ->where('company_id', $user->company_id)
+                ->where('status', 'active')
+                ->orderBy('category')
                 ->orderBy('name')
                 ->get(),
         ]);
@@ -111,9 +118,20 @@ class AgentPanelController extends Controller
     {
         $data = $request->validate([
             'call_id' => ['required', Rule::exists('calls', 'id')->where('company_id', $request->user()->company_id)],
+            'disposition_id' => [
+                'required',
+                Rule::exists('dispositions', 'id')
+                    ->where('company_id', $request->user()->company_id)
+                    ->where('status', 'active'),
+            ],
+            'disposition_notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $user = $request->user();
+        $disposition = Disposition::query()
+            ->where('company_id', $user->company_id)
+            ->where('status', 'active')
+            ->findOrFail($data['disposition_id']);
 
         Call::query()
             ->where('company_id', $user->company_id)
@@ -121,6 +139,10 @@ class AgentPanelController extends Controller
             ->where('id', $data['call_id'])
             ->update([
                 'status' => 'ended',
+                'disposition_id' => $disposition->id,
+                'disposition_code' => $disposition->code,
+                'disposition_name' => $disposition->name,
+                'disposition_notes' => $data['disposition_notes'] ?? null,
                 'ended_at' => now(),
             ]);
 
