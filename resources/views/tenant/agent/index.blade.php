@@ -114,13 +114,26 @@
             @method('PATCH')
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">Motivo</span>
-                <input
-                    name="reason"
-                    class="rounded-lg border px-3 py-2"
-                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
-                    placeholder="Pausa almoco"
-                    required
-                >
+                @if ($pauseReasons->isNotEmpty())
+                    <select
+                        name="reason"
+                        class="rounded-lg border px-3 py-2"
+                        style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                        required
+                    >
+                        @foreach ($pauseReasons as $pauseReason)
+                            <option value="{{ $pauseReason->name }}">{{ $pauseReason->name }}</option>
+                        @endforeach
+                    </select>
+                @else
+                    <input
+                        name="reason"
+                        class="rounded-lg border px-3 py-2"
+                        style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                        placeholder="Pausa almoco"
+                        required
+                    >
+                @endif
             </label>
             <div class="mt-5 flex justify-end gap-2">
                 <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'agent-pause')">Cancelar</x-ui.button>

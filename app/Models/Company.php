@@ -61,6 +61,21 @@ class Company extends Model
         return $this->hasMany(Call::class);
     }
 
+    public function pauseReasons(): HasMany
+    {
+        return $this->hasMany(PauseReason::class);
+    }
+
+    public function dispositions(): HasMany
+    {
+        return $this->hasMany(Disposition::class);
+    }
+
+    public function blacklistNumbers(): HasMany
+    {
+        return $this->hasMany(BlacklistNumber::class);
+    }
+
     public function roles(): HasMany
     {
         return $this->hasMany(Role::class);

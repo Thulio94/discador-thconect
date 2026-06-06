@@ -46,7 +46,6 @@ class CoreRoutesTest extends TestCase
 
         $routes = [
             'tenant.telephony.index' => 'Telefonia',
-            'tenant.settings.index' => 'Configuracoes',
             'tenant.integrations.index' => 'Integracoes',
         ];
 
@@ -57,6 +56,17 @@ class CoreRoutesTest extends TestCase
                 ->assertSee($title)
                 ->assertSee('Modulo em breve');
         }
+    }
+
+    public function test_tenant_settings_route_loads_real_module(): void
+    {
+        $user = $this->tenantUser();
+
+        $this->actingAs($user)
+            ->get(route('tenant.settings.index'))
+            ->assertOk()
+            ->assertSee('Configuracoes Operacionais')
+            ->assertDontSee('Modulo em breve');
     }
 
     private function tenantUser(): User

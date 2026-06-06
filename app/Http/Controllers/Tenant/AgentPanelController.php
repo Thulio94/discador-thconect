@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgentPause;
+use App\Models\AgentStatus;
 use App\Models\Call;
+use App\Models\PauseReason;
 use App\Services\Dialer\AgentCapacityService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +25,11 @@ class AgentPanelController extends Controller
             'currentCall' => $user->calls()->where('status', 'in_progress')->latest()->first(),
             'recentStatuses' => $user->agentStatuses()->latest()->limit(8)->get(),
             'availableAgents' => $capacity->availableAgentsForCompany($user->company_id),
+            'pauseReasons' => PauseReason::query()
+                ->where('company_id', $user->company_id)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
@@ -128,13 +136,13 @@ class AgentPanelController extends Controller
 
     private function closeOpenRecords(int $userId, int $companyId): void
     {
-        \App\Models\AgentStatus::query()
+        AgentStatus::query()
             ->where('company_id', $companyId)
             ->where('user_id', $userId)
             ->whereNull('ended_at')
             ->update(['ended_at' => now()]);
 
-        \App\Models\AgentPause::query()
+        AgentPause::query()
             ->where('company_id', $companyId)
             ->where('user_id', $userId)
             ->whereNull('ended_at')
