@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->name('agent.calls.end');
         Route::get('supervision', [SupervisionController::class, 'index'])->name('supervision.index');
         Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
         Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
         Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
         Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->name('settings.pause-reasons.store');

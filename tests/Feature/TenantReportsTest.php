@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
-use App\Models\ContactList;
-use App\Models\AgentStatus;
 use App\Models\Company;
+use App\Models\ContactList;
+use App\Models\Disposition;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -103,7 +104,8 @@ class TenantReportsTest extends TestCase
             ->assertSee('Performance por campanha')
             ->assertSee('Resumo de listas')
             ->assertSee('Ultimas chamadas')
-            ->assertSee('Exportar - Em breve')
+            ->assertSee('Exportar CSV')
+            ->assertDontSee('Exportar - Em breve')
             ->assertSee('31999990010')
             ->assertSee('31999990011');
 
@@ -118,6 +120,80 @@ class TenantReportsTest extends TestCase
             ->assertOk()
             ->assertSee('31999990011')
             ->assertDontSee('31999990010');
+    }
+
+    public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agentA] = $this->tenantUser('agent', $company, 'Agente Export A');
+        [$agentB] = $this->tenantUser('agent', $company, 'Agente Export B');
+        [$otherAgent] = $this->tenantUser('agent', null, 'Agente Export Outra');
+        $campaignA = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Export A', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $campaignB = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Export B', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda exportada',
+            'code' => 'VENDA_EXPORT',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agentA->id,
+            'campaign_id' => $campaignA->id,
+            'disposition_id' => $disposition->id,
+            'disposition_code' => $disposition->code,
+            'disposition_name' => $disposition->name,
+            'disposition_notes' => 'Observacao CSV',
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990100',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agentB->id,
+            'campaign_id' => $campaignB->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990101',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $otherAgent->company_id,
+            'user_id' => $otherAgent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990102',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('tenant.reports.export', [
+                'user_id' => $agentA->id,
+                'campaign_id' => $campaignA->id,
+            ]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->assertDownload('relatorios-chamadas.csv');
+
+        $csv = $response->streamedContent();
+
+        $this->assertStringContainsString('telefone,agente,campanha,status,canal,tabulacao_codigo,tabulacao_nome,observacoes', $csv);
+        $this->assertStringContainsString('31999990100', $csv);
+        $this->assertStringContainsString('Agente Export A', $csv);
+        $this->assertStringContainsString('Campanha Export A', $csv);
+        $this->assertStringContainsString('VENDA_EXPORT', $csv);
+        $this->assertStringContainsString('Observacao CSV', $csv);
+        $this->assertStringNotContainsString('31999990101', $csv);
+        $this->assertStringNotContainsString('31999990102', $csv);
     }
 
     private function tenantUser(string $type, ?Company $company = null, ?string $name = null): array

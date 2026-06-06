@@ -41,7 +41,13 @@
                     </div>
                 </form>
 
-                <span class="w-fit rounded-lg border px-3 py-2 text-xs font-semibold" style="border-color: var(--border); color: var(--fg-muted);">Exportar - Em breve</span>
+                <a
+                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id'])) }}"
+                    class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
+                    style="border-color: var(--border); color: var(--fg);"
+                >
+                    Exportar CSV
+                </a>
             </div>
         </x-ui.card>
 
