@@ -46,6 +46,21 @@ class Company extends Model
         return $this->hasMany(Campaign::class);
     }
 
+    public function agentStatuses(): HasMany
+    {
+        return $this->hasMany(AgentStatus::class);
+    }
+
+    public function agentPauses(): HasMany
+    {
+        return $this->hasMany(AgentPause::class);
+    }
+
+    public function calls(): HasMany
+    {
+        return $this->hasMany(Call::class);
+    }
+
     public function roles(): HasMany
     {
         return $this->hasMany(Role::class);

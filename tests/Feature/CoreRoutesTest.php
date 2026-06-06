@@ -45,7 +45,6 @@ class CoreRoutesTest extends TestCase
         $user = $this->tenantUser();
 
         $routes = [
-            'tenant.agent.index' => 'Agente',
             'tenant.supervision.index' => 'Supervisao',
             'tenant.reports.index' => 'Relatorios',
             'tenant.telephony.index' => 'Telefonia',

@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
+use App\Http\Controllers\Tenant\AgentPanelController;
 use App\Http\Controllers\Tenant\CampaignController;
 use App\Http\Controllers\Tenant\ComingSoonController;
 use App\Http\Controllers\Tenant\ContactListController;
@@ -34,7 +35,11 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
         Route::resource('lists', ContactListController::class)->except(['create', 'show', 'edit']);
         Route::resource('campaigns', CampaignController::class)->except(['create', 'show', 'edit']);
-        Route::get('agent', ComingSoonController::class)->defaults('module', 'agent')->name('agent.index');
+        Route::get('agent', [AgentPanelController::class, 'index'])->name('agent.index');
+        Route::patch('agent/status', [AgentPanelController::class, 'status'])->name('agent.status');
+        Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->name('agent.pause');
+        Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->name('agent.calls.store');
+        Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->name('agent.calls.end');
         Route::get('supervision', ComingSoonController::class)->defaults('module', 'supervision')->name('supervision.index');
         Route::get('reports', ComingSoonController::class)->defaults('module', 'reports')->name('reports.index');
         Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
