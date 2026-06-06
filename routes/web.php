@@ -30,7 +30,13 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
         Route::resource('teams', TeamController::class)->except(['create', 'show', 'edit']);
         Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
-        Route::get('integrations', ComingSoonController::class)->name('integrations.index');
+        Route::get('campaigns', ComingSoonController::class)->defaults('module', 'campaigns')->name('campaigns.index');
+        Route::get('agent', ComingSoonController::class)->defaults('module', 'agent')->name('agent.index');
+        Route::get('supervision', ComingSoonController::class)->defaults('module', 'supervision')->name('supervision.index');
+        Route::get('reports', ComingSoonController::class)->defaults('module', 'reports')->name('reports.index');
+        Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
+        Route::get('settings', ComingSoonController::class)->defaults('module', 'settings')->name('settings.index');
+        Route::get('integrations', ComingSoonController::class)->defaults('module', 'integrations')->name('integrations.index');
         Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
         Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     });

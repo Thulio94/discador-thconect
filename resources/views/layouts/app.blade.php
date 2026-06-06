@@ -3,17 +3,24 @@
     $theme = $user?->theme_preference ?: 'thconectclaro';
     $notifications = $user?->appNotifications()->latest()->limit(8)->get() ?? collect();
     $unreadCount = $user?->appNotifications()->whereNull('read_at')->count() ?? 0;
-    $navItems = [
-        ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
-        ['label' => 'Campanhas', 'href' => '#', 'icon' => 'chat', 'active' => false],
-        ['label' => 'Agente', 'href' => '#', 'icon' => 'users', 'active' => false],
-        ['label' => 'Supervisao', 'href' => '#', 'icon' => 'view', 'active' => false],
-        ['label' => 'Relatorios', 'href' => '#', 'icon' => 'download', 'active' => false],
-        ['label' => 'Cadastros', 'href' => '#', 'icon' => 'add', 'active' => false],
-        ['label' => 'Telefonia', 'href' => '#', 'icon' => 'chat', 'active' => false],
-        ['label' => 'Configuracoes', 'href' => '#', 'icon' => 'lock', 'active' => false],
-        ['label' => 'Integracoes', 'href' => '#', 'icon' => 'open', 'active' => false, 'soon' => true],
-    ];
+    $navItems = $user?->is_super_admin
+        ? [
+            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
+            ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'users', 'active' => request()->routeIs('super-admin.companies.*')],
+        ]
+        : [
+            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
+            ['label' => 'Usuarios', 'href' => route('tenant.users.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.users.*')],
+            ['label' => 'Equipes', 'href' => route('tenant.teams.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.teams.*')],
+            ['label' => 'Perfis', 'href' => route('tenant.roles.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.roles.*')],
+            ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.campaigns.*'), 'soon' => true],
+            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.agent.*'), 'soon' => true],
+            ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*'), 'soon' => true],
+            ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'download', 'active' => request()->routeIs('tenant.reports.*'), 'soon' => true],
+            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'soon' => true],
+            ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.settings.*'), 'soon' => true],
+            ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'soon' => true],
+        ];
 @endphp
 
 <!DOCTYPE html>
