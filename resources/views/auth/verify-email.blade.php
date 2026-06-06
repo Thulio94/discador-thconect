@@ -1,30 +1,28 @@
 <x-guest-layout>
-    <div class="mb-4 text-sm text-gray-600">
-        {{ __('Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you? If you didn\'t receive the email, we will gladly send you another.') }}
+    <div class="mx-auto flex max-w-[312px] flex-col items-center text-center">
+        <x-application-logo class="h-24 w-24" />
+        <h1 class="mt-5 text-2xl font-semibold" style="color: var(--fg);">Verificar e-mail</h1>
+        <p class="mt-2 text-sm leading-5" style="color: var(--fg-muted);">
+            Enviamos um link para confirmar seu endereco de e-mail.
+        </p>
     </div>
 
     @if (session('status') == 'verification-link-sent')
-        <div class="mb-4 font-medium text-sm text-green-600">
-            {{ __('A new verification link has been sent to the email address you provided during registration.') }}
+        <div class="mt-6 rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
+            Novo link enviado para seu e-mail.
         </div>
     @endif
 
-    <div class="mt-4 flex items-center justify-between">
+    <div class="mt-7 flex items-center justify-between gap-4">
         <form method="POST" action="{{ route('verification.send') }}">
             @csrf
-
-            <div>
-                <x-primary-button>
-                    {{ __('Resend Verification Email') }}
-                </x-primary-button>
-            </div>
+            <x-ui.button type="submit">Reenviar link</x-ui.button>
         </form>
 
         <form method="POST" action="{{ route('logout') }}">
             @csrf
-
-            <button type="submit" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                {{ __('Log Out') }}
+            <button type="submit" class="text-sm font-medium text-blue-600 underline-offset-4 hover:underline">
+                Sair
             </button>
         </form>
     </div>
