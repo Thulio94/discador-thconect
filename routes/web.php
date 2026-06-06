@@ -8,6 +8,7 @@ use App\Http\Controllers\Tenant\CampaignController;
 use App\Http\Controllers\Tenant\ComingSoonController;
 use App\Http\Controllers\Tenant\ContactListController;
 use App\Http\Controllers\Tenant\NotificationController;
+use App\Http\Controllers\Tenant\ReportController;
 use App\Http\Controllers\Tenant\RoleController;
 use App\Http\Controllers\Tenant\SupervisionController;
 use App\Http\Controllers\Tenant\TeamController;
@@ -42,7 +43,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->name('agent.calls.store');
         Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->name('agent.calls.end');
         Route::get('supervision', [SupervisionController::class, 'index'])->name('supervision.index');
-        Route::get('reports', ComingSoonController::class)->defaults('module', 'reports')->name('reports.index');
+        Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
         Route::get('settings', ComingSoonController::class)->defaults('module', 'settings')->name('settings.index');
         Route::get('integrations', ComingSoonController::class)->defaults('module', 'integrations')->name('integrations.index');
