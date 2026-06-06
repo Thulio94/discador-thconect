@@ -33,4 +33,11 @@ class Team extends Model
     {
         return $this->users()->wherePivot('membership_type', 'supervisor');
     }
+
+    public function campaigns(): BelongsToMany
+    {
+        return $this->belongsToMany(Campaign::class)
+            ->withPivot('company_id')
+            ->withTimestamps();
+    }
 }

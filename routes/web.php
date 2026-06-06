@@ -3,7 +3,9 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
+use App\Http\Controllers\Tenant\CampaignController;
 use App\Http\Controllers\Tenant\ComingSoonController;
+use App\Http\Controllers\Tenant\ContactListController;
 use App\Http\Controllers\Tenant\NotificationController;
 use App\Http\Controllers\Tenant\RoleController;
 use App\Http\Controllers\Tenant\TeamController;
@@ -30,7 +32,8 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
         Route::resource('teams', TeamController::class)->except(['create', 'show', 'edit']);
         Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
-        Route::get('campaigns', ComingSoonController::class)->defaults('module', 'campaigns')->name('campaigns.index');
+        Route::resource('lists', ContactListController::class)->except(['create', 'show', 'edit']);
+        Route::resource('campaigns', CampaignController::class)->except(['create', 'show', 'edit']);
         Route::get('agent', ComingSoonController::class)->defaults('module', 'agent')->name('agent.index');
         Route::get('supervision', ComingSoonController::class)->defaults('module', 'supervision')->name('supervision.index');
         Route::get('reports', ComingSoonController::class)->defaults('module', 'reports')->name('reports.index');

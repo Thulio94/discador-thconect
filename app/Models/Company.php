@@ -36,6 +36,16 @@ class Company extends Model
         return $this->hasMany(Team::class);
     }
 
+    public function contactLists(): HasMany
+    {
+        return $this->hasMany(ContactList::class);
+    }
+
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(Campaign::class);
+    }
+
     public function roles(): HasMany
     {
         return $this->hasMany(Role::class);
