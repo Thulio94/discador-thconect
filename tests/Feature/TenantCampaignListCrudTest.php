@@ -202,6 +202,88 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame('finished', $campaign->fresh()->status);
     }
 
+    public function test_tenant_admin_can_run_operational_campaign_actions_and_duplicate_campaign(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Operacional']);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Operacional',
+            'dialing_mode' => 'preview',
+            'status' => 'draft',
+            'priority' => 3,
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.start', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame('active', $campaign->fresh()->status);
+        $this->assertNotNull($campaign->fresh()->starts_at);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.pause', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame('paused', $campaign->fresh()->status);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.restart', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame('active', $campaign->fresh()->status);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.duplicate', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $copy = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Operacional - copia')->sole();
+
+        $this->assertSame('draft', $copy->status);
+        $this->assertSame('preview', $copy->dialing_mode);
+        $this->assertSame(3, $copy->priority);
+        $this->assertSame([$team->id], $copy->teams()->pluck('teams.id')->all());
+        $this->assertSame([$list->id], $copy->contactLists()->pluck('contact_lists.id')->all());
+
+        $this->actingAs($admin)
+            ->delete(route('tenant.campaigns.destroy', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $campaign->refresh();
+
+        $this->assertSame('finished', $campaign->status);
+        $this->assertNotNull($campaign->ends_at);
+    }
+
+    public function test_campaign_operational_actions_are_tenant_scoped(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        $otherCompany = Company::create(['name' => 'Outra Empresa']);
+        $otherCampaign = Campaign::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Campanha de Outro Tenant',
+            'dialing_mode' => 'preview',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.start', $otherCampaign))
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.duplicate', $otherCampaign))
+            ->assertForbidden();
+
+        $this->assertSame('draft', $otherCampaign->fresh()->status);
+    }
+
     public function test_campaign_cannot_use_team_or_list_from_another_company(): void
     {
         [$admin] = $this->tenantAdmin();

@@ -24,14 +24,76 @@
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                                 {{ $campaign->teams->count() }} equipes | {{ $campaign->contactLists->count() }} listas | Modo {{ $campaign->dialing_mode }}
                             </p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                Inicio {{ $campaign->starts_at?->format('d/m/Y H:i') ?? 'nao iniciado' }} | Fim {{ $campaign->ends_at?->format('d/m/Y H:i') ?? 'em aberto' }}
+                            </p>
                         </div>
                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $campaign->status }}</span>
                     </div>
                     <div class="mt-4 flex flex-wrap justify-end gap-2">
+                        @if ($campaign->status === 'draft')
+                            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-start-{{ $campaign->id }}')">Iniciar</x-ui.button>
+                        @endif
+                        @if ($campaign->status === 'active')
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-pause-{{ $campaign->id }}')">Pausar</x-ui.button>
+                        @endif
+                        @if ($campaign->status === 'paused')
+                            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-restart-{{ $campaign->id }}')">Reiniciar</x-ui.button>
+                        @endif
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-duplicate-{{ $campaign->id }}')">Duplicar</x-ui.button>
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-edit-{{ $campaign->id }}')">Editar</x-ui.button>
-                        <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'campaign-finish-{{ $campaign->id }}')">Finalizar</x-ui.button>
+                        @if ($campaign->status !== 'finished')
+                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'campaign-finish-{{ $campaign->id }}')">Finalizar</x-ui.button>
+                        @endif
                     </div>
                 </div>
+
+                <x-ui.modal name="campaign-start-{{ $campaign->id }}" title="Iniciar campanha" max-width="md">
+                    <form method="POST" action="{{ route('tenant.campaigns.start', $campaign) }}">
+                        @csrf
+                        @method('PATCH')
+                        <p class="text-sm" style="color: var(--fg-muted);">A campanha ficara ativa para operacao simulada.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-start-{{ $campaign->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">Iniciar campanha</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
+
+                <x-ui.modal name="campaign-pause-{{ $campaign->id }}" title="Pausar campanha" max-width="md">
+                    <form method="POST" action="{{ route('tenant.campaigns.pause', $campaign) }}">
+                        @csrf
+                        @method('PATCH')
+                        <p class="text-sm" style="color: var(--fg-muted);">A campanha sera pausada sem perder listas e equipes vinculadas.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-pause-{{ $campaign->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit" variant="secondary">Pausar campanha</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
+
+                <x-ui.modal name="campaign-restart-{{ $campaign->id }}" title="Reiniciar campanha" max-width="md">
+                    <form method="POST" action="{{ route('tenant.campaigns.restart', $campaign) }}">
+                        @csrf
+                        @method('PATCH')
+                        <p class="text-sm" style="color: var(--fg-muted);">A campanha voltara para ativa na operacao simulada.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-restart-{{ $campaign->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">Reiniciar campanha</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
+
+                <x-ui.modal name="campaign-duplicate-{{ $campaign->id }}" title="Duplicar campanha" max-width="md">
+                    <form method="POST" action="{{ route('tenant.campaigns.duplicate', $campaign) }}">
+                        @csrf
+                        <p class="text-sm" style="color: var(--fg-muted);">Sera criada uma copia em rascunho com as mesmas equipes e listas.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-duplicate-{{ $campaign->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">Duplicar campanha</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
 
                 <x-ui.modal name="campaign-edit-{{ $campaign->id }}" title="Editar campanha">
                     <form method="POST" action="{{ route('tenant.campaigns.update', $campaign) }}">

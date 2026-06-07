@@ -120,13 +120,14 @@ Status: basico funcional, ainda nao completo.
 - [x] Sanitizacao de telefones.
 - [x] Deduplicacao simples.
 - [x] Blacklist aplicada na importacao.
+- [x] Acoes de campanha: iniciar, pausar, reiniciar, finalizar e duplicar.
+- [x] Status operacional da campanha na listagem.
 
 Pendencias criticas:
 
 - [ ] Wizard completo de campanha.
 - [ ] Etapas: basico, modo de discagem, AMD/tentativas, rotas, agenda e revisao.
-- [ ] Acoes de campanha: iniciar, pausar, reiniciar, reciclar mailing e duplicar.
-- [ ] Status operacional da campanha.
+- [ ] Reciclar mailing.
 - [ ] Agenda operacional por dia/horario.
 - [ ] Peso por lista.
 - [ ] Controle de tentativas por contato.
@@ -250,9 +251,11 @@ Itens futuros:
 
 Objetivo: transformar campanha basica em campanha operacional.
 
-1. Criar status operacional: rascunho, ativa, pausada, finalizada.
-2. Criar acoes iniciar, pausar, reiniciar e finalizar.
-3. Criar duplicacao de campanha.
+Status: parcialmente concluida em 2026-06-07.
+
+1. [x] Criar status operacional: rascunho, ativa, pausada, finalizada.
+2. [x] Criar acoes iniciar, pausar, reiniciar e finalizar.
+3. [x] Criar duplicacao de campanha.
 4. Criar agenda operacional simples.
 5. Exibir progresso da campanha na listagem.
 
@@ -369,17 +372,19 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Campanhas Operacionais + Status + Acoes
+Mailing e Fila de Trabalho
 ```
 
-Motivo: sem campanha ativa/pausada/finalizada e sem controle operacional, nao vale ainda criar pacing/fila mais complexa. Esse modulo destrava as proximas etapas.
+Motivo: as campanhas ja possuem ciclo operacional basico. Agora falta transformar contatos importados em uma fila discavel com status, tentativas, cooldown e reciclagem.
 
 Entregaveis desse proximo plano:
 
-- status operacional de campanha;
-- botoes em modal para iniciar, pausar, reiniciar e finalizar;
-- duplicar campanha;
-- indicadores basicos na lista;
+- status operacional por contato;
+- tentativas e ultimo resultado;
+- cooldown entre tentativas;
+- fila de trabalho por campanha/lista;
+- reciclagem de contatos improdutivos;
+- peso por lista;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -392,4 +397,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-06-reports-simulated-design.md`
 - `docs/superpowers/specs/2026-06-06-operational-settings-design.md`
 - `docs/superpowers/specs/2026-06-07-manual-extension-calls-design.md`
-
+- `docs/superpowers/specs/2026-06-07-campaign-operational-actions-design.md`

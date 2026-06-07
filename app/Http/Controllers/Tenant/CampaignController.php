@@ -70,9 +70,69 @@ class CampaignController extends Controller
     {
         abort_unless($campaign->company_id === $request->user()->company_id, 403);
 
-        $campaign->update(['status' => 'finished']);
+        $campaign->update([
+            'status' => 'finished',
+            'ends_at' => now(),
+        ]);
 
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha finalizada com sucesso.');
+    }
+
+    public function start(Request $request, Campaign $campaign): RedirectResponse
+    {
+        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        $campaign->update([
+            'status' => 'active',
+            'starts_at' => $campaign->starts_at ?? now(),
+            'ends_at' => null,
+        ]);
+
+        return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha iniciada com sucesso.');
+    }
+
+    public function pause(Request $request, Campaign $campaign): RedirectResponse
+    {
+        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        $campaign->update(['status' => 'paused']);
+
+        return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha pausada com sucesso.');
+    }
+
+    public function restart(Request $request, Campaign $campaign): RedirectResponse
+    {
+        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        $campaign->update([
+            'status' => 'active',
+            'starts_at' => $campaign->starts_at ?? now(),
+            'ends_at' => null,
+        ]);
+
+        return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha reiniciada com sucesso.');
+    }
+
+    public function duplicate(Request $request, Campaign $campaign): RedirectResponse
+    {
+        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        $copy = Campaign::create([
+            'company_id' => $campaign->company_id,
+            'name' => $this->copyName($campaign),
+            'description' => $campaign->description,
+            'dialing_mode' => $campaign->dialing_mode,
+            'status' => 'draft',
+            'priority' => $campaign->priority,
+        ]);
+
+        $this->syncRelations(
+            $copy,
+            $campaign->teams()->pluck('teams.id')->all(),
+            $campaign->contactLists()->pluck('contact_lists.id')->all()
+        );
+
+        return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha duplicada com sucesso.');
     }
 
     private function rules(int $companyId, ?Campaign $campaign = null): array
@@ -99,5 +159,19 @@ class CampaignController extends Controller
         $campaign->contactLists()->sync(
             collect($listIds)->mapWithKeys(fn ($id): array => [(int) $id => ['company_id' => $campaign->company_id]])->all()
         );
+    }
+
+    private function copyName(Campaign $campaign): string
+    {
+        $baseName = $campaign->name.' - copia';
+        $name = $baseName;
+        $counter = 2;
+
+        while (Campaign::query()->where('company_id', $campaign->company_id)->where('name', $name)->exists()) {
+            $name = $baseName.' '.$counter;
+            $counter++;
+        }
+
+        return $name;
     }
 }

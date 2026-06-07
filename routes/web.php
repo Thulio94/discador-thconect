@@ -37,6 +37,10 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::resource('teams', TeamController::class)->except(['create', 'show', 'edit']);
         Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
         Route::resource('lists', ContactListController::class)->except(['create', 'show', 'edit']);
+        Route::patch('campaigns/{campaign}/start', [CampaignController::class, 'start'])->name('campaigns.start');
+        Route::patch('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('campaigns.pause');
+        Route::patch('campaigns/{campaign}/restart', [CampaignController::class, 'restart'])->name('campaigns.restart');
+        Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])->name('campaigns.duplicate');
         Route::resource('campaigns', CampaignController::class)->except(['create', 'show', 'edit']);
         Route::get('agent', [AgentPanelController::class, 'index'])->name('agent.index');
         Route::patch('agent/status', [AgentPanelController::class, 'status'])->name('agent.status');
