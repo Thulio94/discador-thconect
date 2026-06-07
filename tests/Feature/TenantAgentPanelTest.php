@@ -130,6 +130,79 @@ class TenantAgentPanelTest extends TestCase
             ->assertDontSee('Modulo em breve');
     }
 
+    public function test_agent_panel_shows_current_contact_campaign_and_contact_history(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista Ouro',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Cliente Ficha',
+            'phone' => '31999990030',
+            'status' => 'dialing',
+            'attempts_count' => 2,
+            'last_result' => 'SEM_RESPOSTA',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Ficha',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Sem resposta',
+            'code' => 'SEM_RESPOSTA',
+            'category' => 'unproductive',
+            'status' => 'active',
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'disposition_id' => $disposition->id,
+            'disposition_code' => $disposition->code,
+            'disposition_name' => $disposition->name,
+            'disposition_notes' => 'Nao atendeu ontem',
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => $contact->phone,
+            'started_at' => now()->subDay(),
+            'ended_at' => now()->subDay()->addMinutes(2),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => $contact->phone,
+            'started_at' => now(),
+            'answered_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('Ficha do contato')
+            ->assertSee('Cliente Ficha')
+            ->assertSee('31999990030')
+            ->assertSee('Campanha Ficha')
+            ->assertSee('Lista Ouro')
+            ->assertSee('Tentativas')
+            ->assertSee('2')
+            ->assertSee('Historico do contato')
+            ->assertSee('Sem resposta')
+            ->assertSee('Nao atendeu ontem');
+    }
+
     public function test_agent_can_change_status_to_available_and_pause(): void
     {
         [$agent] = $this->tenantUser('agent');

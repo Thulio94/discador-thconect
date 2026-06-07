@@ -98,15 +98,17 @@ Status: MVP simulado funcional.
 - [x] Tabulacao obrigatoria para encerrar chamada.
 - [x] Supervisores e administradores podem fazer chamada manual sem contar como agente disponivel.
 - [x] Agentes voltam para disponivel apos encerrar chamada.
+- [x] Ficha do contato atual.
+- [x] Campanha e lista atual no painel do agente.
+- [x] Historico recente do contato.
 
 Pendencias importantes:
 
-- [ ] Ficha do contato atual.
 - [ ] Script de atendimento.
 - [ ] Campos dinamicos/formulario da campanha.
 - [ ] Agendamento de retorno publico ou privado.
 - [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
-- [ ] Historico de chamadas recentes no painel.
+- [ ] Historico geral de chamadas recentes no painel.
 
 ### Campanhas e Listas
 
@@ -299,12 +301,14 @@ Resultado esperado: campanha ativa gera chamadas simuladas para agentes disponiv
 
 Objetivo: entregar a experiencia operacional do agente.
 
-1. Exibir ficha do contato.
-2. Exibir campanha/lista atual.
-3. Exibir script de atendimento.
+Status: parcialmente concluida em 2026-06-07.
+
+1. [x] Exibir ficha do contato.
+2. [x] Exibir campanha/lista atual.
+3. [ ] Exibir script de atendimento.
 4. Permitir campos de anotacao/formulario.
 5. Criar callback publico/privado.
-6. Mostrar historico recente do contato.
+6. [x] Mostrar historico recente do contato.
 
 Resultado esperado: agente consegue atender, registrar resultado e agendar retorno.
 
@@ -381,18 +385,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Painel do Agente Completo
+Script de Atendimento e Anotacoes
 ```
 
-Motivo: a discagem simulada ja cria chamada com campanha e contato. Agora falta mostrar a ficha do contato, campanha/lista atual, script e historico no painel do agente.
+Motivo: a ficha do contato e o historico ja aparecem para o agente. Agora falta orientar o atendimento com script e registrar informacoes de forma estruturada.
 
 Entregaveis desse proximo plano:
 
-- ficha do contato atual;
-- campanha e lista atual na chamada;
-- script de atendimento;
-- historico recente do contato;
-- anotacoes e campos basicos do atendimento;
+- script de atendimento visivel na chamada;
+- anotacoes estruturadas no encerramento;
+- campos basicos por atendimento;
+- persistencia das informacoes na chamada;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -408,3 +411,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-campaign-operational-actions-design.md`
 - `docs/superpowers/specs/2026-06-07-mailing-queue-design.md`
 - `docs/superpowers/specs/2026-06-07-simulated-campaign-dialer-design.md`
+- `docs/superpowers/specs/2026-06-07-agent-contact-card-design.md`

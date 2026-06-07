@@ -20,10 +20,25 @@ class AgentPanelController extends Controller
     {
         $user = $request->user();
         $user->loadMissing(['currentAgentStatus', 'agentPauses', 'calls']);
+        $currentCall = $user->calls()
+            ->where('status', 'in_progress')
+            ->with(['campaign', 'contact.contactList'])
+            ->latest()
+            ->first();
 
         return view('tenant.agent.index', [
             'currentStatus' => $user->currentAgentStatus?->status ?? 'offline',
-            'currentCall' => $user->calls()->where('status', 'in_progress')->latest()->first(),
+            'currentCall' => $currentCall,
+            'contactHistory' => $currentCall?->contact_id
+                ? Call::query()
+                    ->where('company_id', $user->company_id)
+                    ->where('contact_id', $currentCall->contact_id)
+                    ->where('id', '!=', $currentCall->id)
+                    ->with(['campaign', 'disposition'])
+                    ->latest('started_at')
+                    ->limit(5)
+                    ->get()
+                : collect(),
             'recentStatuses' => $user->agentStatuses()->latest()->limit(8)->get(),
             'availableAgents' => $capacity->availableAgentsForCompany($user->company_id),
             'pauseReasons' => PauseReason::query()

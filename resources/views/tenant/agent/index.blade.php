@@ -68,6 +68,62 @@
                     @endif
                 </div>
             </x-ui.card>
+
+            @if ($currentCall?->contact)
+                <x-ui.card>
+                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                        <div>
+                            <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Ficha do contato</p>
+                            <h2 class="mt-1 text-xl font-bold">{{ $currentCall->contact->name ?? 'Contato sem nome' }}</h2>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $currentCall->contact->phone }}</p>
+
+                            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                                <div class="rounded-lg border p-3" style="border-color: var(--border);">
+                                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Campanha</p>
+                                    <p class="mt-1 text-sm font-semibold">{{ $currentCall->campaign?->name ?? 'Sem campanha' }}</p>
+                                </div>
+                                <div class="rounded-lg border p-3" style="border-color: var(--border);">
+                                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Lista</p>
+                                    <p class="mt-1 text-sm font-semibold">{{ $currentCall->contact->contactList?->name ?? 'Sem lista' }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <div class="rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
+                                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tentativas</p>
+                                <p class="mt-1 text-2xl font-bold">{{ $currentCall->contact->attempts_count }}</p>
+                            </div>
+                            <div class="rounded-lg border p-3" style="border-color: var(--border);">
+                                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Ultimo resultado</p>
+                                <p class="mt-1 text-sm font-semibold">{{ $currentCall->contact->last_result ?? 'Sem registro' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </x-ui.card>
+
+                <x-ui.card>
+                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Historico do contato</p>
+                    <div class="mt-4 grid gap-2">
+                        @forelse ($contactHistory as $historyCall)
+                            <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <span class="font-semibold">{{ $historyCall->disposition_name ?? 'Sem tabulacao' }}</span>
+                                    <span class="text-xs" style="color: var(--fg-muted);">{{ $historyCall->started_at?->format('d/m H:i') ?? 'sem data' }}</span>
+                                </div>
+                                <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                    {{ $historyCall->campaign?->name ?? 'Sem campanha' }}
+                                    @if ($historyCall->disposition_notes)
+                                        | {{ $historyCall->disposition_notes }}
+                                    @endif
+                                </p>
+                            </div>
+                        @empty
+                            <p class="text-sm" style="color: var(--fg-muted);">Nenhum historico anterior para este contato.</p>
+                        @endforelse
+                    </div>
+                </x-ui.card>
+            @endif
         </div>
 
         <div class="grid gap-4">
