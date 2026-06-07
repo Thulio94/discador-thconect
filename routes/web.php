@@ -41,6 +41,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::patch('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('campaigns.pause');
         Route::patch('campaigns/{campaign}/restart', [CampaignController::class, 'restart'])->name('campaigns.restart');
         Route::patch('campaigns/{campaign}/recycle', [CampaignController::class, 'recycle'])->name('campaigns.recycle');
+        Route::patch('campaigns/{campaign}/dial', [CampaignController::class, 'dial'])->name('campaigns.dial');
         Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])->name('campaigns.duplicate');
         Route::resource('campaigns', CampaignController::class)->except(['create', 'show', 'edit']);
         Route::get('agent', [AgentPanelController::class, 'index'])->name('agent.index');

@@ -397,6 +397,56 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_tenant_admin_can_trigger_simulated_campaign_dialer_from_campaign(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $agent = User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $admin->role_id,
+            'user_type' => 'agent',
+            'extension' => '1300',
+            'status' => 'active',
+        ]);
+        $team->users()->attach($agent, ['company_id' => $admin->company_id, 'membership_type' => 'agent']);
+        $agent->agentStatuses()->create([
+            'company_id' => $admin->company_id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Discador', 'status' => 'active']);
+        $contact = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lead Acionado',
+            'phone' => '31999990020',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Acionamento',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.dial', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 chamada simulada'));
+
+        $this->assertDatabaseHas('calls', [
+            'company_id' => $admin->company_id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990020',
+        ]);
+        $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame('dialing', $contact->fresh()->status);
+    }
+
     public function test_campaign_cannot_use_team_or_list_from_another_company(): void
     {
         [$admin] = $this->tenantAdmin();

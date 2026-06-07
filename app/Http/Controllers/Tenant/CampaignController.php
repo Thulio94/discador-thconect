@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Models\Team;
 use App\Services\Dialer\MailingQueueService;
+use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -153,6 +154,17 @@ class CampaignController extends Controller
         return redirect()
             ->route('tenant.campaigns.index')
             ->with('status', sprintf('%d contato reciclado para a fila da campanha.', $count));
+    }
+
+    public function dial(Request $request, Campaign $campaign, SimulatedDialerService $dialer): RedirectResponse
+    {
+        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        $count = $dialer->runCampaign($campaign);
+
+        return redirect()
+            ->route('tenant.campaigns.index')
+            ->with('status', sprintf('%d chamada simulada criada para agentes disponiveis.', $count));
     }
 
     private function rules(int $companyId, ?Campaign $campaign = null): array

@@ -7,11 +7,13 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\ContactList;
 use App\Models\Disposition;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -293,6 +295,84 @@ class TenantAgentPanelTest extends TestCase
             ->assertSessionHasErrors('disposition_id');
 
         $this->assertSame('in_progress', $call->fresh()->status);
+    }
+
+    public function test_simulated_dialer_creates_campaign_call_for_available_agent_and_contact(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $team = Team::create(['company_id' => $company->id, 'name' => 'Fila Ativa', 'slug' => 'fila-ativa']);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Mailing Ativo', 'status' => 'active']);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Discador',
+            'phone' => '31999990010',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Discador',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $campaign->teams()->sync([$team->id => ['company_id' => $company->id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        $status = AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'available', 'started_at' => now()]);
+
+        $created = app(SimulatedDialerService::class)->runCampaign($campaign);
+
+        $call = Call::where('campaign_id', $campaign->id)->sole();
+
+        $this->assertSame(1, $created);
+        $this->assertSame($agent->id, $call->user_id);
+        $this->assertSame($contact->id, $call->contact_id);
+        $this->assertSame('31999990010', $call->phone);
+        $this->assertSame('in_progress', $call->status);
+        $this->assertSame('simulated', $call->channel);
+        $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
+        $this->assertNotNull($status->fresh()->ended_at);
+        $this->assertSame('dialing', $contact->fresh()->status);
+        $this->assertSame(1, $contact->fresh()->attempts_count);
+    }
+
+    public function test_simulated_dialer_does_not_assign_new_call_to_agent_with_untabulated_call(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $team = Team::create(['company_id' => $company->id, 'name' => 'Fila Bloqueada', 'slug' => 'fila-bloqueada']);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Mailing Bloqueado', 'status' => 'active']);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Pendente',
+            'phone' => '31999990011',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Bloqueada',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $campaign->teams()->sync([$team->id => ['company_id' => $company->id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'available', 'started_at' => now()]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990000',
+            'started_at' => now(),
+        ]);
+
+        $created = app(SimulatedDialerService::class)->runCampaign($campaign);
+
+        $this->assertSame(0, $created);
+        $this->assertSame('pending', $contact->fresh()->status);
+        $this->assertSame(1, Call::where('company_id', $company->id)->count());
     }
 
     private function tenantUser(string $type, ?Company $company = null): array

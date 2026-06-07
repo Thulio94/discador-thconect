@@ -44,6 +44,7 @@
                             <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-start-{{ $campaign->id }}')">Iniciar</x-ui.button>
                         @endif
                         @if ($campaign->status === 'active')
+                            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-dial-{{ $campaign->id }}')">Rodar discagem</x-ui.button>
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-pause-{{ $campaign->id }}')">Pausar</x-ui.button>
                         @endif
                         @if ($campaign->status === 'paused')
@@ -78,6 +79,18 @@
                         <div class="mt-5 flex justify-end gap-2">
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-pause-{{ $campaign->id }}')">Cancelar</x-ui.button>
                             <x-ui.button type="submit" variant="secondary">Pausar campanha</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
+
+                <x-ui.modal name="campaign-dial-{{ $campaign->id }}" title="Rodar discagem simulada" max-width="md">
+                    <form method="POST" action="{{ route('tenant.campaigns.dial', $campaign) }}">
+                        @csrf
+                        @method('PATCH')
+                        <p class="text-sm" style="color: var(--fg-muted);">A campanha buscara contatos pendentes e agentes disponiveis para criar chamadas simuladas.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-dial-{{ $campaign->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">Rodar discagem</x-ui.button>
                         </div>
                     </form>
                 </x-ui.modal>

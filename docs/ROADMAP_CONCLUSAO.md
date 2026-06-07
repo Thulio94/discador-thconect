@@ -105,7 +105,7 @@ Pendencias importantes:
 - [ ] Script de atendimento.
 - [ ] Campos dinamicos/formulario da campanha.
 - [ ] Agendamento de retorno publico ou privado.
-- [ ] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
+- [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
 - [ ] Historico de chamadas recentes no painel.
 
 ### Campanhas e Listas
@@ -128,6 +128,9 @@ Status: basico funcional, ainda nao completo.
 - [x] Fila de trabalho simulada por campanha.
 - [x] Peso por lista.
 - [x] Reciclar mailing improdutivo/callback/esgotado.
+- [x] Discagem simulada por campanha ativa.
+- [x] Chamada simulada vinculada a campanha e contato.
+- [x] Bloqueio de nova chamada para agente com chamada sem tabulacao.
 
 Pendencias criticas:
 
@@ -282,11 +285,13 @@ Resultado esperado: campanha consegue selecionar o proximo contato de forma cont
 
 Objetivo: simular o discador antes da telefonia real.
 
-1. Criar servico `SimulatedDialerService`.
-2. Calcular capacidade por campanha.
-3. Gerar chamadas simuladas respeitando agentes disponiveis.
-4. Amarrar chamada ao contato e campanha.
-5. Evitar nova chamada para agente com chamada sem tabulacao.
+Status: concluida para a base do MVP simulado em 2026-06-07.
+
+1. [x] Criar servico `SimulatedDialerService`.
+2. [x] Calcular capacidade por campanha.
+3. [x] Gerar chamadas simuladas respeitando agentes disponiveis.
+4. [x] Amarrar chamada ao contato e campanha.
+5. [x] Evitar nova chamada para agente com chamada sem tabulacao.
 
 Resultado esperado: campanha ativa gera chamadas simuladas para agentes disponiveis.
 
@@ -376,18 +381,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Discagem Simulada por Campanha
+Painel do Agente Completo
 ```
 
-Motivo: as campanhas ja possuem ciclo operacional basico e fila de contatos. Agora falta gerar chamadas simuladas respeitando agentes disponiveis, campanha ativa, cooldown e tabulacao obrigatoria.
+Motivo: a discagem simulada ja cria chamada com campanha e contato. Agora falta mostrar a ficha do contato, campanha/lista atual, script e historico no painel do agente.
 
 Entregaveis desse proximo plano:
 
-- servico `SimulatedDialerService`;
-- selecao do proximo contato pela fila;
-- criacao de chamada simulada vinculada a campanha e contato;
-- respeito a capacidade por campanha;
-- bloqueio de nova chamada para agente com chamada sem tabulacao;
+- ficha do contato atual;
+- campanha e lista atual na chamada;
+- script de atendimento;
+- historico recente do contato;
+- anotacoes e campos basicos do atendimento;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -402,3 +407,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-manual-extension-calls-design.md`
 - `docs/superpowers/specs/2026-06-07-campaign-operational-actions-design.md`
 - `docs/superpowers/specs/2026-06-07-mailing-queue-design.md`
+- `docs/superpowers/specs/2026-06-07-simulated-campaign-dialer-design.md`
