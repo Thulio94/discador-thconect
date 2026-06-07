@@ -132,7 +132,7 @@ class ContactListController extends Controller
                     [
                         'company_id' => $list->company_id,
                         'name' => $name ?: null,
-                        'status' => 'new',
+                        'status' => 'pending',
                     ]
                 );
                 $summary['imported']++;

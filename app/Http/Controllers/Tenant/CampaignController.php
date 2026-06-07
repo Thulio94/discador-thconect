@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Models\Team;
+use App\Services\Dialer\MailingQueueService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,12 +18,18 @@ class CampaignController extends Controller
     {
         $companyId = $request->user()->company_id;
 
+        $campaigns = Campaign::query()
+            ->where('company_id', $companyId)
+            ->with(['teams', 'contactLists'])
+            ->latest()
+            ->paginate(12);
+        $queue = app(MailingQueueService::class);
+
         return view('tenant.campaigns.index', [
-            'campaigns' => Campaign::query()
-                ->where('company_id', $companyId)
-                ->with(['teams', 'contactLists'])
-                ->latest()
-                ->paginate(12),
+            'campaigns' => $campaigns,
+            'mailingSummaries' => $campaigns->getCollection()
+                ->mapWithKeys(fn (Campaign $campaign): array => [$campaign->id => $queue->summaryForCampaign($campaign)])
+                ->all(),
             'teams' => Team::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
         ]);
@@ -129,10 +136,23 @@ class CampaignController extends Controller
         $this->syncRelations(
             $copy,
             $campaign->teams()->pluck('teams.id')->all(),
-            $campaign->contactLists()->pluck('contact_lists.id')->all()
+            $campaign->contactLists()->get()->mapWithKeys(fn (ContactList $list): array => [
+                $list->id => ['weight' => (int) ($list->pivot->weight ?? 1)],
+            ])->all()
         );
 
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha duplicada com sucesso.');
+    }
+
+    public function recycle(Request $request, Campaign $campaign, MailingQueueService $queue): RedirectResponse
+    {
+        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        $count = $queue->recycleCampaign($campaign);
+
+        return redirect()
+            ->route('tenant.campaigns.index')
+            ->with('status', sprintf('%d contato reciclado para a fila da campanha.', $count));
     }
 
     private function rules(int $companyId, ?Campaign $campaign = null): array
@@ -156,9 +176,26 @@ class CampaignController extends Controller
             collect($teamIds)->mapWithKeys(fn ($id): array => [(int) $id => ['company_id' => $campaign->company_id]])->all()
         );
 
-        $campaign->contactLists()->sync(
-            collect($listIds)->mapWithKeys(fn ($id): array => [(int) $id => ['company_id' => $campaign->company_id]])->all()
-        );
+        $campaign->contactLists()->sync($this->listSyncPayload($campaign, $listIds));
+    }
+
+    private function listSyncPayload(Campaign $campaign, array $listIds): array
+    {
+        return collect($listIds)
+            ->mapWithKeys(function ($value, $key) use ($campaign): array {
+                if (is_array($value)) {
+                    return [(int) $key => [
+                        'company_id' => $campaign->company_id,
+                        'weight' => max(1, (int) ($value['weight'] ?? 1)),
+                    ]];
+                }
+
+                return [(int) $value => [
+                    'company_id' => $campaign->company_id,
+                    'weight' => 1,
+                ]];
+            })
+            ->all();
     }
 
     private function copyName(Campaign $campaign): string

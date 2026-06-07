@@ -31,7 +31,7 @@ class Campaign extends Model
     public function contactLists(): BelongsToMany
     {
         return $this->belongsToMany(ContactList::class, 'campaign_contact_list')
-            ->withPivot('company_id')
+            ->withPivot('company_id', 'weight')
             ->withTimestamps();
     }
 

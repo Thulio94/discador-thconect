@@ -122,18 +122,20 @@ Status: basico funcional, ainda nao completo.
 - [x] Blacklist aplicada na importacao.
 - [x] Acoes de campanha: iniciar, pausar, reiniciar, finalizar e duplicar.
 - [x] Status operacional da campanha na listagem.
+- [x] Status operacional por contato.
+- [x] Controle de tentativas por contato.
+- [x] Cooldown entre tentativas.
+- [x] Fila de trabalho simulada por campanha.
+- [x] Peso por lista.
+- [x] Reciclar mailing improdutivo/callback/esgotado.
 
 Pendencias criticas:
 
 - [ ] Wizard completo de campanha.
 - [ ] Etapas: basico, modo de discagem, AMD/tentativas, rotas, agenda e revisao.
-- [ ] Reciclar mailing.
 - [ ] Agenda operacional por dia/horario.
-- [ ] Peso por lista.
-- [ ] Controle de tentativas por contato.
-- [ ] Cooldown entre tentativas.
-- [ ] Status de contato: pendente, discando, atendido, improdutivo, callback e esgotado.
-- [ ] Fila de trabalho simulada por campanha.
+- [ ] Configuracao visual de peso por lista no formulario da campanha.
+- [ ] Regras avancadas de tentativa por tabulacao.
 
 ### Supervisao
 
@@ -265,12 +267,14 @@ Resultado esperado: administrador consegue preparar e controlar uma campanha sim
 
 Objetivo: transformar listas em fila discavel.
 
-1. Adicionar status operacional nos contatos.
-2. Adicionar tentativas e ultimo resultado.
-3. Criar cooldown por contato.
-4. Criar fila de trabalho por campanha/lista.
-5. Permitir reciclar contatos improdutivos.
-6. Permitir peso por lista.
+Status: concluida para base do MVP simulado em 2026-06-07.
+
+1. [x] Adicionar status operacional nos contatos.
+2. [x] Adicionar tentativas e ultimo resultado.
+3. [x] Criar cooldown por contato.
+4. [x] Criar fila de trabalho por campanha/lista.
+5. [x] Permitir reciclar contatos improdutivos.
+6. [x] Permitir peso por lista.
 
 Resultado esperado: campanha consegue selecionar o proximo contato de forma controlada.
 
@@ -372,19 +376,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Mailing e Fila de Trabalho
+Discagem Simulada por Campanha
 ```
 
-Motivo: as campanhas ja possuem ciclo operacional basico. Agora falta transformar contatos importados em uma fila discavel com status, tentativas, cooldown e reciclagem.
+Motivo: as campanhas ja possuem ciclo operacional basico e fila de contatos. Agora falta gerar chamadas simuladas respeitando agentes disponiveis, campanha ativa, cooldown e tabulacao obrigatoria.
 
 Entregaveis desse proximo plano:
 
-- status operacional por contato;
-- tentativas e ultimo resultado;
-- cooldown entre tentativas;
-- fila de trabalho por campanha/lista;
-- reciclagem de contatos improdutivos;
-- peso por lista;
+- servico `SimulatedDialerService`;
+- selecao do proximo contato pela fila;
+- criacao de chamada simulada vinculada a campanha e contato;
+- respeito a capacidade por campanha;
+- bloqueio de nova chamada para agente com chamada sem tabulacao;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -398,3 +401,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-06-operational-settings-design.md`
 - `docs/superpowers/specs/2026-06-07-manual-extension-calls-design.md`
 - `docs/superpowers/specs/2026-06-07-campaign-operational-actions-design.md`
+- `docs/superpowers/specs/2026-06-07-mailing-queue-design.md`

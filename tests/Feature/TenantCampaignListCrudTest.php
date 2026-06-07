@@ -9,6 +9,7 @@ use App\Models\ContactList;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Dialer\MailingQueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -35,6 +36,8 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame('active', $list->status);
         $this->assertSame(2, $list->contacts()->count());
         $this->assertTrue($list->contacts()->where('phone', '31999990001')->exists());
+        $this->assertSame('pending', $list->contacts()->where('phone', '31999990001')->sole()->status);
+        $this->assertSame(0, $list->contacts()->where('phone', '31999990001')->sole()->attempts_count);
     }
 
     public function test_contact_list_import_sanitizes_deduplicates_and_applies_tenant_blacklist(): void
@@ -282,6 +285,116 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame('draft', $otherCampaign->fresh()->status);
+    }
+
+    public function test_mailing_queue_selects_next_contact_and_marks_attempt_with_cooldown(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Fila', 'status' => 'active']);
+        $future = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Cooldown',
+            'phone' => '31999990001',
+            'status' => 'pending',
+            'next_attempt_at' => now()->addHour(),
+        ]);
+        $ready = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Pronto',
+            'phone' => '31999990002',
+            'status' => 'pending',
+        ]);
+        $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Atendido',
+            'phone' => '31999990003',
+            'status' => 'answered',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Fila',
+            'dialing_mode' => 'preview',
+            'status' => 'active',
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id, 'weight' => 2]]);
+
+        $service = app(MailingQueueService::class);
+
+        $this->assertSame($ready->id, $service->nextContactForCampaign($campaign)->id);
+        $this->assertSame([
+            'pending' => 2,
+            'dialing' => 0,
+            'answered' => 1,
+            'unproductive' => 0,
+            'callback' => 0,
+            'exhausted' => 0,
+        ], $service->summaryForCampaign($campaign));
+
+        $service->markAttempt($ready, now()->addMinutes(30));
+        $ready->refresh();
+
+        $this->assertSame('dialing', $ready->status);
+        $this->assertSame(1, $ready->attempts_count);
+        $this->assertNotNull($ready->last_attempt_at);
+        $this->assertNotNull($ready->next_attempt_at);
+        $this->assertSame($future->id, $future->fresh()->id);
+        $this->assertNull($service->nextContactForCampaign($campaign));
+    }
+
+    public function test_tenant_admin_can_recycle_campaign_mailing_and_keep_tenant_scope(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Reciclagem', 'status' => 'active']);
+        $recyclable = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Reciclar',
+            'phone' => '31999990004',
+            'status' => 'unproductive',
+            'attempts_count' => 2,
+            'last_result' => 'ocupado',
+            'last_attempt_at' => now()->subHour(),
+            'next_attempt_at' => now()->addHour(),
+        ]);
+        $answered = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Atendido',
+            'phone' => '31999990005',
+            'status' => 'answered',
+            'attempts_count' => 1,
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Reciclagem',
+            'dialing_mode' => 'preview',
+            'status' => 'paused',
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
+        $otherCompany = Company::create(['name' => 'Outra Empresa']);
+        $otherCampaign = Campaign::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Campanha Outra',
+            'dialing_mode' => 'preview',
+            'status' => 'paused',
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.recycle', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 contato reciclado'));
+
+        $recyclable->refresh();
+        $answered->refresh();
+
+        $this->assertSame('pending', $recyclable->status);
+        $this->assertNull($recyclable->next_attempt_at);
+        $this->assertSame(2, $recyclable->attempts_count);
+        $this->assertSame('answered', $answered->status);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.recycle', $otherCampaign))
+            ->assertForbidden();
     }
 
     public function test_campaign_cannot_use_team_or_list_from_another_company(): void

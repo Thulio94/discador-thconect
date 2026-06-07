@@ -17,6 +17,7 @@
 
         <div class="mt-5 grid gap-3">
             @forelse ($campaigns as $campaign)
+                @php($summary = $mailingSummaries[$campaign->id] ?? [])
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
                     <div class="flex items-start justify-between gap-4">
                         <div>
@@ -27,6 +28,14 @@
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                 Inicio {{ $campaign->starts_at?->format('d/m/Y H:i') ?? 'nao iniciado' }} | Fim {{ $campaign->ends_at?->format('d/m/Y H:i') ?? 'em aberto' }}
                             </p>
+                            <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
+                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
+                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Discando {{ $summary['dialing'] ?? 0 }}</span>
+                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Atendidos {{ $summary['answered'] ?? 0 }}</span>
+                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Impro {{ $summary['unproductive'] ?? 0 }}</span>
+                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Callback {{ $summary['callback'] ?? 0 }}</span>
+                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Esgotados {{ $summary['exhausted'] ?? 0 }}</span>
+                            </div>
                         </div>
                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $campaign->status }}</span>
                     </div>
@@ -40,6 +49,7 @@
                         @if ($campaign->status === 'paused')
                             <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-restart-{{ $campaign->id }}')">Reiniciar</x-ui.button>
                         @endif
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-recycle-{{ $campaign->id }}')">Reciclar mailing</x-ui.button>
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-duplicate-{{ $campaign->id }}')">Duplicar</x-ui.button>
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-edit-{{ $campaign->id }}')">Editar</x-ui.button>
                         @if ($campaign->status !== 'finished')
@@ -91,6 +101,18 @@
                         <div class="mt-5 flex justify-end gap-2">
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-duplicate-{{ $campaign->id }}')">Cancelar</x-ui.button>
                             <x-ui.button type="submit">Duplicar campanha</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
+
+                <x-ui.modal name="campaign-recycle-{{ $campaign->id }}" title="Reciclar mailing" max-width="md">
+                    <form method="POST" action="{{ route('tenant.campaigns.recycle', $campaign) }}">
+                        @csrf
+                        @method('PATCH')
+                        <p class="text-sm" style="color: var(--fg-muted);">Contatos improdutivos, callbacks e esgotados voltarao para pendente, sem zerar o historico de tentativas.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-recycle-{{ $campaign->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">Reciclar mailing</x-ui.button>
                         </div>
                     </form>
                 </x-ui.modal>
