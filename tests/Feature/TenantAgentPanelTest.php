@@ -149,6 +149,7 @@ class TenantAgentPanelTest extends TestCase
         $campaign = Campaign::create([
             'company_id' => $company->id,
             'name' => 'Campanha Ficha',
+            'service_script' => 'Confirme nome, plano atual e ofereca upgrade com desconto.',
             'dialing_mode' => 'power',
             'status' => 'active',
         ]);
@@ -200,7 +201,9 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('2')
             ->assertSee('Historico do contato')
             ->assertSee('Sem resposta')
-            ->assertSee('Nao atendeu ontem');
+            ->assertSee('Nao atendeu ontem')
+            ->assertSee('Script de atendimento')
+            ->assertSee('Confirme nome, plano atual e ofereca upgrade com desconto.');
     }
 
     public function test_agent_can_change_status_to_available_and_pause(): void

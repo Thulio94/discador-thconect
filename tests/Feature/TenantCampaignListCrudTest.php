@@ -147,6 +147,7 @@ class TenantCampaignListCrudTest extends TestCase
             ->post(route('tenant.campaigns.store'), [
                 'name' => 'Campanha Vendas',
                 'description' => 'Operacao ativa',
+                'service_script' => 'Cumprimente o cliente e confirme o interesse.',
                 'dialing_mode' => 'preview',
                 'status' => 'draft',
                 'team_ids' => [$teamA->id, $teamB->id],
@@ -158,6 +159,7 @@ class TenantCampaignListCrudTest extends TestCase
         $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Vendas')->sole();
 
         $this->assertSame('preview', $campaign->dialing_mode);
+        $this->assertSame('Cumprimente o cliente e confirme o interesse.', $campaign->service_script);
         $this->assertSame(2, $campaign->teams()->count());
         $this->assertSame(2, $campaign->contactLists()->count());
     }

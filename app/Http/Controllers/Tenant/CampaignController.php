@@ -45,6 +45,7 @@ class CampaignController extends Controller
             'company_id' => $companyId,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'service_script' => $data['service_script'] ?? null,
             'dialing_mode' => $data['dialing_mode'],
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
@@ -64,6 +65,7 @@ class CampaignController extends Controller
         $campaign->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'service_script' => $data['service_script'] ?? null,
             'dialing_mode' => $data['dialing_mode'],
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
@@ -129,6 +131,7 @@ class CampaignController extends Controller
             'company_id' => $campaign->company_id,
             'name' => $this->copyName($campaign),
             'description' => $campaign->description,
+            'service_script' => $campaign->service_script,
             'dialing_mode' => $campaign->dialing_mode,
             'status' => 'draft',
             'priority' => $campaign->priority,
@@ -172,6 +175,7 @@ class CampaignController extends Controller
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('campaigns')->where('company_id', $companyId)->ignore($campaign)],
             'description' => ['nullable', 'string', 'max:2000'],
+            'service_script' => ['nullable', 'string', 'max:5000'],
             'dialing_mode' => ['required', Rule::in(['preview', 'manual', 'power', 'predictive'])],
             'status' => ['required', Rule::in(['draft', 'active', 'paused', 'finished'])],
             'priority' => ['nullable', 'integer', 'min:1', 'max:10'],

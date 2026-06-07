@@ -101,10 +101,11 @@ Status: MVP simulado funcional.
 - [x] Ficha do contato atual.
 - [x] Campanha e lista atual no painel do agente.
 - [x] Historico recente do contato.
+- [x] Script de atendimento.
+- [x] Anotacoes do atendimento persistidas na tabulacao.
 
 Pendencias importantes:
 
-- [ ] Script de atendimento.
 - [ ] Campos dinamicos/formulario da campanha.
 - [ ] Agendamento de retorno publico ou privado.
 - [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
@@ -305,8 +306,8 @@ Status: parcialmente concluida em 2026-06-07.
 
 1. [x] Exibir ficha do contato.
 2. [x] Exibir campanha/lista atual.
-3. [ ] Exibir script de atendimento.
-4. Permitir campos de anotacao/formulario.
+3. [x] Exibir script de atendimento.
+4. [ ] Permitir campos de anotacao/formulario.
 5. Criar callback publico/privado.
 6. [x] Mostrar historico recente do contato.
 
@@ -385,16 +386,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Script de Atendimento e Anotacoes
+Callback e Campos Dinamicos Basicos
 ```
 
-Motivo: a ficha do contato e o historico ja aparecem para o agente. Agora falta orientar o atendimento com script e registrar informacoes de forma estruturada.
+Motivo: o agente ja recebe contato, historico e roteiro. Agora falta agendar retorno e registrar dados adicionais do atendimento.
 
 Entregaveis desse proximo plano:
 
-- script de atendimento visivel na chamada;
-- anotacoes estruturadas no encerramento;
-- campos basicos por atendimento;
+- callback publico/privado;
+- data e hora de retorno;
+- status de contato como callback;
+- campos basicos extras no atendimento;
 - persistencia das informacoes na chamada;
 - testes de isolamento multiempresa;
 - smoke no Docker.
@@ -412,3 +414,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-mailing-queue-design.md`
 - `docs/superpowers/specs/2026-06-07-simulated-campaign-dialer-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-contact-card-design.md`
+- `docs/superpowers/specs/2026-06-07-agent-service-script-design.md`

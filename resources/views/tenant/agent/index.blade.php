@@ -123,6 +123,15 @@
                         @endforelse
                     </div>
                 </x-ui.card>
+
+                @if ($currentCall->campaign?->service_script)
+                    <x-ui.card>
+                        <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Script de atendimento</p>
+                        <div class="mt-3 rounded-lg border p-4 text-sm leading-6" style="border-color: var(--border); background: var(--surface-alt); color: var(--fg);">
+                            {!! nl2br(e($currentCall->campaign->service_script)) !!}
+                        </div>
+                    </x-ui.card>
+                @endif
             @endif
         </div>
 
@@ -222,13 +231,13 @@
                     </label>
 
                     <label class="grid gap-1 text-sm">
-                        <span class="font-semibold">Observacoes</span>
+                        <span class="font-semibold">Anotacoes do atendimento</span>
                         <textarea
                             name="disposition_notes"
                             rows="4"
                             class="rounded-lg border px-3 py-2"
                             style="border-color: var(--border); background: var(--surface); color: var(--fg);"
-                            placeholder="Resumo do atendimento"
+                            placeholder="Resumo, combinados, objecoes e proximos passos"
                         ></textarea>
                     </label>
 

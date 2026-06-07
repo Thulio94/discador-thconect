@@ -15,6 +15,11 @@
         <textarea name="description" rows="2" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">{{ old('description', $campaign?->description) }}</textarea>
     </label>
 
+    <label class="grid gap-1 text-sm">
+        <span class="font-semibold">Script de atendimento</span>
+        <textarea name="service_script" rows="4" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="Oriente o agente sobre abordagem, perguntas e proximos passos.">{{ old('service_script', $campaign?->service_script) }}</textarea>
+    </label>
+
     <div class="grid gap-4 md:grid-cols-3">
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Modo</span>
