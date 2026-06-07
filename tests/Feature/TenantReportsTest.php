@@ -122,6 +122,111 @@ class TenantReportsTest extends TestCase
             ->assertDontSee('31999990010');
     }
 
+    public function test_reports_can_filter_and_summarize_by_disposition(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Tabulacao');
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Tabulacao', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $sale = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda realizada',
+            'code' => 'VENDA',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+        $refusal = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Recusa',
+            'code' => 'RECUSA',
+            'category' => 'negative',
+            'status' => 'active',
+        ]);
+        $otherCompany = Company::create(['name' => 'Outra Empresa']);
+        $otherDisposition = Disposition::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Outra tabulacao',
+            'code' => 'OUTRA',
+            'category' => 'neutral',
+            'status' => 'active',
+        ]);
+
+        foreach (['31999990200', '31999990201'] as $phone) {
+            Call::create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'campaign_id' => $campaign->id,
+                'disposition_id' => $sale->id,
+                'disposition_code' => $sale->code,
+                'disposition_name' => $sale->name,
+                'direction' => 'outbound',
+                'status' => 'ended',
+                'channel' => 'simulated',
+                'phone' => $phone,
+                'started_at' => now(),
+                'ended_at' => now(),
+            ]);
+        }
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'disposition_id' => $refusal->id,
+            'disposition_code' => $refusal->code,
+            'disposition_name' => $refusal->name,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990202',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $otherCompany->id,
+            'disposition_id' => $otherDisposition->id,
+            'disposition_code' => $otherDisposition->code,
+            'disposition_name' => $otherDisposition->name,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990203',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index'))
+            ->assertOk()
+            ->assertSee('Resultado')
+            ->assertSee('Resultados por tabulacao')
+            ->assertSee('Venda realizada')
+            ->assertSee('2 chamadas')
+            ->assertSee('Recusa')
+            ->assertSee('1 chamadas')
+            ->assertDontSee('Outra tabulacao');
+
+        $response = $this->actingAs($admin)
+            ->get(route('tenant.reports.index', ['disposition_id' => $sale->id]))
+            ->assertOk()
+            ->assertSee('31999990200')
+            ->assertSee('31999990201')
+            ->assertDontSee('31999990202');
+
+        $response->assertSee('value="'.$sale->id.'" selected', false);
+
+        $csvResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export', ['disposition_id' => $sale->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.csv');
+
+        $csv = $csvResponse->streamedContent();
+
+        $this->assertStringContainsString('31999990200', $csv);
+        $this->assertStringContainsString('31999990201', $csv);
+        $this->assertStringNotContainsString('31999990202', $csv);
+        $this->assertStringNotContainsString('31999990203', $csv);
+    }
+
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
     {
         [$admin, $company] = $this->tenantUser('company_admin');

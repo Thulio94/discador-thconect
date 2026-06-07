@@ -9,7 +9,7 @@
     <div class="grid gap-4">
         <x-ui.card>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <form method="GET" action="{{ route('tenant.reports.index') }}" class="grid gap-2 md:grid-cols-4">
+                <form method="GET" action="{{ route('tenant.reports.index') }}" class="grid gap-2 md:grid-cols-5">
                     <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Inicio</span>
                         <input type="date" name="date_from" value="{{ $filters['date_from'] }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -36,13 +36,22 @@
                             @endforeach
                         </select>
                     </label>
-                    <div class="md:col-span-4">
+                    <label class="grid gap-1 text-sm">
+                        <span class="font-semibold">Resultado</span>
+                        <select name="disposition_id" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                            <option value="">Todos</option>
+                            @foreach ($dispositions as $disposition)
+                                <option value="{{ $disposition->id }}" @selected($filters['disposition_id'] === $disposition->id)>{{ $disposition->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <div class="md:col-span-5">
                         <x-ui.button type="submit" variant="secondary">Filtrar</x-ui.button>
                     </div>
                 </form>
 
                 <a
-                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id'])) }}"
+                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'disposition_id'])) }}"
                     class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
                     style="border-color: var(--border); color: var(--fg);"
                 >
@@ -89,6 +98,21 @@
                 </div>
             </x-ui.card>
         </div>
+
+        <x-ui.card>
+            <h2 class="text-lg font-semibold">Resultados por tabulacao</h2>
+            <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                @forelse ($dispositionSummary as $result)
+                    <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                        <p class="font-semibold">{{ $result->disposition_name }}</p>
+                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">{{ $result->disposition_code }}</p>
+                        <p class="mt-3 text-xl font-bold">{{ $result->calls_count }} chamadas</p>
+                    </div>
+                @empty
+                    <p class="text-sm" style="color: var(--fg-muted);">Sem resultados tabulados.</p>
+                @endforelse
+            </div>
+        </x-ui.card>
 
         <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
             <x-ui.card>

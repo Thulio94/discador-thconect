@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\ContactList;
+use App\Models\Disposition;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -15,8 +16,8 @@ class ReportController extends Controller
 {
     public function index(Request $request): View
     {
-        [$companyId, $dateFrom, $dateTo, $userId, $campaignId] = $this->filters($request);
-        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId);
+        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId] = $this->filters($request);
+        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId);
 
         $recentCalls = (clone $callsQuery)
             ->with(['user', 'campaign'])
@@ -36,22 +37,25 @@ class ReportController extends Controller
             ],
             'agents' => User::query()->where('company_id', $companyId)->whereIn('user_type', ['agent', 'supervisor'])->orderBy('name')->get(),
             'campaigns' => Campaign::query()->where('company_id', $companyId)->orderBy('name')->get(),
+            'dispositions' => Disposition::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->withCount('contacts')->orderBy('name')->get(),
             'agentPerformance' => $this->agentPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId),
             'campaignPerformance' => $this->campaignPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId),
+            'dispositionSummary' => $this->dispositionSummary($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId),
             'filters' => [
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
                 'user_id' => $userId,
                 'campaign_id' => $campaignId,
+                'disposition_id' => $dispositionId,
             ],
         ]);
     }
 
     public function export(Request $request): StreamedResponse
     {
-        [$companyId, $dateFrom, $dateTo, $userId, $campaignId] = $this->filters($request);
-        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId)
+        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId] = $this->filters($request);
+        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId)
             ->with(['user', 'campaign'])
             ->oldest('started_at');
 
@@ -131,6 +135,18 @@ class ReportController extends Controller
             ->get();
     }
 
+    private function dispositionSummary(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId)
+    {
+        return $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId)
+            ->selectRaw("COALESCE(disposition_code, 'SEM_TABULACAO') as disposition_code")
+            ->selectRaw("COALESCE(disposition_name, 'Sem tabulacao') as disposition_name")
+            ->selectRaw('COUNT(*) as calls_count')
+            ->groupBy('calls.disposition_code', 'calls.disposition_name')
+            ->orderByDesc('calls_count')
+            ->limit(8)
+            ->get();
+    }
+
     private function filters(Request $request): array
     {
         return [
@@ -139,15 +155,17 @@ class ReportController extends Controller
             $request->date('date_to')?->endOfDay() ?? now()->endOfDay(),
             $request->integer('user_id') ?: null,
             $request->integer('campaign_id') ?: null,
+            $request->integer('disposition_id') ?: null,
         ];
     }
 
-    private function callsQuery(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId)
+    private function callsQuery(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId)
     {
         return Call::query()
             ->where('company_id', $companyId)
             ->whereBetween('started_at', [$dateFrom, $dateTo])
             ->when($userId, fn ($query) => $query->where('user_id', $userId))
-            ->when($campaignId, fn ($query) => $query->where('campaign_id', $campaignId));
+            ->when($campaignId, fn ($query) => $query->where('campaign_id', $campaignId))
+            ->when($dispositionId, fn ($query) => $query->where('disposition_id', $dispositionId));
     }
 }
