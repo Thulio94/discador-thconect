@@ -9,7 +9,7 @@
     <div class="grid gap-4">
         <x-ui.card>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <form method="GET" action="{{ route('tenant.reports.index') }}" class="grid gap-2 md:grid-cols-5">
+                <form method="GET" action="{{ route('tenant.reports.index') }}" class="grid gap-2 md:grid-cols-6">
                     <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Inicio</span>
                         <input type="date" name="date_from" value="{{ $filters['date_from'] }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -37,6 +37,15 @@
                         </select>
                     </label>
                     <label class="grid gap-1 text-sm">
+                        <span class="font-semibold">Equipe</span>
+                        <select name="team_id" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                            <option value="">Todas</option>
+                            @foreach ($teams as $team)
+                                <option value="{{ $team->id }}" @selected($filters['team_id'] === $team->id)>{{ $team->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Resultado</span>
                         <select name="disposition_id" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                             <option value="">Todos</option>
@@ -45,13 +54,13 @@
                             @endforeach
                         </select>
                     </label>
-                    <div class="md:col-span-5">
+                    <div class="md:col-span-6">
                         <x-ui.button type="submit" variant="secondary">Filtrar</x-ui.button>
                     </div>
                 </form>
 
                 <a
-                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'disposition_id'])) }}"
+                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'team_id', 'disposition_id'])) }}"
                     class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
                     style="border-color: var(--border); color: var(--fg);"
                 >
@@ -69,7 +78,7 @@
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Agentes em chamada</p><p class="mt-2 text-2xl font-bold">{{ $metrics['in_call_agents'] }} chamada</p></x-ui.card>
         </div>
 
-        <div class="grid gap-4 xl:grid-cols-2">
+        <div class="grid gap-4 xl:grid-cols-3">
             <x-ui.card>
                 <h2 class="text-lg font-semibold">Performance por agente</h2>
                 <div class="mt-4 grid gap-2">
@@ -80,6 +89,20 @@
                         </div>
                     @empty
                         <p class="text-sm" style="color: var(--fg-muted);">Sem dados de agentes.</p>
+                    @endforelse
+                </div>
+            </x-ui.card>
+
+            <x-ui.card>
+                <h2 class="text-lg font-semibold">Performance por equipe</h2>
+                <div class="mt-4 grid gap-2">
+                    @forelse ($teamPerformance as $team)
+                        <div class="flex items-center justify-between rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                            <span>{{ $team->name }}</span>
+                            <span class="font-semibold">{{ $team->calls_count }} chamadas</span>
+                        </div>
+                    @empty
+                        <p class="text-sm" style="color: var(--fg-muted);">Sem dados de equipes.</p>
                     @endforelse
                 </div>
             </x-ui.card>

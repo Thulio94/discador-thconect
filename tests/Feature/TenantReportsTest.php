@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Disposition;
 use App\Models\Role;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -225,6 +226,88 @@ class TenantReportsTest extends TestCase
         $this->assertStringContainsString('31999990201', $csv);
         $this->assertStringNotContainsString('31999990202', $csv);
         $this->assertStringNotContainsString('31999990203', $csv);
+    }
+
+    public function test_reports_can_filter_and_summarize_by_team(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agentA] = $this->tenantUser('agent', $company, 'Agente Equipe A');
+        [$agentB] = $this->tenantUser('agent', $company, 'Agente Equipe B');
+        [$otherAgent] = $this->tenantUser('agent', null, 'Agente Equipe Outra');
+        $teamA = Team::create(['company_id' => $company->id, 'name' => 'Equipe Retencao', 'slug' => 'equipe-retencao', 'status' => 'active']);
+        $teamB = Team::create(['company_id' => $company->id, 'name' => 'Equipe Vendas', 'slug' => 'equipe-vendas', 'status' => 'active']);
+        $otherTeam = Team::create(['company_id' => $otherAgent->company_id, 'name' => 'Equipe Outra Empresa', 'slug' => 'equipe-outra-empresa', 'status' => 'active']);
+
+        $teamA->users()->attach($agentA->id, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $teamB->users()->attach($agentB->id, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $otherTeam->users()->attach($otherAgent->id, ['company_id' => $otherAgent->company_id, 'membership_type' => 'agent']);
+
+        foreach (['31999990300', '31999990301'] as $phone) {
+            Call::create([
+                'company_id' => $company->id,
+                'user_id' => $agentA->id,
+                'direction' => 'outbound',
+                'status' => 'ended',
+                'channel' => 'simulated',
+                'phone' => $phone,
+                'started_at' => now(),
+                'ended_at' => now(),
+            ]);
+        }
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agentB->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990302',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $otherAgent->company_id,
+            'user_id' => $otherAgent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990303',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index'))
+            ->assertOk()
+            ->assertSee('Equipe')
+            ->assertSee('Performance por equipe')
+            ->assertSee('Equipe Retencao')
+            ->assertSee('2 chamadas')
+            ->assertSee('Equipe Vendas')
+            ->assertSee('1 chamadas')
+            ->assertDontSee('Equipe Outra Empresa');
+
+        $response = $this->actingAs($admin)
+            ->get(route('tenant.reports.index', ['team_id' => $teamA->id]))
+            ->assertOk()
+            ->assertSee('31999990300')
+            ->assertSee('31999990301')
+            ->assertDontSee('31999990302')
+            ->assertDontSee('31999990303');
+
+        $response->assertSee('value="'.$teamA->id.'" selected', false);
+
+        $csvResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export', ['team_id' => $teamA->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.csv');
+
+        $csv = $csvResponse->streamedContent();
+
+        $this->assertStringContainsString('31999990300', $csv);
+        $this->assertStringContainsString('31999990301', $csv);
+        $this->assertStringNotContainsString('31999990302', $csv);
+        $this->assertStringNotContainsString('31999990303', $csv);
     }
 
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
