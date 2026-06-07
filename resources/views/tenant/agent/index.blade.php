@@ -47,7 +47,7 @@
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">Canal {{ $currentCall->channel }} em andamento</p>
                         @else
                             <h2 class="mt-1 text-xl font-bold">Nenhuma chamada ativa</h2>
-                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">Use o simulador para validar fluxo operacional.</p>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">Chamada manual simulada pelo ramal do usuario.</p>
                         @endif
                     </div>
 
@@ -56,6 +56,7 @@
                     @else
                         <form method="POST" action="{{ route('tenant.agent.calls.store') }}" class="flex flex-col gap-2 sm:flex-row">
                             @csrf
+                            <input type="hidden" name="channel" value="manual">
                             <input
                                 name="phone"
                                 class="rounded-lg border px-3 py-2 text-sm"
@@ -147,7 +148,7 @@
 
                     <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border); background: var(--surface-alt);">
                         <p class="font-semibold">{{ $currentCall->phone ?? 'Sem numero' }}</p>
-                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">Chamada simulada em andamento.</p>
+                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">Chamada {{ $currentCall->channel }} em andamento.</p>
                     </div>
 
                     <label class="grid gap-1 text-sm">

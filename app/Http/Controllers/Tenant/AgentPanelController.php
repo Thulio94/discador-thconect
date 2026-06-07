@@ -86,10 +86,12 @@ class AgentPanelController extends Controller
     {
         $data = $request->validate([
             'phone' => ['nullable', 'string', 'max:32'],
+            'channel' => ['nullable', Rule::in(['simulated', 'manual'])],
         ]);
 
         $user = $request->user();
         $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? ''));
+        $channel = $data['channel'] ?? 'simulated';
 
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->calls()->where('status', 'in_progress')->update([
@@ -100,7 +102,7 @@ class AgentPanelController extends Controller
             'company_id' => $user->company_id,
             'direction' => 'outbound',
             'status' => 'in_progress',
-            'channel' => 'simulated',
+            'channel' => $channel,
             'phone' => $phone ?: null,
             'started_at' => now(),
             'answered_at' => now(),
@@ -149,7 +151,7 @@ class AgentPanelController extends Controller
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
-            'status' => 'available',
+            'status' => $user->user_type === 'agent' ? 'available' : 'offline',
             'started_at' => now(),
         ]);
 

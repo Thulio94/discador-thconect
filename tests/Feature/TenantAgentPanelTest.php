@@ -197,6 +197,56 @@ class TenantAgentPanelTest extends TestCase
         $this->assertTrue($call->disposition->is($disposition));
     }
 
+    public function test_supervisor_can_start_and_end_manual_extension_call_without_becoming_available_agent(): void
+    {
+        [$supervisor] = $this->tenantUser('supervisor');
+        $disposition = Disposition::create([
+            'company_id' => $supervisor->company_id,
+            'name' => 'Ligacao interna encerrada',
+            'code' => 'MANUAL_OK',
+            'category' => 'neutral',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('Ramal '.$supervisor->extension)
+            ->assertSee('Chamada manual simulada');
+
+        $this->actingAs($supervisor)
+            ->post(route('tenant.agent.calls.store'), [
+                'phone' => '(31) 99999-0044',
+                'channel' => 'manual',
+            ])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $supervisor->refresh();
+        $call = $supervisor->calls()->where('status', 'in_progress')->sole();
+
+        $this->assertSame('in_call', $supervisor->currentAgentStatus->status);
+        $this->assertSame('manual', $call->channel);
+        $this->assertSame('31999990044', $call->phone);
+        $this->assertSame(0, app(AgentCapacityService::class)->availableAgentsForCompany($supervisor->company_id));
+
+        $this->actingAs($supervisor)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $supervisor->refresh();
+        $call->refresh();
+
+        $this->assertSame('offline', $supervisor->currentAgentStatus->status);
+        $this->assertSame('ended', $call->status);
+        $this->assertSame('MANUAL_OK', $call->disposition_code);
+        $this->assertSame(0, app(AgentCapacityService::class)->availableAgentsForCompany($supervisor->company_id));
+    }
+
     public function test_agent_must_use_active_disposition_from_own_company_to_end_call(): void
     {
         [$agent] = $this->tenantUser('agent');
