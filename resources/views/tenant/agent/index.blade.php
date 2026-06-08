@@ -133,6 +133,48 @@
                     </x-ui.card>
                 @endif
             @endif
+
+            <x-ui.card>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Atendimento</p>
+                        <h2 class="mt-1 text-base font-semibold">Ultimas chamadas</h2>
+                    </div>
+                    <span class="text-xs" style="color: var(--fg-muted);">{{ $recentCalls->count() }} registros</span>
+                </div>
+
+                <div class="mt-4 grid gap-2">
+                    @forelse ($recentCalls as $recentCall)
+                        <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p class="font-semibold">{{ $recentCall->phone ?? 'Sem numero' }}</p>
+                                    <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                        {{ $recentCall->campaign?->name ?? 'Sem campanha' }} | {{ $recentCall->channel }} | {{ $recentCall->status }}
+                                    </p>
+                                </div>
+                                <span class="text-xs" style="color: var(--fg-muted);">{{ $recentCall->started_at?->format('d/m H:i') ?? 'sem data' }}</span>
+                            </div>
+
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: var(--primary-soft); color: var(--fg);">
+                                    {{ $recentCall->disposition_name ?? 'Sem tabulacao' }}
+                                </span>
+                                @if ($recentCall->callback_at)
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: var(--surface-alt); color: var(--fg); border: 1px solid var(--border);">
+                                        Retorno {{ $recentCall->callback_type === 'public' ? 'publico' : 'privado' }}
+                                    </span>
+                                    <span class="rounded-full px-2 py-1 text-xs" style="background: var(--surface-alt); color: var(--fg-muted); border: 1px solid var(--border);">
+                                        {{ $recentCall->callback_at->format('d/m H:i') }}
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-sm" style="color: var(--fg-muted);">Nenhuma chamada recente para este usuario.</p>
+                    @endforelse
+                </div>
+            </x-ui.card>
         </div>
 
         <div class="grid gap-4">

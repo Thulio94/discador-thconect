@@ -39,6 +39,12 @@ class AgentPanelController extends Controller
                     ->limit(5)
                     ->get()
                 : collect(),
+            'recentCalls' => $user->calls()
+                ->where('company_id', $user->company_id)
+                ->with(['campaign', 'disposition'])
+                ->latest('started_at')
+                ->limit(8)
+                ->get(),
             'recentStatuses' => $user->agentStatuses()->latest()->limit(8)->get(),
             'availableAgents' => $capacity->availableAgentsForCompany($user->company_id),
             'pauseReasons' => PauseReason::query()

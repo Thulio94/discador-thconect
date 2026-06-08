@@ -106,12 +106,12 @@ Status: MVP simulado funcional.
 - [x] Callback publico/privado com data e hora.
 - [x] Campos basicos do atendimento persistidos na chamada.
 - [x] Status de contato atualizado pela tabulacao.
+- [x] Historico geral de chamadas recentes no painel.
 
 Pendencias importantes:
 
 - [ ] Campos dinamicos configuraveis por campanha.
 - [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
-- [ ] Historico geral de chamadas recentes no painel.
 
 ### Campanhas e Listas
 
@@ -312,7 +312,7 @@ Status: parcialmente concluida em 2026-06-07.
 4. [x] Permitir campos de anotacao/formulario basico.
 5. [x] Criar callback publico/privado.
 6. [x] Mostrar historico recente do contato.
-7. [ ] Criar historico geral de chamadas recentes no painel.
+7. [x] Criar historico geral de chamadas recentes no painel.
 8. [ ] Criar formulario dinamico configuravel por campanha.
 
 Resultado esperado: agente consegue atender, registrar resultado e agendar retorno.
@@ -390,17 +390,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Historico Geral de Chamadas no Painel do Agente
+Supervisao Operacional - Tempos e Campanha Atual
 ```
 
-Motivo: o agente ja recebe contato, historico do contato, roteiro, tabulacao com anotacoes, callback e campos basicos. Agora falta uma visao geral das ultimas chamadas do proprio usuario para acompanhar atendimentos recentes sem sair do painel.
+Motivo: o painel do agente ja cobre atendimento, contato, script, callback e historico recente. Agora a supervisao deve ganhar mais contexto operacional: tempo no status, tempo em chamada e campanha atual do agente.
 
 Entregaveis desse proximo plano:
 
-- ultimas chamadas do agente no painel;
-- filtros rapidos por resultado/status;
-- destaque para callbacks agendados;
-- abertura de detalhes em modal;
+- tempo no status;
+- tempo em chamada;
+- campanha atual do agente;
+- alertas visuais de pausa/chamada longa;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -419,3 +419,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-agent-contact-card-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-service-script-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-callback-fields-design.md`
+- `docs/superpowers/specs/2026-06-07-agent-recent-calls-design.md`

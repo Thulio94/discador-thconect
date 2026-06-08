@@ -208,6 +208,88 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('Confirme nome, plano atual e ofereca upgrade com desconto.');
     }
 
+    public function test_agent_panel_shows_recent_calls_from_current_user_only(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$otherAgent] = $this->tenantUser('agent', $company);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Historico Geral',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $success = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda fechada',
+            'code' => 'VENDA_OK',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+        $callback = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Retorno marcado',
+            'code' => 'RETORNO_OK',
+            'category' => 'callback',
+            'status' => 'active',
+        ]);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'disposition_id' => $success->id,
+            'disposition_code' => $success->code,
+            'disposition_name' => $success->name,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990077',
+            'started_at' => now()->subMinutes(12),
+            'ended_at' => now()->subMinutes(10),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'disposition_id' => $callback->id,
+            'disposition_code' => $callback->code,
+            'disposition_name' => $callback->name,
+            'callback_type' => 'public',
+            'callback_at' => now()->addDay()->setSecond(0)->setMicrosecond(0),
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990088',
+            'started_at' => now()->subMinutes(5),
+            'ended_at' => now()->subMinutes(4),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $otherAgent->id,
+            'campaign_id' => $campaign->id,
+            'disposition_id' => $success->id,
+            'disposition_code' => $success->code,
+            'disposition_name' => $success->name,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990099',
+            'started_at' => now()->subMinutes(3),
+            'ended_at' => now()->subMinutes(2),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('Ultimas chamadas')
+            ->assertSee('31999990088')
+            ->assertSee('Retorno marcado')
+            ->assertSee('Retorno publico')
+            ->assertSee('31999990077')
+            ->assertSee('Venda fechada')
+            ->assertDontSee('31999990099');
+    }
+
     public function test_agent_can_change_status_to_available_and_pause(): void
     {
         [$agent] = $this->tenantUser('agent');
