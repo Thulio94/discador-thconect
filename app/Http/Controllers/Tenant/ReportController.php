@@ -11,6 +11,8 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -74,47 +76,50 @@ class ReportController extends Controller
 
         return response()->streamDownload(function () use ($callsQuery): void {
             $output = fopen('php://output', 'w');
-            fputcsv($output, [
-                'data_inicio',
-                'data_fim',
-                'duracao',
-                'espera',
-                'conversao',
-                'telefone',
-                'agente',
-                'campanha',
-                'status',
-                'canal',
-                'tabulacao_codigo',
-                'tabulacao_nome',
-                'observacoes',
-            ]);
+            fputcsv($output, $this->exportHeadings());
 
             $callsQuery->chunk(200, function ($calls) use ($output): void {
                 foreach ($calls as $call) {
-                    $call = $this->withReportLabels($call);
-
-                    fputcsv($output, [
-                        $call->started_at?->toDateTimeString(),
-                        $call->ended_at?->toDateTimeString(),
-                        $call->talk_time_label,
-                        $call->wait_time_label,
-                        $call->conversion_label,
-                        $call->phone,
-                        $call->user?->name,
-                        $call->campaign?->name,
-                        $call->status,
-                        $call->channel,
-                        $call->disposition_code,
-                        $call->disposition_name,
-                        $call->disposition_notes,
-                    ]);
+                    fputcsv($output, $this->exportRow($call));
                 }
             });
 
             fclose($output);
         }, 'relatorios-chamadas.csv', [
             'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    public function exportXlsx(Request $request): StreamedResponse
+    {
+        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
+        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
+            ->with(['user', 'campaign', 'disposition'])
+            ->oldest('started_at');
+
+        return response()->streamDownload(function () use ($callsQuery): void {
+            $spreadsheet = new Spreadsheet;
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Relatorios');
+            $sheet->fromArray($this->exportHeadings(), null, 'A1');
+
+            $rowIndex = 2;
+            $callsQuery->chunk(200, function ($calls) use ($sheet, &$rowIndex): void {
+                foreach ($calls as $call) {
+                    $sheet->fromArray($this->exportRow($call), null, 'A'.$rowIndex);
+                    $rowIndex++;
+                }
+            });
+
+            foreach (range('A', 'M') as $column) {
+                $sheet->getColumnDimension($column)->setAutoSize(true);
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, 'relatorios-chamadas.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
@@ -318,6 +323,46 @@ class ReportController extends Controller
             'conversion_count' => $conversionCount,
             'conversion_rate' => $baseCount > 0 ? (int) round(($conversionCount / $baseCount) * 100) : 0,
             'conversion_rate_label' => $baseCount > 0 ? ((int) round(($conversionCount / $baseCount) * 100)).'%' : '0%',
+        ];
+    }
+
+    private function exportHeadings(): array
+    {
+        return [
+            'data_inicio',
+            'data_fim',
+            'duracao',
+            'espera',
+            'conversao',
+            'telefone',
+            'agente',
+            'campanha',
+            'status',
+            'canal',
+            'tabulacao_codigo',
+            'tabulacao_nome',
+            'observacoes',
+        ];
+    }
+
+    private function exportRow(Call $call): array
+    {
+        $call = $this->withReportLabels($call);
+
+        return [
+            $call->started_at?->toDateTimeString(),
+            $call->ended_at?->toDateTimeString(),
+            $call->talk_time_label,
+            $call->wait_time_label,
+            $call->conversion_label,
+            $call->phone,
+            $call->user?->name,
+            $call->campaign?->name,
+            $call->status,
+            $call->channel,
+            $call->disposition_code,
+            $call->disposition_name,
+            $call->disposition_notes,
         ];
     }
 

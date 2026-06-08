@@ -188,10 +188,10 @@ Status: MVP funcional, avancado pendente.
 - [x] TMA e TME.
 - [x] Conversao por campanha/equipe/agente.
 - [x] Exportacao CSV.
+- [x] Exportacao XLSX.
 
 Pendencias importantes:
 
-- [ ] Exportacao XLSX.
 - [ ] Exportacao PDF.
 - [ ] Historico de exportacoes.
 - [ ] Agendamento de relatorios.
@@ -349,7 +349,7 @@ Objetivo: fechar indicadores essenciais.
 3. [x] Conversao por campanha.
 4. [x] Conversao por agente.
 5. [x] TMA basico.
-6. Exportacao XLSX.
+6. [x] Exportacao XLSX.
 
 Resultado esperado: gestor consegue medir campanha, equipe, agente, lista e resultado.
 
@@ -401,17 +401,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Exportacao XLSX dos Relatorios
+Exportacao PDF dos Relatorios
 ```
 
-Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas, tempos medios e conversao. O proximo passo e oferecer exportacao em planilha para uso gerencial.
+Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas, tempos medios, conversao, CSV e XLSX. O proximo passo e oferecer uma saida fechada para compartilhamento.
 
 Entregaveis desse proximo plano:
 
-- exportacao XLSX com os mesmos filtros do relatorio;
-- colunas de duracao, espera e conversao;
-- cabecalho legivel para analise gerencial;
-- testes de download e conteudo;
+- exportacao PDF com resumo executivo;
+- filtros aplicados no cabecalho;
+- tabela analitica limitada ou paginada para PDF;
+- testes de download;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -440,3 +440,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-reports-mailing-list-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-tma-tme-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-conversion-design.md`
+- `docs/superpowers/specs/2026-06-08-reports-xlsx-export-design.md`

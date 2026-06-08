@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::get('supervision', [SupervisionController::class, 'index'])->name('supervision.index');
         Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
+        Route::get('reports/export/xlsx', [ReportController::class, 'exportXlsx'])->name('reports.export-xlsx');
         Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
         Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
         Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->name('settings.pause-reasons.store');

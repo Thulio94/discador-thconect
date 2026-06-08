@@ -68,13 +68,22 @@
                     </div>
                 </form>
 
-                <a
-                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'list_id', 'team_id', 'disposition_id'])) }}"
-                    class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
-                    style="border-color: var(--border); color: var(--fg);"
-                >
-                    Exportar CSV
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    <a
+                        href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'list_id', 'team_id', 'disposition_id'])) }}"
+                        class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
+                        style="border-color: var(--border); color: var(--fg);"
+                    >
+                        Exportar CSV
+                    </a>
+                    <a
+                        href="{{ route('tenant.reports.export-xlsx', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'list_id', 'team_id', 'disposition_id'])) }}"
+                        class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
+                        style="border-color: var(--border); color: var(--fg);"
+                    >
+                        Exportar XLSX
+                    </a>
+                </div>
             </div>
         </x-ui.card>
 

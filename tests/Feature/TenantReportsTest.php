@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class TenantReportsTest extends TestCase
@@ -603,6 +604,73 @@ class TenantReportsTest extends TestCase
         $this->assertStringContainsString('conversao', $csv);
         $this->assertStringContainsString('sim', $csv);
         $this->assertStringContainsString('nao', $csv);
+    }
+
+    public function test_reports_xlsx_export_respects_filters_and_time_columns(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente XLSX');
+        $campaignA = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha XLSX A', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $campaignB = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha XLSX B', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $success = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda XLSX',
+            'code' => 'VENDA_XLSX',
+            'category' => 'success',
+            'status' => 'active',
+            'ends_call' => true,
+            'is_success' => true,
+        ]);
+        $base = now()->setSecond(0);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaignA->id,
+            'disposition_id' => $success->id,
+            'disposition_code' => $success->code,
+            'disposition_name' => $success->name,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990901',
+            'started_at' => $base->copy()->subMinutes(6),
+            'answered_at' => $base->copy()->subMinutes(6)->addSeconds(15),
+            'ended_at' => $base->copy()->subMinutes(4),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaignB->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990999',
+            'started_at' => $base->copy()->subMinutes(3),
+            'ended_at' => $base,
+        ]);
+
+        $xlsxResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export-xlsx', ['campaign_id' => $campaignA->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.xlsx');
+
+        $path = tempnam(sys_get_temp_dir(), 'discador-report-').'.xlsx';
+        file_put_contents($path, $xlsxResponse->streamedContent());
+
+        $sheet = IOFactory::load($path)->getActiveSheet();
+        $rows = $sheet->toArray();
+
+        @unlink($path);
+
+        $this->assertSame(['data_inicio', 'data_fim', 'duracao', 'espera', 'conversao', 'telefone', 'agente', 'campanha', 'status', 'canal', 'tabulacao_codigo', 'tabulacao_nome', 'observacoes'], $rows[0]);
+        $this->assertSame('2 min', $rows[1][2]);
+        $this->assertSame('15s', $rows[1][3]);
+        $this->assertSame('sim', $rows[1][4]);
+        $this->assertSame('31999990901', $rows[1][5]);
+        $this->assertSame('Campanha XLSX A', $rows[1][7]);
+        $this->assertNull($rows[2][0] ?? null);
+        $this->assertNotContains('31999990999', array_column($rows, 5));
     }
 
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
