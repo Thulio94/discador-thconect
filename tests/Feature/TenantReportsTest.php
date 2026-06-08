@@ -673,6 +673,65 @@ class TenantReportsTest extends TestCase
         $this->assertNotContains('31999990999', array_column($rows, 5));
     }
 
+    public function test_reports_pdf_export_respects_filters_and_summary(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente PDF');
+        $campaignA = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha PDF A', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $campaignB = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha PDF B', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $success = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda PDF',
+            'code' => 'VENDA_PDF',
+            'category' => 'success',
+            'status' => 'active',
+            'ends_call' => true,
+            'is_success' => true,
+        ]);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaignA->id,
+            'disposition_id' => $success->id,
+            'disposition_code' => $success->code,
+            'disposition_name' => $success->name,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999991001',
+            'started_at' => now()->subMinutes(5),
+            'ended_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaignB->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999991099',
+            'started_at' => now()->subMinutes(3),
+            'ended_at' => now(),
+        ]);
+
+        $pdfResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export-pdf', ['campaign_id' => $campaignA->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.pdf');
+
+        $pdf = $pdfResponse->streamedContent();
+
+        $this->assertStringStartsWith('%PDF-1.4', $pdf);
+        $this->assertStringContainsString('Relatorio de Chamadas', $pdf);
+        $this->assertStringContainsString('Resumo executivo', $pdf);
+        $this->assertStringContainsString('Campanha PDF A', $pdf);
+        $this->assertStringContainsString('31999991001', $pdf);
+        $this->assertStringContainsString('Conversoes: 1', $pdf);
+        $this->assertStringNotContainsString('Campanha PDF B', $pdf);
+        $this->assertStringNotContainsString('31999991099', $pdf);
+    }
+
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
     {
         [$admin, $company] = $this->tenantUser('company_admin');

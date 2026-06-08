@@ -9,6 +9,7 @@ use App\Models\ContactList;
 use App\Models\Disposition;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Reports\SimplePdfReport;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -120,6 +121,51 @@ class ReportController extends Controller
             $spreadsheet->disconnectWorksheets();
         }, 'relatorios-chamadas.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function exportPdf(Request $request, SimplePdfReport $pdfReport): StreamedResponse
+    {
+        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
+        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
+            ->with(['user', 'campaign', 'disposition'])
+            ->oldest('started_at');
+        $timeMetrics = $this->timeMetrics(clone $callsQuery);
+        $conversionMetrics = $this->conversionMetrics(clone $callsQuery);
+        $totalCalls = (clone $callsQuery)->count();
+        $endedCalls = (clone $callsQuery)->where('status', 'ended')->count();
+        $sampleCalls = (clone $callsQuery)->limit(20)->get();
+        $lines = [
+            'Relatorio de Chamadas',
+            'Resumo executivo',
+            'Periodo: '.$dateFrom->format('d/m/Y').' ate '.$dateTo->format('d/m/Y'),
+            'Total chamadas: '.$totalCalls,
+            'Encerradas: '.$endedCalls,
+            'TMA: '.$timeMetrics['avg_talk_time_label'],
+            'TME: '.$timeMetrics['avg_wait_time_label'],
+            'Conversoes: '.$conversionMetrics['conversion_count'],
+            'Taxa conversao: '.$conversionMetrics['conversion_rate_label'],
+            'Filtros: '.$this->pdfFilterLabel($companyId, $userId, $campaignId, $dispositionId, $teamId, $listId),
+            'Amostra analitica',
+        ];
+
+        foreach ($sampleCalls as $call) {
+            $call = $this->withReportLabels($call);
+            $lines[] = implode(' | ', [
+                $call->phone ?? 'Sem numero',
+                $call->user?->name ?? 'Sem agente',
+                $call->campaign?->name ?? 'Sem campanha',
+                $call->disposition_name ?? 'Sem tabulacao',
+                'Duracao '.$call->talk_time_label,
+                'Espera '.$call->wait_time_label,
+                'Conversao '.$call->conversion_label,
+            ]);
+        }
+
+        return response()->streamDownload(function () use ($pdfReport, $lines): void {
+            echo $pdfReport->render($lines);
+        }, 'relatorios-chamadas.pdf', [
+            'Content-Type' => 'application/pdf',
         ]);
     }
 
@@ -423,6 +469,33 @@ class ReportController extends Controller
         }
 
         return implode(' ', $parts);
+    }
+
+    private function pdfFilterLabel(int $companyId, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId): string
+    {
+        $filters = [];
+
+        if ($userId) {
+            $filters[] = 'Agente '.User::query()->where('company_id', $companyId)->find($userId)?->name;
+        }
+
+        if ($campaignId) {
+            $filters[] = 'Campanha '.Campaign::query()->where('company_id', $companyId)->find($campaignId)?->name;
+        }
+
+        if ($dispositionId) {
+            $filters[] = 'Resultado '.Disposition::query()->where('company_id', $companyId)->find($dispositionId)?->name;
+        }
+
+        if ($teamId) {
+            $filters[] = 'Equipe '.Team::query()->where('company_id', $companyId)->find($teamId)?->name;
+        }
+
+        if ($listId) {
+            $filters[] = 'Lista '.ContactList::query()->where('company_id', $companyId)->find($listId)?->name;
+        }
+
+        return $filters === [] ? 'Todos' : implode(', ', array_filter($filters));
     }
 
     private function whereCallBelongsToTeam($query, int $companyId, int $teamId)

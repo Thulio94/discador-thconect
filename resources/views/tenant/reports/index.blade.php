@@ -83,6 +83,13 @@
                     >
                         Exportar XLSX
                     </a>
+                    <a
+                        href="{{ route('tenant.reports.export-pdf', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'list_id', 'team_id', 'disposition_id'])) }}"
+                        class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
+                        style="border-color: var(--border); color: var(--fg);"
+                    >
+                        Exportar PDF
+                    </a>
                 </div>
             </div>
         </x-ui.card>
