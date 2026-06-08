@@ -186,11 +186,11 @@ Status: MVP funcional, avancado pendente.
 - [x] Relatorio analitico paginado.
 - [x] Relatorio por mailing/lista.
 - [x] TMA e TME.
+- [x] Conversao por campanha/equipe/agente.
 - [x] Exportacao CSV.
 
 Pendencias importantes:
 
-- [ ] Conversao por campanha/equipe/agente.
 - [ ] Exportacao XLSX.
 - [ ] Exportacao PDF.
 - [ ] Historico de exportacoes.
@@ -346,8 +346,8 @@ Objetivo: fechar indicadores essenciais.
 
 1. Relatorio analitico paginado.
 2. [x] Relatorio por lista/mailing.
-3. Conversao por campanha.
-4. Conversao por agente.
+3. [x] Conversao por campanha.
+4. [x] Conversao por agente.
 5. [x] TMA basico.
 6. Exportacao XLSX.
 
@@ -401,18 +401,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Conversao por Campanha, Equipe e Agente
+Exportacao XLSX dos Relatorios
 ```
 
-Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas e tempos medios. O proximo passo e medir eficiencia de resultado por campanha, equipe e agente.
+Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas, tempos medios e conversao. O proximo passo e oferecer exportacao em planilha para uso gerencial.
 
 Entregaveis desse proximo plano:
 
-- taxa de conversao por campanha;
-- taxa de conversao por equipe;
-- taxa de conversao por agente;
-- configuracao simples de quais tabulacoes contam como conversao;
-- exportacao mantendo os novos indicadores;
+- exportacao XLSX com os mesmos filtros do relatorio;
+- colunas de duracao, espera e conversao;
+- cabecalho legivel para analise gerencial;
+- testes de download e conteudo;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -440,3 +439,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-reports-analytic-pagination-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-mailing-list-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-tma-tme-design.md`
+- `docs/superpowers/specs/2026-06-08-reports-conversion-design.md`

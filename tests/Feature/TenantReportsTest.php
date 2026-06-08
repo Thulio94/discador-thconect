@@ -527,6 +527,84 @@ class TenantReportsTest extends TestCase
         $this->assertStringContainsString('40s', $csv);
     }
 
+    public function test_reports_show_conversion_by_campaign_team_and_agent(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Conversao');
+        $team = Team::create(['company_id' => $company->id, 'name' => 'Equipe Conversao', 'slug' => 'equipe-conversao', 'status' => 'active']);
+        $team->users()->attach($agent->id, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Conversao', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $success = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda confirmada',
+            'code' => 'VENDA',
+            'category' => 'success',
+            'status' => 'active',
+            'ends_call' => true,
+            'is_success' => true,
+        ]);
+        $neutral = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Sem interesse',
+            'code' => 'SEM_INTERESSE',
+            'category' => 'neutral',
+            'status' => 'active',
+            'ends_call' => true,
+            'is_success' => false,
+        ]);
+
+        foreach ([[$success, '31999990801'], [$neutral, '31999990802']] as [$disposition, $phone]) {
+            Call::create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'campaign_id' => $campaign->id,
+                'disposition_id' => $disposition->id,
+                'disposition_code' => $disposition->code,
+                'disposition_name' => $disposition->name,
+                'direction' => 'outbound',
+                'status' => 'ended',
+                'channel' => 'simulated',
+                'phone' => $phone,
+                'started_at' => now()->subMinutes(5),
+                'ended_at' => now(),
+            ]);
+        }
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990803',
+            'started_at' => now()->subMinutes(3),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index', ['campaign_id' => $campaign->id]))
+            ->assertOk()
+            ->assertSee('Conversoes')
+            ->assertSee('1 convertida')
+            ->assertSee('Taxa conversao')
+            ->assertSee('50%')
+            ->assertSee('Agente Conversao')
+            ->assertSee('Conv 1 | 50%')
+            ->assertSee('Campanha Conversao')
+            ->assertSee('Equipe Conversao');
+
+        $csvResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export', ['campaign_id' => $campaign->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.csv');
+
+        $csv = $csvResponse->streamedContent();
+
+        $this->assertStringContainsString('conversao', $csv);
+        $this->assertStringContainsString('sim', $csv);
+        $this->assertStringContainsString('nao', $csv);
+    }
+
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
     {
         [$admin, $company] = $this->tenantUser('company_admin');

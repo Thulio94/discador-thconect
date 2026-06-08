@@ -78,12 +78,14 @@
             </div>
         </x-ui.card>
 
-        <div class="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
+        <div class="grid gap-3 md:grid-cols-5 xl:grid-cols-10">
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Chamadas totais</p><p class="mt-2 text-2xl font-bold">{{ $metrics['total_calls'] }} total</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Em andamento</p><p class="mt-2 text-2xl font-bold">{{ $metrics['in_progress_calls'] }} andamento</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Encerradas</p><p class="mt-2 text-2xl font-bold">{{ $metrics['ended_calls'] }} encerrada</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">TMA</p><p class="mt-2 text-2xl font-bold">{{ $metrics['avg_talk_time_label'] }}</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">TME</p><p class="mt-2 text-2xl font-bold">{{ $metrics['avg_wait_time_label'] }}</p></x-ui.card>
+            <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Conversoes</p><p class="mt-2 text-2xl font-bold">{{ $metrics['conversion_count'] }} convertida</p></x-ui.card>
+            <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Taxa conversao</p><p class="mt-2 text-2xl font-bold">{{ $metrics['conversion_rate_label'] }}</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Agentes disponiveis</p><p class="mt-2 text-2xl font-bold">{{ $metrics['available_agents'] }} disponivel</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Agentes em pausa</p><p class="mt-2 text-2xl font-bold">{{ $metrics['paused_agents'] }} pausa</p></x-ui.card>
             <x-ui.card><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Agentes em chamada</p><p class="mt-2 text-2xl font-bold">{{ $metrics['in_call_agents'] }} chamada</p></x-ui.card>
@@ -96,7 +98,7 @@
                     @forelse ($agentPerformance as $agent)
                         <div class="flex items-center justify-between rounded-lg border p-3 text-sm" style="border-color: var(--border);">
                             <span>{{ $agent->name }}</span>
-                            <span class="text-right font-semibold">{{ $agent->calls_count }} chamadas<br><span class="text-xs" style="color: var(--fg-muted);">TMA {{ $agent->avg_talk_time_label }}</span></span>
+                            <span class="text-right font-semibold">{{ $agent->calls_count }} chamadas<br><span class="text-xs" style="color: var(--fg-muted);">TMA {{ $agent->avg_talk_time_label }}</span><br><span class="text-xs" style="color: var(--fg-muted);">Conv {{ $agent->conversion_count }} | {{ $agent->conversion_rate_label }}</span></span>
                         </div>
                     @empty
                         <p class="text-sm" style="color: var(--fg-muted);">Sem dados de agentes.</p>
@@ -110,7 +112,7 @@
                     @forelse ($teamPerformance as $team)
                         <div class="flex items-center justify-between rounded-lg border p-3 text-sm" style="border-color: var(--border);">
                             <span>{{ $team->name }}</span>
-                            <span class="font-semibold">{{ $team->calls_count }} chamadas</span>
+                            <span class="text-right font-semibold">{{ $team->calls_count }} chamadas<br><span class="text-xs" style="color: var(--fg-muted);">Conv {{ $team->conversion_count }} | {{ $team->conversion_rate_label }}</span></span>
                         </div>
                     @empty
                         <p class="text-sm" style="color: var(--fg-muted);">Sem dados de equipes.</p>
@@ -124,7 +126,7 @@
                     @forelse ($campaignPerformance as $campaign)
                         <div class="flex items-center justify-between rounded-lg border p-3 text-sm" style="border-color: var(--border);">
                             <span>{{ $campaign->name }}</span>
-                            <span class="text-right font-semibold">{{ $campaign->calls_count }} chamadas<br><span class="text-xs" style="color: var(--fg-muted);">TMA {{ $campaign->avg_talk_time_label }}</span></span>
+                            <span class="text-right font-semibold">{{ $campaign->calls_count }} chamadas<br><span class="text-xs" style="color: var(--fg-muted);">TMA {{ $campaign->avg_talk_time_label }}</span><br><span class="text-xs" style="color: var(--fg-muted);">Conv {{ $campaign->conversion_count }} | {{ $campaign->conversion_rate_label }}</span></span>
                         </div>
                     @empty
                         <p class="text-sm" style="color: var(--fg-muted);">Sem dados de campanhas.</p>

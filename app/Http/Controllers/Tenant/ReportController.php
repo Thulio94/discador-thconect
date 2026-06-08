@@ -20,13 +20,14 @@ class ReportController extends Controller
         [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId);
         $timeMetrics = $this->timeMetrics(clone $callsQuery);
+        $conversionMetrics = $this->conversionMetrics(clone $callsQuery);
 
         $analyticCalls = (clone $callsQuery)
-            ->with(['user', 'campaign', 'contact'])
+            ->with(['user', 'campaign', 'contact', 'disposition'])
             ->latest('started_at')
             ->paginate(10)
             ->withQueryString();
-        $analyticCalls->getCollection()->transform(fn (Call $call) => $this->withTimeLabels($call));
+        $analyticCalls->getCollection()->transform(fn (Call $call) => $this->withReportLabels($call));
 
         return view('tenant.reports.index', [
             'calls' => $analyticCalls,
@@ -36,6 +37,8 @@ class ReportController extends Controller
                 'ended_calls' => (clone $callsQuery)->where('status', 'ended')->count(),
                 'avg_talk_time_label' => $timeMetrics['avg_talk_time_label'],
                 'avg_wait_time_label' => $timeMetrics['avg_wait_time_label'],
+                'conversion_count' => $conversionMetrics['conversion_count'],
+                'conversion_rate_label' => $conversionMetrics['conversion_rate_label'],
                 'available_agents' => $this->statusCount($companyId, 'available'),
                 'paused_agents' => $this->statusCount($companyId, 'paused'),
                 'in_call_agents' => $this->statusCount($companyId, 'in_call'),
@@ -66,7 +69,7 @@ class ReportController extends Controller
     {
         [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
-            ->with(['user', 'campaign'])
+            ->with(['user', 'campaign', 'disposition'])
             ->oldest('started_at');
 
         return response()->streamDownload(function () use ($callsQuery): void {
@@ -76,6 +79,7 @@ class ReportController extends Controller
                 'data_fim',
                 'duracao',
                 'espera',
+                'conversao',
                 'telefone',
                 'agente',
                 'campanha',
@@ -88,13 +92,14 @@ class ReportController extends Controller
 
             $callsQuery->chunk(200, function ($calls) use ($output): void {
                 foreach ($calls as $call) {
-                    $call = $this->withTimeLabels($call);
+                    $call = $this->withReportLabels($call);
 
                     fputcsv($output, [
                         $call->started_at?->toDateTimeString(),
                         $call->ended_at?->toDateTimeString(),
                         $call->talk_time_label,
                         $call->wait_time_label,
+                        $call->conversion_label,
                         $call->phone,
                         $call->user?->name,
                         $call->campaign?->name,
@@ -145,8 +150,12 @@ class ReportController extends Controller
             ->get();
 
         return $agents->each(function (User $agent) use ($companyId, $dateFrom, $dateTo, $campaignId, $dispositionId, $teamId, $listId): void {
-            $timeMetrics = $this->timeMetrics($this->callsQuery($companyId, $dateFrom, $dateTo, $agent->id, $campaignId, $dispositionId, $teamId, $listId));
+            $agentCallsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $agent->id, $campaignId, $dispositionId, $teamId, $listId);
+            $timeMetrics = $this->timeMetrics(clone $agentCallsQuery);
+            $conversionMetrics = $this->conversionMetrics(clone $agentCallsQuery);
             $agent->setAttribute('avg_talk_time_label', $timeMetrics['avg_talk_time_label']);
+            $agent->setAttribute('conversion_count', $conversionMetrics['conversion_count']);
+            $agent->setAttribute('conversion_rate_label', $conversionMetrics['conversion_rate_label']);
         });
     }
 
@@ -167,14 +176,18 @@ class ReportController extends Controller
             ->get();
 
         return $campaigns->each(function (Campaign $campaign) use ($companyId, $dateFrom, $dateTo, $userId, $dispositionId, $teamId, $listId): void {
-            $timeMetrics = $this->timeMetrics($this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaign->id, $dispositionId, $teamId, $listId));
+            $campaignCallsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaign->id, $dispositionId, $teamId, $listId);
+            $timeMetrics = $this->timeMetrics(clone $campaignCallsQuery);
+            $conversionMetrics = $this->conversionMetrics(clone $campaignCallsQuery);
             $campaign->setAttribute('avg_talk_time_label', $timeMetrics['avg_talk_time_label']);
+            $campaign->setAttribute('conversion_count', $conversionMetrics['conversion_count']);
+            $campaign->setAttribute('conversion_rate_label', $conversionMetrics['conversion_rate_label']);
         });
     }
 
     private function teamPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
     {
-        return Team::query()
+        $teams = Team::query()
             ->where('company_id', $companyId)
             ->where('status', 'active')
             ->select('teams.*')
@@ -198,6 +211,12 @@ class ReportController extends Controller
             ->orderByDesc('calls_count')
             ->limit(8)
             ->get();
+
+        return $teams->each(function (Team $team) use ($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $listId): void {
+            $conversionMetrics = $this->conversionMetrics($this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $team->id, $listId));
+            $team->setAttribute('conversion_count', $conversionMetrics['conversion_count']);
+            $team->setAttribute('conversion_rate_label', $conversionMetrics['conversion_rate_label']);
+        });
     }
 
     private function dispositionSummary(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
@@ -283,6 +302,31 @@ class ReportController extends Controller
             'avg_wait_time_seconds' => $avgWaitTime,
             'avg_wait_time_label' => $this->formatSeconds($avgWaitTime),
         ];
+    }
+
+    private function conversionMetrics($query): array
+    {
+        $baseQuery = (clone $query)
+            ->where('status', 'ended')
+            ->whereNotNull('disposition_id');
+        $baseCount = (clone $baseQuery)->count();
+        $conversionCount = (clone $baseQuery)
+            ->whereHas('disposition', fn ($dispositionQuery) => $dispositionQuery->where('is_success', true))
+            ->count();
+
+        return [
+            'conversion_count' => $conversionCount,
+            'conversion_rate' => $baseCount > 0 ? (int) round(($conversionCount / $baseCount) * 100) : 0,
+            'conversion_rate_label' => $baseCount > 0 ? ((int) round(($conversionCount / $baseCount) * 100)).'%' : '0%',
+        ];
+    }
+
+    private function withReportLabels(Call $call): Call
+    {
+        $this->withTimeLabels($call);
+        $call->setAttribute('conversion_label', $call->disposition?->is_success ? 'sim' : 'nao');
+
+        return $call;
     }
 
     private function withTimeLabels(Call $call): Call
