@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentStatus;
+use App\Models\Call;
+use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,19 +68,127 @@ class NotificationTest extends TestCase
         $this->assertSame(0, $user->appNotifications()->whereNull('read_at')->count());
     }
 
-    private function tenantUser(): User
+    public function test_campaign_operational_action_notifies_company_admins_and_supervisors(): void
     {
-        $company = Company::create(['name' => 'Tenant A']);
+        $company = $this->company();
+        $admin = $this->tenantUser($company, 'company_admin', '1001');
+        $supervisor = $this->tenantUser($company, 'supervisor', '1002');
+        $agent = $this->tenantUser($company, 'agent', '1003');
+        $otherAdmin = $this->tenantUser($this->company('Outra Empresa'), 'company_admin', '2001');
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Notificada',
+            'dialing_mode' => 'power',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.start', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'));
+
+        $this->assertDatabaseHas('app_notifications', [
+            'company_id' => $company->id,
+            'user_id' => $admin->id,
+            'type' => 'campaign',
+            'severity' => 'success',
+            'title' => 'Campanha iniciada',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'company_id' => $company->id,
+            'user_id' => $supervisor->id,
+            'title' => 'Campanha iniciada',
+        ]);
+        $this->assertFalse($agent->appNotifications()->where('title', 'Campanha iniciada')->exists());
+        $this->assertFalse($otherAdmin->appNotifications()->where('title', 'Campanha iniciada')->exists());
+    }
+
+    public function test_contact_list_import_notifies_company_admins_and_supervisors(): void
+    {
+        $company = $this->company();
+        $admin = $this->tenantUser($company, 'company_admin', '1001');
+        $supervisor = $this->tenantUser($company, 'supervisor', '1002');
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Notificada',
+                'description' => 'Importacao operacional',
+                'status' => 'active',
+                'contacts' => "Maria;31999990001\nJoao;31999990002",
+            ])
+            ->assertRedirect(route('tenant.lists.index'));
+
+        $this->assertDatabaseHas('app_notifications', [
+            'company_id' => $company->id,
+            'user_id' => $admin->id,
+            'type' => 'mailing',
+            'severity' => 'info',
+            'title' => 'Lista importada',
+            'message' => 'Lista Notificada recebeu 2 contatos importados.',
+        ]);
+        $this->assertTrue($supervisor->appNotifications()->where('title', 'Lista importada')->exists());
+    }
+
+    public function test_supervision_operational_alerts_create_deduplicated_notifications(): void
+    {
+        $company = $this->company();
+        $supervisor = $this->tenantUser($company, 'supervisor', '1002');
+        $agent = $this->tenantUser($company, 'agent', '1003');
+
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'paused',
+            'started_at' => now()->subMinutes(25),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990044',
+            'started_at' => now()->subMinutes(18),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.index'))
+            ->assertOk();
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.index'))
+            ->assertOk();
+
+        $this->assertSame(1, $supervisor->appNotifications()->where('title', 'Pausa longa')->count());
+        $this->assertSame(1, $supervisor->appNotifications()->where('title', 'Chamada sem tabulacao')->count());
+    }
+
+    private function company(string $name = 'Tenant A'): Company
+    {
+        $company = Company::create(['name' => $name]);
         $company->licenses()->create([
             'status' => 'active',
             'starts_at' => now()->subDay()->toDateString(),
             'ends_at' => now()->addMonth()->toDateString(),
         ]);
 
+        return $company;
+    }
+
+    private function tenantUser(?Company $company = null, string $type = 'company_admin', string $extension = '1001'): User
+    {
+        $company ??= $this->company();
+        $role = Role::create([
+            'company_id' => $company->id,
+            'name' => 'Operacao '.$extension,
+            'slug' => 'operacao-'.$extension,
+            'is_admin' => true,
+        ]);
+
         return User::factory()->create([
             'company_id' => $company->id,
+            'role_id' => $role->id,
+            'user_type' => $type,
             'status' => 'active',
-            'extension' => '1001',
+            'extension' => $extension,
         ]);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
 use App\Models\ContactList;
+use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,8 @@ use Illuminate\Validation\Rule;
 
 class ContactListController extends Controller
 {
+    public function __construct(private readonly AppNotificationService $notifications) {}
+
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
@@ -39,6 +42,7 @@ class ContactListController extends Controller
         ]);
 
         $summary = $this->syncContacts($list, $data['contacts'] ?? '');
+        $this->notifyListImport($list, $summary);
 
         return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso. '.$this->summaryMessage($summary));
     }
@@ -57,6 +61,7 @@ class ContactListController extends Controller
 
         if (array_key_exists('contacts', $data)) {
             $summary = $this->syncContacts($list, $data['contacts'] ?? '');
+            $this->notifyListImport($list, $summary);
         }
 
         return redirect()->route('tenant.lists.index')->with('status', 'Lista atualizada com sucesso. '.$this->summaryMessage($summary ?? null));
@@ -158,6 +163,23 @@ class ContactListController extends Controller
             $summary['blocked'],
             $summary['invalid'],
             $summary['duplicated'],
+        );
+    }
+
+    private function notifyListImport(ContactList $list, array $summary): void
+    {
+        if (($summary['imported'] ?? 0) <= 0) {
+            return;
+        }
+
+        $this->notifications->createForCompanyAudience(
+            $list->company_id,
+            ['company_admin', 'supervisor'],
+            'mailing',
+            'info',
+            'Lista importada',
+            sprintf('%s recebeu %d contatos importados.', $list->name, $summary['imported']),
+            route('tenant.lists.index')
         );
     }
 }

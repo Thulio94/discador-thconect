@@ -8,6 +8,7 @@ use App\Models\ContactList;
 use App\Models\Team;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
+use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ use Illuminate\Validation\Rule;
 
 class CampaignController extends Controller
 {
+    public function __construct(private readonly AppNotificationService $notifications) {}
+
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
@@ -84,6 +87,7 @@ class CampaignController extends Controller
             'status' => 'finished',
             'ends_at' => now(),
         ]);
+        $this->notifyCampaign($campaign, 'warning', 'Campanha finalizada', "A campanha {$campaign->name} foi finalizada.");
 
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha finalizada com sucesso.');
     }
@@ -97,6 +101,7 @@ class CampaignController extends Controller
             'starts_at' => $campaign->starts_at ?? now(),
             'ends_at' => null,
         ]);
+        $this->notifyCampaign($campaign, 'success', 'Campanha iniciada', "A campanha {$campaign->name} foi iniciada.");
 
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha iniciada com sucesso.');
     }
@@ -106,6 +111,7 @@ class CampaignController extends Controller
         abort_unless($campaign->company_id === $request->user()->company_id, 403);
 
         $campaign->update(['status' => 'paused']);
+        $this->notifyCampaign($campaign, 'warning', 'Campanha pausada', "A campanha {$campaign->name} foi pausada.");
 
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha pausada com sucesso.');
     }
@@ -119,6 +125,7 @@ class CampaignController extends Controller
             'starts_at' => $campaign->starts_at ?? now(),
             'ends_at' => null,
         ]);
+        $this->notifyCampaign($campaign, 'success', 'Campanha reiniciada', "A campanha {$campaign->name} foi reiniciada.");
 
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha reiniciada com sucesso.');
     }
@@ -226,5 +233,18 @@ class CampaignController extends Controller
         }
 
         return $name;
+    }
+
+    private function notifyCampaign(Campaign $campaign, string $severity, string $title, string $message): void
+    {
+        $this->notifications->createForCompanyAudience(
+            $campaign->company_id,
+            ['company_admin', 'supervisor'],
+            'campaign',
+            $severity,
+            $title,
+            $message,
+            route('tenant.campaigns.index')
+        );
     }
 }

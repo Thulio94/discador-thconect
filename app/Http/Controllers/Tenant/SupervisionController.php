@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Call;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SupervisionController extends Controller
 {
+    public function __construct(private readonly AppNotificationService $notifications) {}
+
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
@@ -44,6 +47,7 @@ class SupervisionController extends Controller
                     $user->currentAgentStatus?->status === 'paused' && $statusMinutes >= 20 ? 'Pausa longa' : null,
                     $activeCall && $callMinutes >= 15 ? 'Chamada longa' : null,
                 ])->filter()->values()->all());
+                $this->notifyOperationalAlerts($user, $statusMinutes, $callMinutes, $activeCall);
                 $user->setAttribute('team_names', DB::table('team_user')
                     ->join('teams', 'teams.id', '=', 'team_user.team_id')
                     ->where('team_user.company_id', $companyId)
@@ -91,5 +95,34 @@ class SupervisionController extends Controller
         return $remainingMinutes > 0
             ? $hours.'h '.$remainingMinutes.' min'
             : $hours.'h';
+    }
+
+    private function notifyOperationalAlerts(User $user, int $statusMinutes, int $callMinutes, ?Call $activeCall): void
+    {
+        if ($user->currentAgentStatus?->status === 'paused' && $statusMinutes >= 20) {
+            $this->notifications->createForCompanyAudience(
+                $user->company_id,
+                ['company_admin', 'supervisor'],
+                'operation',
+                'warning',
+                'Pausa longa',
+                sprintf('%s esta em pausa ha %s.', $user->name, $this->durationLabel($statusMinutes)),
+                route('tenant.supervision.index'),
+                dedupe: true
+            );
+        }
+
+        if ($activeCall && $callMinutes >= 15) {
+            $this->notifications->createForCompanyAudience(
+                $user->company_id,
+                ['company_admin', 'supervisor'],
+                'operation',
+                'warning',
+                'Chamada sem tabulacao',
+                sprintf('%s esta em chamada ha %s sem tabulacao.', $user->name, $this->durationLabel($callMinutes)),
+                route('tenant.supervision.index'),
+                dedupe: true
+            );
+        }
     }
 }

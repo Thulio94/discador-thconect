@@ -194,17 +194,21 @@ Pendencias importantes:
 
 ### Notificacoes
 
-Status: base criada, operacional ainda incompleta.
+Status: MVP operacional.
 
 - [x] Notificacoes persistidas.
 - [x] Painel lateral direito.
 - [x] Marcar como lida.
 - [x] Marcar todas como lidas.
 - [x] Toasts no canto direito.
+- [x] Eventos de campanha: iniciada, pausada, reiniciada e finalizada.
+- [x] Evento de lista importada.
+- [x] Alerta persistido de pausa longa.
+- [x] Alerta persistido de chamada sem tabulacao.
+- [x] Deduplicacao de alertas operacionais.
 
 Pendencias importantes:
 
-- [ ] Eventos operacionais reais: campanha iniciada, lista importada, agente em pausa longa, chamada sem tabulacao.
 - [ ] Reverb/Echo para tempo real.
 - [ ] Fallback por polling.
 - [ ] Preferencias por usuario.
@@ -347,10 +351,10 @@ Resultado esperado: gestor consegue medir campanha, equipe, agente, lista e resu
 
 Objetivo: transformar notificacoes em recurso ativo do sistema.
 
-1. Notificar importacao de lista.
-2. Notificar campanha iniciada/pausada/finalizada.
-3. Notificar agente em pausa longa.
-4. Notificar chamada sem tabulacao.
+1. [x] Notificar importacao de lista.
+2. [x] Notificar campanha iniciada/pausada/finalizada.
+3. [x] Notificar agente em pausa longa.
+4. [x] Notificar chamada sem tabulacao.
 5. Ligar Reverb/Echo ou polling.
 
 Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
@@ -391,17 +395,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Notificacoes Operacionais - Eventos do MVP Simulado
+Wizard de Campanha e Agenda Operacional
 ```
 
-Motivo: o painel do agente e a supervisao ja cobrem o fluxo operacional simulado. Agora as notificacoes devem receber eventos reais do MVP, sem alertas nativos do navegador.
+Motivo: o fluxo simulado ja atende agente, supervisao, fila, callbacks, relatorios e notificacoes. Agora falta melhorar a montagem da campanha com etapas guiadas e agenda operacional.
 
 Entregaveis desse proximo plano:
 
-- notificar campanha iniciada, pausada, reiniciada e finalizada;
-- notificar lista importada;
-- notificar agente em pausa longa;
-- notificar chamada sem tabulacao;
+- wizard de campanha em etapas;
+- agenda por dia e horario;
+- revisao antes de ativar;
+- configuracao visual de peso por lista;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -422,3 +426,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-agent-callback-fields-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-recent-calls-design.md`
 - `docs/superpowers/specs/2026-06-07-supervision-operational-times-design.md`
+- `docs/superpowers/specs/2026-06-07-operational-notifications-design.md`
