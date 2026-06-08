@@ -153,17 +153,66 @@
             </x-ui.card>
 
             <x-ui.card>
-                <h2 class="text-lg font-semibold">Ultimas chamadas</h2>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 class="text-lg font-semibold">Analitico de chamadas</h2>
+                    <span class="text-xs" style="color: var(--fg-muted);">{{ $calls->total() }} registros</span>
+                </div>
+
+                <div class="mt-4 overflow-x-auto">
+                    <table class="min-w-full text-left text-sm">
+                        <thead style="color: var(--fg-muted);">
+                            <tr class="border-b" style="border-color: var(--border);">
+                                <th class="px-3 py-2 font-semibold">Telefone</th>
+                                <th class="px-3 py-2 font-semibold">Contato</th>
+                                <th class="px-3 py-2 font-semibold">Agente</th>
+                                <th class="px-3 py-2 font-semibold">Campanha</th>
+                                <th class="px-3 py-2 font-semibold">Resultado</th>
+                                <th class="px-3 py-2 font-semibold">Status</th>
+                                <th class="px-3 py-2 font-semibold">Inicio</th>
+                                <th class="px-3 py-2 font-semibold">Duracao</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($calls as $call)
+                                @php($duration = $call->started_at && $call->ended_at ? max(1, $call->started_at->diffInMinutes($call->ended_at)) : null)
+                                <tr class="border-b align-top" style="border-color: var(--border);">
+                                    <td class="px-3 py-3 font-semibold">{{ $call->phone ?? 'Sem numero' }}</td>
+                                    <td class="px-3 py-3">{{ $call->contact?->name ?? 'Sem contato' }}</td>
+                                    <td class="px-3 py-3">{{ $call->user?->name ?? 'Sem agente' }}</td>
+                                    <td class="px-3 py-3">{{ $call->campaign?->name ?? 'Sem campanha' }}</td>
+                                    <td class="px-3 py-3">{{ $call->disposition_name ?? 'Sem tabulacao' }}</td>
+                                    <td class="px-3 py-3">
+                                        <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">
+                                            {{ $call->status }} | {{ $call->channel }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-3">{{ $call->started_at?->format('d/m/Y H:i') ?? 'sem data' }}</td>
+                                    <td class="px-3 py-3">{{ $duration ? $duration.' min' : 'em andamento' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="8" class="px-3 py-4 text-sm" style="color: var(--fg-muted);">Nenhuma chamada encontrada.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 pagination">
+                    {{ $calls->links() }}
+                </div>
+
                 <div class="mt-4 grid gap-2">
                     @forelse ($calls as $call)
-                        <div class="grid gap-2 rounded-lg border p-3 text-sm md:grid-cols-[140px_minmax(0,1fr)_130px_120px]" style="border-color: var(--border);">
-                            <span class="font-semibold">{{ $call->phone ?? 'Sem numero' }}</span>
-                            <span>{{ $call->user?->name ?? 'Sem agente' }}</span>
-                            <span>{{ $call->campaign?->name ?? 'Sem campanha' }}</span>
-                            <span style="color: var(--fg-muted);">{{ $call->status }}</span>
+                        <div class="grid gap-2 rounded-lg border p-3 text-sm md:hidden" style="border-color: var(--border);">
+                            <div class="flex items-start justify-between gap-3">
+                                <span class="font-semibold">{{ $call->phone ?? 'Sem numero' }}</span>
+                                <span style="color: var(--fg-muted);">{{ $call->status }}</span>
+                            </div>
+                            <span>{{ $call->user?->name ?? 'Sem agente' }} | {{ $call->campaign?->name ?? 'Sem campanha' }}</span>
+                            <span style="color: var(--fg-muted);">{{ $call->disposition_name ?? 'Sem tabulacao' }}</span>
                         </div>
                     @empty
-                        <p class="text-sm" style="color: var(--fg-muted);">Nenhuma chamada encontrada.</p>
                     @endforelse
                 </div>
             </x-ui.card>

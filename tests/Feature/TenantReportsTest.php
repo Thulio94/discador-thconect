@@ -104,7 +104,7 @@ class TenantReportsTest extends TestCase
             ->assertSee('Performance por agente')
             ->assertSee('Performance por campanha')
             ->assertSee('Resumo de listas')
-            ->assertSee('Ultimas chamadas')
+            ->assertSee('Analitico de chamadas')
             ->assertSee('Exportar CSV')
             ->assertDontSee('Exportar - Em breve')
             ->assertSee('31999990010')
@@ -308,6 +308,79 @@ class TenantReportsTest extends TestCase
         $this->assertStringContainsString('31999990301', $csv);
         $this->assertStringNotContainsString('31999990302', $csv);
         $this->assertStringNotContainsString('31999990303', $csv);
+    }
+
+    public function test_reports_show_paginated_analytic_calls_with_duration_and_filters(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agentA] = $this->tenantUser('agent', $company, 'Agente Analitico A');
+        [$agentB] = $this->tenantUser('agent', $company, 'Agente Analitico B');
+        $campaignA = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Analitica A', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $campaignB = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Analitica B', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $sale = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda analitica',
+            'code' => 'VENDA_ANALITICA',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+
+        foreach (range(1, 13) as $index) {
+            Call::create([
+                'company_id' => $company->id,
+                'user_id' => $agentA->id,
+                'campaign_id' => $campaignA->id,
+                'disposition_id' => $sale->id,
+                'disposition_code' => $sale->code,
+                'disposition_name' => $sale->name,
+                'direction' => 'outbound',
+                'status' => 'ended',
+                'channel' => 'simulated',
+                'phone' => '319999904'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                'started_at' => now()->subMinutes($index),
+                'ended_at' => now()->subMinutes($index)->addMinutes(2),
+            ]);
+        }
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agentB->id,
+            'campaign_id' => $campaignB->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990599',
+            'started_at' => now(),
+            'ended_at' => now()->addMinute(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index', [
+                'user_id' => $agentA->id,
+                'campaign_id' => $campaignA->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Analitico de chamadas')
+            ->assertSee('13 registros')
+            ->assertSee('31999990401')
+            ->assertSee('31999990410')
+            ->assertSee('2 min')
+            ->assertSee('Venda analitica')
+            ->assertSee('pagination')
+            ->assertDontSee('31999990413')
+            ->assertDontSee('31999990599')
+            ->assertSee('user_id='.$agentA->id, false)
+            ->assertSee('campaign_id='.$campaignA->id, false);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index', [
+                'user_id' => $agentA->id,
+                'campaign_id' => $campaignA->id,
+                'page' => 2,
+            ]))
+            ->assertOk()
+            ->assertSee('31999990413')
+            ->assertDontSee('31999990401');
     }
 
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void

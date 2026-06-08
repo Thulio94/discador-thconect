@@ -183,11 +183,11 @@ Status: MVP funcional, avancado pendente.
 - [x] Resultados por tabulacao.
 - [x] Resumo de listas.
 - [x] Ultimas chamadas.
+- [x] Relatorio analitico paginado.
 - [x] Exportacao CSV.
 
 Pendencias importantes:
 
-- [ ] Relatorio analitico paginado.
 - [ ] Relatorio por mailing/lista.
 - [ ] TMA e TME.
 - [ ] Conversao por campanha/equipe/agente.
@@ -401,18 +401,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Relatorio Analitico Paginado
+Relatorio por Mailing e Lista
 ```
 
-Motivo: o fluxo operacional do agente e das campanhas esta bem fechado para o MVP simulado. O proximo passo e dar ao gestor uma consulta analitica paginada das chamadas.
+Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao e chamadas analiticas. O proximo passo e detalhar performance e status por mailing/lista.
 
 Entregaveis desse proximo plano:
 
-- tabela paginada de chamadas;
-- filtros reutilizando periodo, agente, campanha, equipe e tabulacao;
-- exibicao de contato, telefone, resultado, campanha, agente e duracao;
-- link/acao de exportacao mantendo filtros;
-- testes de isolamento e filtros;
+- resumo por lista com pendentes, discando, atendidos, callbacks e esgotados;
+- filtros por campanha/lista;
+- percentual de aproveitamento por lista;
+- exportacao mantendo filtros;
+- testes de isolamento e status de contato;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -437,3 +437,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-campaign-schedule-dialer-design.md`
 - `docs/superpowers/specs/2026-06-08-disposition-retry-rules-design.md`
 - `docs/superpowers/specs/2026-06-08-campaign-dynamic-service-fields-design.md`
+- `docs/superpowers/specs/2026-06-08-reports-analytic-pagination-design.md`

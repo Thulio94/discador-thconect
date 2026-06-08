@@ -20,14 +20,14 @@ class ReportController extends Controller
         [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId] = $this->filters($request);
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId);
 
-        $recentCalls = (clone $callsQuery)
-            ->with(['user', 'campaign'])
+        $analyticCalls = (clone $callsQuery)
+            ->with(['user', 'campaign', 'contact'])
             ->latest('started_at')
-            ->limit(10)
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         return view('tenant.reports.index', [
-            'calls' => $recentCalls,
+            'calls' => $analyticCalls,
             'metrics' => [
                 'total_calls' => (clone $callsQuery)->count(),
                 'in_progress_calls' => (clone $callsQuery)->where('status', 'in_progress')->count(),
