@@ -54,6 +54,7 @@ class CampaignController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'service_script' => $data['service_script'] ?? null,
+            'service_fields_schema' => $this->serviceFieldsSchemaPayload($data['service_fields_schema'] ?? []),
             'dialing_mode' => $data['dialing_mode'],
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
@@ -76,6 +77,7 @@ class CampaignController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'service_script' => $data['service_script'] ?? null,
+            'service_fields_schema' => $this->serviceFieldsSchemaPayload($data['service_fields_schema'] ?? []),
             'dialing_mode' => $data['dialing_mode'],
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
@@ -147,6 +149,7 @@ class CampaignController extends Controller
             'name' => $this->copyName($campaign),
             'description' => $campaign->description,
             'service_script' => $campaign->service_script,
+            'service_fields_schema' => $campaign->service_fields_schema,
             'dialing_mode' => $campaign->dialing_mode,
             'status' => 'draft',
             'priority' => $campaign->priority,
@@ -224,6 +227,12 @@ class CampaignController extends Controller
             'operational_schedule.*.enabled' => ['nullable'],
             'operational_schedule.*.start' => ['nullable', 'date_format:H:i'],
             'operational_schedule.*.end' => ['nullable', 'date_format:H:i'],
+            'service_fields_schema' => ['nullable', 'array'],
+            'service_fields_schema.*.enabled' => ['nullable'],
+            'service_fields_schema.*.key' => ['nullable', 'string', 'max:60'],
+            'service_fields_schema.*.label' => ['nullable', 'string', 'max:80'],
+            'service_fields_schema.*.type' => ['nullable', Rule::in(['text', 'number', 'date'])],
+            'service_fields_schema.*.required' => ['nullable'],
         ];
     }
 
@@ -290,6 +299,42 @@ class CampaignController extends Controller
             ->all();
 
         return $payload ?: null;
+    }
+
+    private function serviceFieldsSchemaPayload(array $fields): ?array
+    {
+        $usedKeys = [];
+        $payload = collect($fields)
+            ->filter(fn (array $field): bool => filled($field['enabled'] ?? null))
+            ->map(function (array $field) use (&$usedKeys): ?array {
+                $key = $this->fieldKey((string) ($field['key'] ?? ''));
+
+                if ($key === '' || in_array($key, $usedKeys, true) || blank($field['label'] ?? null)) {
+                    return null;
+                }
+
+                $usedKeys[] = $key;
+
+                return [
+                    'key' => $key,
+                    'label' => trim((string) $field['label']),
+                    'type' => in_array($field['type'] ?? 'text', ['text', 'number', 'date'], true) ? $field['type'] : 'text',
+                    'required' => filled($field['required'] ?? null),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        return $payload ?: null;
+    }
+
+    private function fieldKey(string $key): string
+    {
+        $key = strtolower(trim($key));
+        $key = preg_replace('/[^a-z0-9_]+/', '_', $key) ?: '';
+
+        return trim($key, '_');
     }
 
     private function copyName(Campaign $campaign): string

@@ -179,7 +179,15 @@ class AgentPanelController extends Controller
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)
             ->where('id', $data['call_id'])
+            ->with('campaign')
             ->firstOrFail();
+
+        $schema = $this->serviceFieldsSchema($call);
+        $serviceFieldErrors = $this->serviceFieldErrors($schema, $data['service_fields'] ?? []);
+
+        if ($serviceFieldErrors !== []) {
+            return back()->withErrors($serviceFieldErrors)->withInput();
+        }
 
         $call->update([
             'status' => 'ended',
@@ -189,7 +197,7 @@ class AgentPanelController extends Controller
             'disposition_notes' => $data['disposition_notes'] ?? null,
             'callback_type' => $disposition->category === 'callback' ? $data['callback_type'] : null,
             'callback_at' => $disposition->category === 'callback' ? $callbackAt : null,
-            'service_fields' => $serviceFields ?: null,
+            'service_fields' => $this->serviceFieldsPayload($schema, $serviceFields),
             'ended_at' => now(),
         ]);
 
@@ -259,5 +267,36 @@ class AgentPanelController extends Controller
                 default => 'pending',
             },
         ]);
+    }
+
+    private function serviceFieldsSchema(Call $call): array
+    {
+        return $call->campaign?->service_fields_schema ?: [
+            ['key' => 'documento', 'label' => 'Documento', 'type' => 'text', 'required' => false],
+            ['key' => 'protocolo', 'label' => 'Protocolo', 'type' => 'text', 'required' => false],
+            ['key' => 'valor', 'label' => 'Valor', 'type' => 'number', 'required' => false],
+        ];
+    }
+
+    private function serviceFieldErrors(array $schema, array $fields): array
+    {
+        return collect($schema)
+            ->filter(fn (array $field): bool => (bool) ($field['required'] ?? false) && blank($fields[$field['key']] ?? null))
+            ->mapWithKeys(fn (array $field): array => [
+                'service_fields.'.$field['key'] => 'Informe '.$field['label'].'.',
+            ])
+            ->all();
+    }
+
+    private function serviceFieldsPayload(array $schema, array $fields): ?array
+    {
+        $allowedKeys = collect($schema)->pluck('key')->all();
+        $payload = collect($fields)
+            ->only($allowedKeys)
+            ->map(fn ($value) => is_string($value) ? trim($value) : $value)
+            ->filter(fn ($value) => filled($value))
+            ->all();
+
+        return $payload ?: null;
     }
 }

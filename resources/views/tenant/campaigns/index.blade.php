@@ -34,6 +34,11 @@
                                     | {{ ($scheduleStates[$campaign->id] ?? true) ? 'Dentro da agenda' : 'Fora da agenda' }}
                                 @endif
                             </p>
+                            @if (count($campaign->service_fields_schema ?? []) > 0)
+                                <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                    Campos dinamicos: {{ collect($campaign->service_fields_schema)->pluck('label')->join(', ') }}
+                                </p>
+                            @endif
                             <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Discando {{ $summary['dialing'] ?? 0 }}</span>

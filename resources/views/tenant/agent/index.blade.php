@@ -303,39 +303,38 @@
                         </div>
                     </div>
 
+                    @php
+                        $serviceFieldsSchema = $currentCall->campaign?->service_fields_schema ?: [
+                            ['key' => 'documento', 'label' => 'Documento', 'type' => 'text', 'required' => false],
+                            ['key' => 'protocolo', 'label' => 'Protocolo', 'type' => 'text', 'required' => false],
+                            ['key' => 'valor', 'label' => 'Valor', 'type' => 'number', 'required' => false],
+                        ];
+                    @endphp
+
                     <div class="grid gap-3 rounded-lg border p-3" style="border-color: var(--border);">
                         <div>
                             <p class="text-sm font-semibold">Campos do atendimento</p>
                         </div>
 
                         <div class="grid gap-3 sm:grid-cols-3">
-                            <label class="grid gap-1 text-sm">
-                                <span class="font-semibold">Documento</span>
-                                <input
-                                    name="service_fields[documento]"
-                                    class="rounded-lg border px-3 py-2"
-                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
-                                    placeholder="CPF/CNPJ"
-                                >
-                            </label>
-                            <label class="grid gap-1 text-sm">
-                                <span class="font-semibold">Protocolo</span>
-                                <input
-                                    name="service_fields[protocolo]"
-                                    class="rounded-lg border px-3 py-2"
-                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
-                                    placeholder="PROTO-123"
-                                >
-                            </label>
-                            <label class="grid gap-1 text-sm">
-                                <span class="font-semibold">Valor</span>
-                                <input
-                                    name="service_fields[valor]"
-                                    class="rounded-lg border px-3 py-2"
-                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
-                                    placeholder="199.90"
-                                >
-                            </label>
+                            @foreach ($serviceFieldsSchema as $field)
+                                <label class="grid gap-1 text-sm">
+                                    <span class="font-semibold">
+                                        {{ $field['label'] }}
+                                        @if ($field['required'] ?? false)
+                                            <span style="color: var(--status-danger);">*</span>
+                                        @endif
+                                    </span>
+                                    <input
+                                        type="{{ ($field['type'] ?? 'text') === 'date' ? 'date' : (($field['type'] ?? 'text') === 'number' ? 'number' : 'text') }}"
+                                        name="service_fields[{{ $field['key'] }}]"
+                                        class="rounded-lg border px-3 py-2"
+                                        style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                        @if (($field['type'] ?? 'text') === 'number') step="0.01" @endif
+                                        @required($field['required'] ?? false)
+                                    >
+                                </label>
+                            @endforeach
                         </div>
                     </div>
 

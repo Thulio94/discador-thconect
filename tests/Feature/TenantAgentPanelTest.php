@@ -441,6 +441,91 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
     }
 
+    public function test_agent_panel_uses_campaign_dynamic_service_fields(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista Campos Dinamicos',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Cliente Campos',
+            'phone' => '31999990058',
+            'status' => 'dialing',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Campos Dinamicos',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'service_fields_schema' => [
+                ['key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'text', 'required' => true],
+                ['key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'number', 'required' => false],
+            ],
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda validada',
+            'code' => 'VENDA_VALIDADA',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => $contact->phone,
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('CPF Cliente')
+            ->assertSee('Valor Oferta')
+            ->assertDontSee('Documento');
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+                'service_fields' => [
+                    'valor_oferta' => '199.90',
+                ],
+            ])
+            ->assertSessionHasErrors('service_fields.cpf_cliente');
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+                'service_fields' => [
+                    'cpf_cliente' => '12345678900',
+                    'valor_oferta' => '199.90',
+                    'campo_fora_schema' => 'ignorado',
+                ],
+            ])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame([
+            'cpf_cliente' => '12345678900',
+            'valor_oferta' => '199.90',
+        ], $call->fresh()->service_fields);
+    }
+
     public function test_disposition_retry_rule_returns_contact_to_queue_with_cooldown(): void
     {
         $this->travelTo(now()->setSecond(0)->setMicrosecond(0));

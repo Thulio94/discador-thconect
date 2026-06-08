@@ -105,12 +105,13 @@ Status: MVP simulado funcional.
 - [x] Anotacoes do atendimento persistidas na tabulacao.
 - [x] Callback publico/privado com data e hora.
 - [x] Campos basicos do atendimento persistidos na chamada.
+- [x] Campos dinamicos configuraveis por campanha.
 - [x] Status de contato atualizado pela tabulacao.
 - [x] Historico geral de chamadas recentes no painel.
 
 Pendencias importantes:
 
-- [ ] Campos dinamicos configuraveis por campanha.
+- [ ] Validacoes avancadas por mascara/tipo de campo.
 - [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
 
 ### Campanhas e Listas
@@ -400,18 +401,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Formulario Dinamico Configuravel por Campanha
+Relatorio Analitico Paginado
 ```
 
-Motivo: o agente ja tem ficha, script, historico, callback e campos basicos. O proximo passo e permitir que cada campanha defina campos proprios de atendimento.
+Motivo: o fluxo operacional do agente e das campanhas esta bem fechado para o MVP simulado. O proximo passo e dar ao gestor uma consulta analitica paginada das chamadas.
 
 Entregaveis desse proximo plano:
 
-- configuracao de campos por campanha;
-- renderizacao dos campos no painel do agente;
-- persistencia em `service_fields`;
-- validacao simples por tipo de campo;
-- testes de campanha e atendimento;
+- tabela paginada de chamadas;
+- filtros reutilizando periodo, agente, campanha, equipe e tabulacao;
+- exibicao de contato, telefone, resultado, campanha, agente e duracao;
+- link/acao de exportacao mantendo filtros;
+- testes de isolamento e filtros;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -435,3 +436,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-campaign-wizard-schedule-design.md`
 - `docs/superpowers/specs/2026-06-08-campaign-schedule-dialer-design.md`
 - `docs/superpowers/specs/2026-06-08-disposition-retry-rules-design.md`
+- `docs/superpowers/specs/2026-06-08-campaign-dynamic-service-fields-design.md`

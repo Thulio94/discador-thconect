@@ -217,6 +217,41 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame(1, (int) $campaign->contactLists()->where('contact_lists.id', $listB->id)->sole()->pivot->weight);
     }
 
+    public function test_tenant_admin_can_configure_campaign_dynamic_service_fields(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Campos']);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Campos',
+                'dialing_mode' => 'power',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+                'service_fields_schema' => [
+                    ['enabled' => '1', 'key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'text', 'required' => '1'],
+                    ['enabled' => '1', 'key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'number'],
+                    ['key' => 'ignorado', 'label' => 'Ignorado', 'type' => 'text'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Campos')->sole();
+
+        $this->assertSame([
+            ['key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'text', 'required' => true],
+            ['key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'number', 'required' => false],
+        ], $campaign->service_fields_schema);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Campos dinamicos')
+            ->assertSee('CPF Cliente');
+    }
+
     public function test_tenant_admin_can_update_and_finish_campaign(): void
     {
         [$admin, $teamA] = $this->tenantAdmin();

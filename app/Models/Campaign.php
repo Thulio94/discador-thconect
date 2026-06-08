@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['company_id', 'name', 'description', 'service_script', 'dialing_mode', 'status', 'priority', 'operational_schedule', 'starts_at', 'ends_at'])]
+#[Fillable(['company_id', 'name', 'description', 'service_script', 'service_fields_schema', 'dialing_mode', 'status', 'priority', 'operational_schedule', 'starts_at', 'ends_at'])]
 class Campaign extends Model
 {
     protected $casts = [
+        'service_fields_schema' => 'array',
         'operational_schedule' => 'array',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',

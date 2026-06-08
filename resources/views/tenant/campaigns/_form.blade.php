@@ -9,6 +9,8 @@
         ? collect($oldListIds)->mapWithKeys(fn ($value, $key) => [(int) (is_array($value) ? $key : $value) => (int) (is_array($value) ? ($value['weight'] ?? 1) : 1)])->all()
         : collect($campaign?->contactLists ?? [])->mapWithKeys(fn ($list) => [$list->id => (int) ($list->pivot->weight ?? 1)])->all();
     $schedule = old('operational_schedule', $campaign?->operational_schedule ?? []);
+    $serviceFields = old('service_fields_schema', $campaign?->service_fields_schema ?? []);
+    $fieldRows = collect(range(0, 4))->map(fn ($index) => $serviceFields[$index] ?? [])->all();
     $days = [
         'monday' => 'Segunda',
         'tuesday' => 'Terca',
@@ -49,6 +51,40 @@
             <span class="font-semibold">Script de atendimento</span>
             <textarea name="service_script" rows="4" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="Abordagem, perguntas e proximos passos.">{{ old('service_script', $campaign?->service_script) }}</textarea>
         </label>
+
+        <div>
+            <p class="mb-2 text-sm font-semibold">Campos dinamicos</p>
+            <div class="grid gap-2">
+                @foreach ($fieldRows as $index => $field)
+                    <div class="grid gap-2 rounded-lg border p-3 text-sm lg:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_140px_110px]" style="border-color: var(--border);">
+                        <label class="flex items-center gap-2 font-semibold">
+                            <input type="checkbox" name="service_fields_schema[{{ $index }}][enabled]" value="1" @checked(filled($field['enabled'] ?? null) || filled($field['key'] ?? null))>
+                            <span>Ativo</span>
+                        </label>
+                        <label class="grid gap-1">
+                            <span class="text-xs" style="color: var(--fg-muted);">Rotulo</span>
+                            <input name="service_fields_schema[{{ $index }}][label]" value="{{ $field['label'] ?? '' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="CPF Cliente">
+                        </label>
+                        <label class="grid gap-1">
+                            <span class="text-xs" style="color: var(--fg-muted);">Chave</span>
+                            <input name="service_fields_schema[{{ $index }}][key]" value="{{ $field['key'] ?? '' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="cpf_cliente">
+                        </label>
+                        <label class="grid gap-1">
+                            <span class="text-xs" style="color: var(--fg-muted);">Tipo</span>
+                            <select name="service_fields_schema[{{ $index }}][type]" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                                <option value="text" @selected(($field['type'] ?? 'text') === 'text')>Texto</option>
+                                <option value="number" @selected(($field['type'] ?? 'text') === 'number')>Numero</option>
+                                <option value="date" @selected(($field['type'] ?? 'text') === 'date')>Data</option>
+                            </select>
+                        </label>
+                        <label class="flex items-center gap-2 font-semibold">
+                            <input type="checkbox" name="service_fields_schema[{{ $index }}][required]" value="1" @checked(filled($field['required'] ?? null))>
+                            <span>Obrigatorio</span>
+                        </label>
+                    </div>
+                @endforeach
+            </div>
+        </div>
 
         <div class="grid gap-4 md:grid-cols-3">
         <label class="grid gap-1 text-sm">
