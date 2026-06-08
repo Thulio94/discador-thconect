@@ -155,15 +155,16 @@ Status: MVP simulado funcional.
 - [x] Filtro por status.
 - [x] Filtro por equipe.
 - [x] Detalhes em modal.
+- [x] Tempo no status.
+- [x] Tempo em chamada.
+- [x] Campanha atual do agente.
+- [x] Alertas visuais de pausa longa e chamada longa.
 - [x] Acoes Ouvir, Sussurrar e Intervir marcadas como "Em breve".
 
 Pendencias importantes:
 
-- [ ] Tempo no status.
-- [ ] Tempo em chamada.
-- [ ] Campanha atual do agente.
 - [ ] Atualizacao em tempo real ou polling leve.
-- [ ] Alertas operacionais.
+- [ ] Eventos/notificacoes operacionais persistidos.
 - [ ] Acoes reais de monitoria somente na fase de telefonia real.
 
 ### Relatorios
@@ -321,10 +322,10 @@ Resultado esperado: agente consegue atender, registrar resultado e agendar retor
 
 Objetivo: dar visao de operacao em andamento.
 
-1. Mostrar tempo no status.
-2. Mostrar tempo em chamada.
-3. Mostrar campanha atual.
-4. Criar alertas de pausa longa e chamada longa.
+1. [x] Mostrar tempo no status.
+2. [x] Mostrar tempo em chamada.
+3. [x] Mostrar campanha atual.
+4. [x] Criar alertas de pausa longa e chamada longa.
 5. Atualizar via polling leve ou Reverb.
 
 Resultado esperado: supervisor acompanha a operacao sem telefonia real.
@@ -390,17 +391,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Supervisao Operacional - Tempos e Campanha Atual
+Notificacoes Operacionais - Eventos do MVP Simulado
 ```
 
-Motivo: o painel do agente ja cobre atendimento, contato, script, callback e historico recente. Agora a supervisao deve ganhar mais contexto operacional: tempo no status, tempo em chamada e campanha atual do agente.
+Motivo: o painel do agente e a supervisao ja cobrem o fluxo operacional simulado. Agora as notificacoes devem receber eventos reais do MVP, sem alertas nativos do navegador.
 
 Entregaveis desse proximo plano:
 
-- tempo no status;
-- tempo em chamada;
-- campanha atual do agente;
-- alertas visuais de pausa/chamada longa;
+- notificar campanha iniciada, pausada, reiniciada e finalizada;
+- notificar lista importada;
+- notificar agente em pausa longa;
+- notificar chamada sem tabulacao;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -420,3 +421,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-agent-service-script-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-callback-fields-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-recent-calls-design.md`
+- `docs/superpowers/specs/2026-06-07-supervision-operational-times-design.md`

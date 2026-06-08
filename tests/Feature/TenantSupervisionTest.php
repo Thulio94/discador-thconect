@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AgentStatus;
 use App\Models\Call;
+use App\Models\Campaign;
 use App\Models\Company;
 use App\Models\Role;
 use App\Models\Team;
@@ -102,6 +103,55 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Agente Disponivel')
             ->assertSee('Agente Pausado')
             ->assertDontSee('Agente Em Chamada');
+    }
+
+    public function test_supervision_shows_operational_times_current_campaign_and_alerts(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        [$paused] = $this->tenantUser('agent', $company, 'Agente Pausa Longa');
+        [$inCall] = $this->tenantUser('agent', $company, 'Agente Chamada Longa');
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Monitorada',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $paused->id,
+            'status' => 'paused',
+            'started_at' => now()->subMinutes(25),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $inCall->id,
+            'status' => 'in_call',
+            'started_at' => now()->subMinutes(18),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $inCall->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990033',
+            'started_at' => now()->subMinutes(18),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.index'))
+            ->assertOk()
+            ->assertSee('Tempo no status')
+            ->assertSee('25 min')
+            ->assertSee('Pausa longa')
+            ->assertSee('Tempo em chamada')
+            ->assertSee('18 min')
+            ->assertSee('Chamada longa')
+            ->assertSee('Campanha atual')
+            ->assertSee('Campanha Monitorada')
+            ->assertSee('31999990033');
     }
 
     private function tenantUser(string $type, ?Company $company = null, ?string $name = null): array

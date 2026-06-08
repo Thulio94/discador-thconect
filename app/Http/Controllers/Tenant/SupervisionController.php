@@ -21,7 +21,7 @@ class SupervisionController extends Controller
         $agents = User::query()
             ->where('company_id', $companyId)
             ->whereIn('user_type', ['agent', 'supervisor'])
-            ->with(['currentAgentStatus', 'calls' => fn ($query) => $query->where('status', 'in_progress')->latest()])
+            ->with(['currentAgentStatus', 'calls' => fn ($query) => $query->where('status', 'in_progress')->with('campaign')->latest()])
             ->when($teamId, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $teamId): void {
                 $teamQuery->select('team_user.user_id')
                     ->from('team_user')
@@ -31,7 +31,19 @@ class SupervisionController extends Controller
             ->orderBy('name')
             ->get()
             ->map(function (User $user) use ($companyId): User {
+                $activeCall = $user->calls->first();
+                $statusStartedAt = $user->currentAgentStatus?->started_at;
+                $statusMinutes = $statusStartedAt ? (int) $statusStartedAt->diffInMinutes(now()) : 0;
+                $callMinutes = $activeCall?->started_at ? (int) $activeCall->started_at->diffInMinutes(now()) : 0;
+
                 $user->setAttribute('supervision_status', $user->currentAgentStatus?->status ?? 'offline');
+                $user->setAttribute('status_duration_label', $this->durationLabel($statusMinutes));
+                $user->setAttribute('active_call_duration_label', $activeCall ? $this->durationLabel($callMinutes) : null);
+                $user->setAttribute('current_campaign_name', $activeCall?->campaign?->name);
+                $user->setAttribute('operational_alerts', collect([
+                    $user->currentAgentStatus?->status === 'paused' && $statusMinutes >= 20 ? 'Pausa longa' : null,
+                    $activeCall && $callMinutes >= 15 ? 'Chamada longa' : null,
+                ])->filter()->values()->all());
                 $user->setAttribute('team_names', DB::table('team_user')
                     ->join('teams', 'teams.id', '=', 'team_user.team_id')
                     ->where('team_user.company_id', $companyId)
@@ -65,5 +77,19 @@ class SupervisionController extends Controller
                 'active_calls' => Call::query()->where('company_id', $companyId)->where('status', 'in_progress')->count(),
             ],
         ]);
+    }
+
+    private function durationLabel(int $minutes): string
+    {
+        if ($minutes < 60) {
+            return $minutes.' min';
+        }
+
+        $hours = intdiv($minutes, 60);
+        $remainingMinutes = $minutes % 60;
+
+        return $remainingMinutes > 0
+            ? $hours.'h '.$remainingMinutes.' min'
+            : $hours.'h';
     }
 }
