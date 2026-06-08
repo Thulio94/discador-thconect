@@ -21,7 +21,7 @@
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Categoria</span>
             <select name="category" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                @foreach (['success' => 'Sucesso', 'neutral' => 'Neutra', 'negative' => 'Negativa', 'callback' => 'Retorno'] as $value => $label)
+                @foreach (['success' => 'Sucesso', 'neutral' => 'Neutra', 'negative' => 'Negativa', 'unproductive' => 'Improdutiva', 'callback' => 'Retorno'] as $value => $label)
                     <option value="{{ $value }}" @selected(old('category', $disposition?->category ?? 'neutral') === $value)>{{ $label }}</option>
                 @endforeach
             </select>
@@ -44,6 +44,21 @@
             <input type="hidden" name="is_success" value="0">
             <input type="checkbox" name="is_success" value="1" @checked(old('is_success', $disposition?->is_success ?? false)) class="rounded border" style="border-color: var(--border);">
             <span class="font-semibold">Conta como sucesso</span>
+        </label>
+    </div>
+    <div class="grid gap-3 md:grid-cols-3">
+        <label class="flex items-center gap-2 text-sm">
+            <input type="hidden" name="retry_enabled" value="0">
+            <input type="checkbox" name="retry_enabled" value="1" @checked(old('retry_enabled', $disposition?->retry_enabled ?? false)) class="rounded border" style="border-color: var(--border);">
+            <span class="font-semibold">Volta para fila</span>
+        </label>
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Cooldown minutos</span>
+            <input type="number" min="0" max="10080" name="retry_delay_minutes" value="{{ old('retry_delay_minutes', $disposition?->retry_delay_minutes) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+        </label>
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Max tentativas</span>
+            <input type="number" min="1" max="50" name="max_attempts" value="{{ old('max_attempts', $disposition?->max_attempts) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
         </label>
     </div>
     <div class="flex justify-end gap-2">

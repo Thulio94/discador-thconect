@@ -154,10 +154,13 @@ class SettingController extends Controller
                     ->where('company_id', $companyId)
                     ->ignore($disposition),
             ],
-            'category' => ['required', Rule::in(['success', 'neutral', 'negative', 'callback'])],
+            'category' => ['required', Rule::in(['success', 'neutral', 'negative', 'unproductive', 'callback'])],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'ends_call' => ['sometimes', 'boolean'],
             'is_success' => ['sometimes', 'boolean'],
+            'retry_enabled' => ['sometimes', 'boolean'],
+            'retry_delay_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
+            'max_attempts' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
     }
 

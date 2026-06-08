@@ -193,19 +193,9 @@ class AgentPanelController extends Controller
             'ended_at' => now(),
         ]);
 
-        $contactStatus = match ($disposition->category) {
-            'callback' => 'callback',
-            'success' => 'answered',
-            'negative', 'unproductive' => 'unproductive',
-            default => 'pending',
-        };
-
-        $call->contact()
-            ->update([
-                'status' => $contactStatus,
-                'last_result' => $disposition->code,
-                'next_attempt_at' => $disposition->category === 'callback' ? $callbackAt : null,
-            ]);
+        if ($call->contact_id) {
+            $call->contact()->update($this->contactDispositionPayload($call, $disposition, $callbackAt));
+        }
 
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->agentStatuses()->create([
@@ -230,5 +220,44 @@ class AgentPanelController extends Controller
             ->where('user_id', $userId)
             ->whereNull('ended_at')
             ->update(['ended_at' => now()]);
+    }
+
+    private function contactDispositionPayload(Call $call, Disposition $disposition, mixed $callbackAt): array
+    {
+        $payload = [
+            'last_result' => $disposition->code,
+            'next_attempt_at' => null,
+        ];
+
+        if ($disposition->category === 'callback') {
+            return array_merge($payload, [
+                'status' => 'callback',
+                'next_attempt_at' => $callbackAt,
+            ]);
+        }
+
+        if ($disposition->is_success || $disposition->category === 'success') {
+            return array_merge($payload, ['status' => 'answered']);
+        }
+
+        if ($disposition->retry_enabled) {
+            $contact = $call->contact;
+
+            if ($disposition->max_attempts && $contact && $contact->attempts_count >= $disposition->max_attempts) {
+                return array_merge($payload, ['status' => 'exhausted']);
+            }
+
+            return array_merge($payload, [
+                'status' => 'pending',
+                'next_attempt_at' => now()->addMinutes($disposition->retry_delay_minutes ?? 0),
+            ]);
+        }
+
+        return array_merge($payload, [
+            'status' => match ($disposition->category) {
+                'negative', 'unproductive' => 'unproductive',
+                default => 'pending',
+            },
+        ]);
     }
 }

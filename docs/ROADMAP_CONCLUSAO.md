@@ -77,13 +77,13 @@ Status: MVP operacional.
 
 - [x] Motivos de pausa.
 - [x] Tabulacoes.
+- [x] Regras de tentativas por tabulacao.
 - [x] Blacklist.
 - [x] Isolamento por empresa.
 - [x] Telefonia, AMD avancado e Integracoes marcados como "Em breve".
 
 Pendencias recomendadas:
 
-- [ ] Regras de tentativas por tabulacao.
 - [ ] Tempo minimo/maximo de pausa.
 - [ ] Parametros gerais da operacao.
 
@@ -142,11 +142,11 @@ Status: basico funcional, ainda nao completo.
 - [x] Bloqueio de nova chamada para agente com chamada sem tabulacao.
 - [x] Agenda operacional aplicada automaticamente na discagem simulada.
 - [x] Exibicao do estado da agenda na listagem.
+- [x] Regras avancadas de tentativa por tabulacao.
 
 Pendencias criticas:
 
 - [ ] Etapas avancadas: AMD/tentativas, rotas e limites.
-- [ ] Regras avancadas de tentativa por tabulacao.
 
 ### Supervisao
 
@@ -400,18 +400,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Regras Avancadas de Tentativa por Tabulacao
+Formulario Dinamico Configuravel por Campanha
 ```
 
-Motivo: a discagem simulada ja respeita capacidade, fila, cooldown e agenda. O proximo passo e deixar cada tabulacao definir se o contato volta para fila, quando volta e quantas tentativas pode receber.
+Motivo: o agente ja tem ficha, script, historico, callback e campos basicos. O proximo passo e permitir que cada campanha defina campos proprios de atendimento.
 
 Entregaveis desse proximo plano:
 
-- regras de tentativa por tabulacao;
-- cooldown especifico por resultado;
-- limite de tentativas antes de esgotar;
-- reciclagem respeitando regras;
-- testes de fila e painel do agente;
+- configuracao de campos por campanha;
+- renderizacao dos campos no painel do agente;
+- persistencia em `service_fields`;
+- validacao simples por tipo de campo;
+- testes de campanha e atendimento;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -434,3 +434,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-operational-notifications-design.md`
 - `docs/superpowers/specs/2026-06-08-campaign-wizard-schedule-design.md`
 - `docs/superpowers/specs/2026-06-08-campaign-schedule-dialer-design.md`
+- `docs/superpowers/specs/2026-06-08-disposition-retry-rules-design.md`

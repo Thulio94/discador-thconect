@@ -106,12 +106,24 @@ class TenantSettingsTest extends TestCase
                 'status' => 'active',
                 'ends_call' => '1',
                 'is_success' => '0',
+                'retry_enabled' => '1',
+                'retry_delay_minutes' => '30',
+                'max_attempts' => '4',
             ])
             ->assertRedirect(route('tenant.settings.index'))
             ->assertSessionHas('status');
 
         $disposition = Disposition::where('company_id', $admin->company_id)->where('code', 'SEM_INTERESSE')->sole();
         $this->assertTrue($disposition->ends_call);
+        $this->assertTrue($disposition->retry_enabled);
+        $this->assertSame(30, $disposition->retry_delay_minutes);
+        $this->assertSame(4, $disposition->max_attempts);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.settings.index'))
+            ->assertOk()
+            ->assertSee('Retry 30 min')
+            ->assertSee('Max 4 tentativas');
 
         $this->actingAs($admin)
             ->post(route('tenant.settings.blacklist.store'), [

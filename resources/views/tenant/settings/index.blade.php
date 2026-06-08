@@ -65,7 +65,15 @@
                     <div class="grid gap-3 rounded-lg border p-3 text-sm md:grid-cols-[minmax(0,1fr)_120px_120px_170px]" style="border-color: var(--border);">
                         <div>
                             <p class="font-semibold">{{ $disposition->name }}</p>
-                            <p class="text-xs" style="color: var(--fg-muted);">{{ $disposition->code }}</p>
+                            <p class="text-xs" style="color: var(--fg-muted);">
+                                {{ $disposition->code }}
+                                @if ($disposition->retry_enabled)
+                                    | Retry {{ $disposition->retry_delay_minutes ?? 0 }} min
+                                    @if ($disposition->max_attempts)
+                                        | Max {{ $disposition->max_attempts }} tentativas
+                                    @endif
+                                @endif
+                            </p>
                         </div>
                         <span>{{ $disposition->category }}</span>
                         <span>{{ $disposition->status }}</span>
