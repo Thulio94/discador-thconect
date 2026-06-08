@@ -19,12 +19,14 @@ class ReportController extends Controller
     {
         [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId);
+        $timeMetrics = $this->timeMetrics(clone $callsQuery);
 
         $analyticCalls = (clone $callsQuery)
             ->with(['user', 'campaign', 'contact'])
             ->latest('started_at')
             ->paginate(10)
             ->withQueryString();
+        $analyticCalls->getCollection()->transform(fn (Call $call) => $this->withTimeLabels($call));
 
         return view('tenant.reports.index', [
             'calls' => $analyticCalls,
@@ -32,6 +34,8 @@ class ReportController extends Controller
                 'total_calls' => (clone $callsQuery)->count(),
                 'in_progress_calls' => (clone $callsQuery)->where('status', 'in_progress')->count(),
                 'ended_calls' => (clone $callsQuery)->where('status', 'ended')->count(),
+                'avg_talk_time_label' => $timeMetrics['avg_talk_time_label'],
+                'avg_wait_time_label' => $timeMetrics['avg_wait_time_label'],
                 'available_agents' => $this->statusCount($companyId, 'available'),
                 'paused_agents' => $this->statusCount($companyId, 'paused'),
                 'in_call_agents' => $this->statusCount($companyId, 'in_call'),
@@ -42,8 +46,8 @@ class ReportController extends Controller
             'dispositions' => Disposition::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->withCount('contacts')->orderBy('name')->get(),
             'mailingSummaries' => $this->mailingSummaries($companyId, $campaignId, $listId),
-            'agentPerformance' => $this->agentPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $teamId, $listId),
-            'campaignPerformance' => $this->campaignPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $teamId, $listId),
+            'agentPerformance' => $this->agentPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
+            'campaignPerformance' => $this->campaignPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'teamPerformance' => $this->teamPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'dispositionSummary' => $this->dispositionSummary($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'filters' => [
@@ -70,6 +74,8 @@ class ReportController extends Controller
             fputcsv($output, [
                 'data_inicio',
                 'data_fim',
+                'duracao',
+                'espera',
                 'telefone',
                 'agente',
                 'campanha',
@@ -82,9 +88,13 @@ class ReportController extends Controller
 
             $callsQuery->chunk(200, function ($calls) use ($output): void {
                 foreach ($calls as $call) {
+                    $call = $this->withTimeLabels($call);
+
                     fputcsv($output, [
                         $call->started_at?->toDateTimeString(),
                         $call->ended_at?->toDateTimeString(),
+                        $call->talk_time_label,
+                        $call->wait_time_label,
                         $call->phone,
                         $call->user?->name,
                         $call->campaign?->name,
@@ -112,15 +122,16 @@ class ReportController extends Controller
             ->count();
     }
 
-    private function agentPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $teamId, ?int $listId)
+    private function agentPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
     {
-        return User::query()
+        $agents = User::query()
             ->where('company_id', $companyId)
             ->whereIn('user_type', ['agent', 'supervisor'])
             ->withCount(['calls as calls_count' => fn ($query) => $query
                 ->where('company_id', $companyId)
                 ->whereBetween('started_at', [$dateFrom, $dateTo])
                 ->when($campaignId, fn ($callQuery) => $callQuery->where('campaign_id', $campaignId))
+                ->when($dispositionId, fn ($callQuery) => $callQuery->where('disposition_id', $dispositionId))
                 ->when($listId, fn ($callQuery) => $this->whereCallBelongsToList($callQuery, $listId))])
             ->when($userId, fn ($query) => $query->where('id', $userId))
             ->when($teamId, fn ($query) => $query->whereExists(fn ($teamQuery) => $teamQuery
@@ -132,22 +143,33 @@ class ReportController extends Controller
             ->orderByDesc('calls_count')
             ->limit(8)
             ->get();
+
+        return $agents->each(function (User $agent) use ($companyId, $dateFrom, $dateTo, $campaignId, $dispositionId, $teamId, $listId): void {
+            $timeMetrics = $this->timeMetrics($this->callsQuery($companyId, $dateFrom, $dateTo, $agent->id, $campaignId, $dispositionId, $teamId, $listId));
+            $agent->setAttribute('avg_talk_time_label', $timeMetrics['avg_talk_time_label']);
+        });
     }
 
-    private function campaignPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $teamId, ?int $listId)
+    private function campaignPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
     {
-        return Campaign::query()
+        $campaigns = Campaign::query()
             ->where('company_id', $companyId)
             ->withCount(['calls as calls_count' => fn ($query) => $query
                 ->where('company_id', $companyId)
                 ->whereBetween('started_at', [$dateFrom, $dateTo])
                 ->when($userId, fn ($callQuery) => $callQuery->where('user_id', $userId))
+                ->when($dispositionId, fn ($callQuery) => $callQuery->where('disposition_id', $dispositionId))
                 ->when($teamId, fn ($callQuery) => $this->whereCallBelongsToTeam($callQuery, $companyId, $teamId))
                 ->when($listId, fn ($callQuery) => $this->whereCallBelongsToList($callQuery, $listId))])
             ->when($campaignId, fn ($query) => $query->where('id', $campaignId))
             ->orderByDesc('calls_count')
             ->limit(8)
             ->get();
+
+        return $campaigns->each(function (Campaign $campaign) use ($companyId, $dateFrom, $dateTo, $userId, $dispositionId, $teamId, $listId): void {
+            $timeMetrics = $this->timeMetrics($this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaign->id, $dispositionId, $teamId, $listId));
+            $campaign->setAttribute('avg_talk_time_label', $timeMetrics['avg_talk_time_label']);
+        });
     }
 
     private function teamPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
@@ -235,6 +257,83 @@ class ReportController extends Controller
             ])
             ->orderBy('name')
             ->get();
+    }
+
+    private function timeMetrics($query): array
+    {
+        $calls = (clone $query)
+            ->whereNotNull('started_at')
+            ->whereNotNull('ended_at')
+            ->get(['started_at', 'answered_at', 'ended_at']);
+
+        $talkTimes = [];
+        $waitTimes = [];
+
+        foreach ($calls as $call) {
+            $talkTimes[] = $this->secondsBetween($call->started_at, $call->ended_at);
+            $waitTimes[] = $call->answered_at ? $this->secondsBetween($call->started_at, $call->answered_at) : 0;
+        }
+
+        $avgTalkTime = $this->averageSeconds($talkTimes);
+        $avgWaitTime = $this->averageSeconds($waitTimes);
+
+        return [
+            'avg_talk_time_seconds' => $avgTalkTime,
+            'avg_talk_time_label' => $this->formatSeconds($avgTalkTime),
+            'avg_wait_time_seconds' => $avgWaitTime,
+            'avg_wait_time_label' => $this->formatSeconds($avgWaitTime),
+        ];
+    }
+
+    private function withTimeLabels(Call $call): Call
+    {
+        $talkTime = $call->started_at && $call->ended_at ? $this->secondsBetween($call->started_at, $call->ended_at) : null;
+        $waitTime = $call->started_at && $call->ended_at ? ($call->answered_at ? $this->secondsBetween($call->started_at, $call->answered_at) : 0) : null;
+
+        $call->setAttribute('talk_time_label', $talkTime === null ? 'em andamento' : $this->formatSeconds($talkTime));
+        $call->setAttribute('wait_time_label', $waitTime === null ? 'em andamento' : $this->formatSeconds($waitTime));
+
+        return $call;
+    }
+
+    private function averageSeconds(array $seconds): int
+    {
+        if ($seconds === []) {
+            return 0;
+        }
+
+        return (int) round(array_sum($seconds) / count($seconds));
+    }
+
+    private function secondsBetween($start, $end): int
+    {
+        return max(0, $end->getTimestamp() - $start->getTimestamp());
+    }
+
+    private function formatSeconds(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return $seconds.'s';
+        }
+
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $remainingSeconds = $seconds % 60;
+        $parts = [];
+
+        if ($hours > 0) {
+            $parts[] = $hours.' h';
+        }
+
+        if ($minutes > 0) {
+            $parts[] = $minutes.' min';
+        }
+
+        if ($remainingSeconds > 0) {
+            $parts[] = $remainingSeconds.'s';
+        }
+
+        return implode(' ', $parts);
     }
 
     private function whereCallBelongsToTeam($query, int $companyId, int $teamId)

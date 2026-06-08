@@ -453,6 +453,80 @@ class TenantReportsTest extends TestCase
         $this->assertSame('callback', $callback->fresh()->status);
     }
 
+    public function test_reports_show_tma_tme_and_export_time_metrics(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Tempo');
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Tempo', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $base = now()->setSecond(0);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990701',
+            'started_at' => $base->copy()->subMinutes(10),
+            'answered_at' => $base->copy()->subMinutes(10)->addSeconds(20),
+            'ended_at' => $base->copy()->subMinutes(8),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990702',
+            'started_at' => $base->copy()->subMinutes(7),
+            'answered_at' => $base->copy()->subMinutes(7)->addSeconds(40),
+            'ended_at' => $base->copy()->subMinutes(2),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990703',
+            'started_at' => $base->copy()->subMinutes(60),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index', ['campaign_id' => $campaign->id]))
+            ->assertOk()
+            ->assertSee('TMA')
+            ->assertSee('3 min 30s')
+            ->assertSee('TME')
+            ->assertSee('30s')
+            ->assertSee('Agente Tempo')
+            ->assertSee('TMA 3 min 30s')
+            ->assertSee('Campanha Tempo')
+            ->assertSee('Duracao')
+            ->assertSee('Espera')
+            ->assertSee('2 min')
+            ->assertSee('20s')
+            ->assertSee('5 min')
+            ->assertSee('40s');
+
+        $csvResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export', ['campaign_id' => $campaign->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.csv');
+
+        $csv = $csvResponse->streamedContent();
+
+        $this->assertStringContainsString('duracao', $csv);
+        $this->assertStringContainsString('espera', $csv);
+        $this->assertStringContainsString('2 min', $csv);
+        $this->assertStringContainsString('20s', $csv);
+        $this->assertStringContainsString('5 min', $csv);
+        $this->assertStringContainsString('40s', $csv);
+    }
+
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
     {
         [$admin, $company] = $this->tenantUser('company_admin');
