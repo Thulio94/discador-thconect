@@ -17,8 +17,8 @@ class ReportController extends Controller
 {
     public function index(Request $request): View
     {
-        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId] = $this->filters($request);
-        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId);
+        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
+        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId);
 
         $analyticCalls = (clone $callsQuery)
             ->with(['user', 'campaign', 'contact'])
@@ -41,10 +41,11 @@ class ReportController extends Controller
             'teams' => Team::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'dispositions' => Disposition::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->withCount('contacts')->orderBy('name')->get(),
-            'agentPerformance' => $this->agentPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $teamId),
-            'campaignPerformance' => $this->campaignPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $teamId),
-            'teamPerformance' => $this->teamPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId),
-            'dispositionSummary' => $this->dispositionSummary($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId),
+            'mailingSummaries' => $this->mailingSummaries($companyId, $campaignId, $listId),
+            'agentPerformance' => $this->agentPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $teamId, $listId),
+            'campaignPerformance' => $this->campaignPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $teamId, $listId),
+            'teamPerformance' => $this->teamPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
+            'dispositionSummary' => $this->dispositionSummary($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'filters' => [
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
@@ -52,14 +53,15 @@ class ReportController extends Controller
                 'campaign_id' => $campaignId,
                 'disposition_id' => $dispositionId,
                 'team_id' => $teamId,
+                'list_id' => $listId,
             ],
         ]);
     }
 
     public function export(Request $request): StreamedResponse
     {
-        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId] = $this->filters($request);
-        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId)
+        [$companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId] = $this->filters($request);
+        $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
             ->with(['user', 'campaign'])
             ->oldest('started_at');
 
@@ -110,7 +112,7 @@ class ReportController extends Controller
             ->count();
     }
 
-    private function agentPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $teamId)
+    private function agentPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $teamId, ?int $listId)
     {
         return User::query()
             ->where('company_id', $companyId)
@@ -118,7 +120,8 @@ class ReportController extends Controller
             ->withCount(['calls as calls_count' => fn ($query) => $query
                 ->where('company_id', $companyId)
                 ->whereBetween('started_at', [$dateFrom, $dateTo])
-                ->when($campaignId, fn ($callQuery) => $callQuery->where('campaign_id', $campaignId))])
+                ->when($campaignId, fn ($callQuery) => $callQuery->where('campaign_id', $campaignId))
+                ->when($listId, fn ($callQuery) => $this->whereCallBelongsToList($callQuery, $listId))])
             ->when($userId, fn ($query) => $query->where('id', $userId))
             ->when($teamId, fn ($query) => $query->whereExists(fn ($teamQuery) => $teamQuery
                 ->from('team_user')
@@ -131,7 +134,7 @@ class ReportController extends Controller
             ->get();
     }
 
-    private function campaignPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $teamId)
+    private function campaignPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $teamId, ?int $listId)
     {
         return Campaign::query()
             ->where('company_id', $companyId)
@@ -139,20 +142,21 @@ class ReportController extends Controller
                 ->where('company_id', $companyId)
                 ->whereBetween('started_at', [$dateFrom, $dateTo])
                 ->when($userId, fn ($callQuery) => $callQuery->where('user_id', $userId))
-                ->when($teamId, fn ($callQuery) => $this->whereCallBelongsToTeam($callQuery, $companyId, $teamId))])
+                ->when($teamId, fn ($callQuery) => $this->whereCallBelongsToTeam($callQuery, $companyId, $teamId))
+                ->when($listId, fn ($callQuery) => $this->whereCallBelongsToList($callQuery, $listId))])
             ->when($campaignId, fn ($query) => $query->where('id', $campaignId))
             ->orderByDesc('calls_count')
             ->limit(8)
             ->get();
     }
 
-    private function teamPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId)
+    private function teamPerformance(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
     {
         return Team::query()
             ->where('company_id', $companyId)
             ->where('status', 'active')
             ->select('teams.*')
-            ->selectSub(function ($query) use ($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId): void {
+            ->selectSub(function ($query) use ($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $listId): void {
                 $query->from('calls')
                     ->join('team_user', function ($join): void {
                         $join->on('team_user.user_id', '=', 'calls.user_id')
@@ -165,6 +169,7 @@ class ReportController extends Controller
                     ->when($userId, fn ($callQuery) => $callQuery->where('calls.user_id', $userId))
                     ->when($campaignId, fn ($callQuery) => $callQuery->where('calls.campaign_id', $campaignId))
                     ->when($dispositionId, fn ($callQuery) => $callQuery->where('calls.disposition_id', $dispositionId))
+                    ->when($listId, fn ($callQuery) => $this->whereCallBelongsToList($callQuery, $listId))
                     ->selectRaw('COUNT(*)');
             }, 'calls_count')
             ->when($teamId, fn ($query) => $query->where('id', $teamId))
@@ -173,9 +178,9 @@ class ReportController extends Controller
             ->get();
     }
 
-    private function dispositionSummary(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId)
+    private function dispositionSummary(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
     {
-        return $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId)
+        return $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
             ->selectRaw("COALESCE(disposition_code, 'SEM_TABULACAO') as disposition_code")
             ->selectRaw("COALESCE(disposition_name, 'Sem tabulacao') as disposition_name")
             ->selectRaw('COUNT(*) as calls_count')
@@ -195,10 +200,11 @@ class ReportController extends Controller
             $request->integer('campaign_id') ?: null,
             $request->integer('disposition_id') ?: null,
             $request->integer('team_id') ?: null,
+            $request->integer('list_id') ?: null,
         ];
     }
 
-    private function callsQuery(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId)
+    private function callsQuery(int $companyId, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId)
     {
         return Call::query()
             ->where('company_id', $companyId)
@@ -206,7 +212,29 @@ class ReportController extends Controller
             ->when($userId, fn ($query) => $query->where('user_id', $userId))
             ->when($campaignId, fn ($query) => $query->where('campaign_id', $campaignId))
             ->when($dispositionId, fn ($query) => $query->where('disposition_id', $dispositionId))
-            ->when($teamId, fn ($query) => $this->whereCallBelongsToTeam($query, $companyId, $teamId));
+            ->when($teamId, fn ($query) => $this->whereCallBelongsToTeam($query, $companyId, $teamId))
+            ->when($listId, fn ($query) => $this->whereCallBelongsToList($query, $listId));
+    }
+
+    private function mailingSummaries(int $companyId, ?int $campaignId, ?int $listId)
+    {
+        return ContactList::query()
+            ->where('company_id', $companyId)
+            ->when($listId, fn ($query) => $query->where('id', $listId))
+            ->when($campaignId, fn ($query) => $query->whereHas('campaigns', fn ($campaignQuery) => $campaignQuery
+                ->where('campaigns.id', $campaignId)
+                ->where('campaign_contact_list.company_id', $companyId)))
+            ->withCount([
+                'contacts',
+                'contacts as pending_contacts_count' => fn ($query) => $query->where('status', 'pending'),
+                'contacts as dialing_contacts_count' => fn ($query) => $query->where('status', 'dialing'),
+                'contacts as answered_contacts_count' => fn ($query) => $query->where('status', 'answered'),
+                'contacts as unproductive_contacts_count' => fn ($query) => $query->where('status', 'unproductive'),
+                'contacts as callback_contacts_count' => fn ($query) => $query->where('status', 'callback'),
+                'contacts as exhausted_contacts_count' => fn ($query) => $query->where('status', 'exhausted'),
+            ])
+            ->orderBy('name')
+            ->get();
     }
 
     private function whereCallBelongsToTeam($query, int $companyId, int $teamId)
@@ -217,5 +245,13 @@ class ReportController extends Controller
             ->whereColumn('team_user.company_id', 'calls.company_id')
             ->where('team_user.company_id', $companyId)
             ->where('team_user.team_id', $teamId));
+    }
+
+    private function whereCallBelongsToList($query, int $listId)
+    {
+        return $query->whereExists(fn ($contactQuery) => $contactQuery
+            ->from('contacts')
+            ->whereColumn('contacts.id', 'calls.contact_id')
+            ->where('contacts.contact_list_id', $listId));
     }
 }

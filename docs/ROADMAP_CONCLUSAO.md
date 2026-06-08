@@ -184,11 +184,11 @@ Status: MVP funcional, avancado pendente.
 - [x] Resumo de listas.
 - [x] Ultimas chamadas.
 - [x] Relatorio analitico paginado.
+- [x] Relatorio por mailing/lista.
 - [x] Exportacao CSV.
 
 Pendencias importantes:
 
-- [ ] Relatorio por mailing/lista.
 - [ ] TMA e TME.
 - [ ] Conversao por campanha/equipe/agente.
 - [ ] Exportacao XLSX.
@@ -345,7 +345,7 @@ Resultado esperado: supervisor acompanha a operacao sem telefonia real.
 Objetivo: fechar indicadores essenciais.
 
 1. Relatorio analitico paginado.
-2. Relatorio por lista/mailing.
+2. [x] Relatorio por lista/mailing.
 3. Conversao por campanha.
 4. Conversao por agente.
 5. TMA basico.
@@ -401,18 +401,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Relatorio por Mailing e Lista
+TMA e TME nos Relatorios
 ```
 
-Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao e chamadas analiticas. O proximo passo e detalhar performance e status por mailing/lista.
+Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista e chamadas analiticas. O proximo passo e medir tempo medio de atendimento e tempo medio de espera para melhorar a leitura operacional.
 
 Entregaveis desse proximo plano:
 
-- resumo por lista com pendentes, discando, atendidos, callbacks e esgotados;
-- filtros por campanha/lista;
-- percentual de aproveitamento por lista;
-- exportacao mantendo filtros;
-- testes de isolamento e status de contato;
+- TMA geral no periodo filtrado;
+- TME basico a partir dos tempos simulados disponiveis;
+- TMA por agente/campanha quando houver dados;
+- colunas de duracao melhoradas no analitico;
+- exportacao mantendo os novos campos;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -438,3 +438,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-disposition-retry-rules-design.md`
 - `docs/superpowers/specs/2026-06-08-campaign-dynamic-service-fields-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-analytic-pagination-design.md`
+- `docs/superpowers/specs/2026-06-08-reports-mailing-list-design.md`

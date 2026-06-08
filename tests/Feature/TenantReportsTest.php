@@ -383,6 +383,76 @@ class TenantReportsTest extends TestCase
             ->assertDontSee('31999990401');
     }
 
+    public function test_reports_can_filter_and_summarize_by_contact_list(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Mailing');
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Mailing', 'dialing_mode' => 'preview', 'status' => 'active']);
+        $listA = ContactList::create(['company_id' => $company->id, 'name' => 'Lista Mailing A', 'status' => 'active']);
+        $listB = ContactList::create(['company_id' => $company->id, 'name' => 'Lista Mailing B', 'status' => 'active']);
+        $campaign->contactLists()->sync([
+            $listA->id => ['company_id' => $company->id, 'weight' => 1],
+            $listB->id => ['company_id' => $company->id, 'weight' => 1],
+        ]);
+        $pending = $listA->contacts()->create(['company_id' => $company->id, 'name' => 'Pendente A', 'phone' => '31999990600', 'status' => 'pending']);
+        $answered = $listA->contacts()->create(['company_id' => $company->id, 'name' => 'Atendido A', 'phone' => '31999990601', 'status' => 'answered']);
+        $callback = $listA->contacts()->create(['company_id' => $company->id, 'name' => 'Callback A', 'phone' => '31999990602', 'status' => 'callback']);
+        $other = $listB->contacts()->create(['company_id' => $company->id, 'name' => 'Outro B', 'phone' => '31999990699', 'status' => 'pending']);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $answered->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => $answered->phone,
+            'started_at' => now(),
+            'ended_at' => now()->addMinute(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $other->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => $other->phone,
+            'started_at' => now(),
+            'ended_at' => now()->addMinute(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index', [
+                'campaign_id' => $campaign->id,
+                'list_id' => $listA->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Mailing por lista')
+            ->assertSee('Lista Mailing A')
+            ->assertSee('Pendentes 1')
+            ->assertSee('Atendidos 1')
+            ->assertSee('Callback 1')
+            ->assertSee('Aproveitamento 33%')
+            ->assertSee($answered->phone)
+            ->assertDontSee($other->phone)
+            ->assertSee('list_id='.$listA->id, false);
+
+        $csvResponse = $this->actingAs($admin)
+            ->get(route('tenant.reports.export', ['list_id' => $listA->id]))
+            ->assertOk()
+            ->assertDownload('relatorios-chamadas.csv');
+
+        $csv = $csvResponse->streamedContent();
+
+        $this->assertStringContainsString($answered->phone, $csv);
+        $this->assertStringNotContainsString($other->phone, $csv);
+        $this->assertSame('pending', $pending->fresh()->status);
+        $this->assertSame('callback', $callback->fresh()->status);
+    }
+
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
     {
         [$admin, $company] = $this->tenantUser('company_admin');

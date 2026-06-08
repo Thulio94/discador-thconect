@@ -9,7 +9,7 @@
     <div class="grid gap-4">
         <x-ui.card>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <form method="GET" action="{{ route('tenant.reports.index') }}" class="grid gap-2 md:grid-cols-6">
+                <form method="GET" action="{{ route('tenant.reports.index') }}" class="grid gap-2 md:grid-cols-7">
                     <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Inicio</span>
                         <input type="date" name="date_from" value="{{ $filters['date_from'] }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -37,6 +37,15 @@
                         </select>
                     </label>
                     <label class="grid gap-1 text-sm">
+                        <span class="font-semibold">Lista</span>
+                        <select name="list_id" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                            <option value="">Todas</option>
+                            @foreach ($lists as $list)
+                                <option value="{{ $list->id }}" @selected($filters['list_id'] === $list->id)>{{ $list->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Equipe</span>
                         <select name="team_id" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                             <option value="">Todas</option>
@@ -54,13 +63,13 @@
                             @endforeach
                         </select>
                     </label>
-                    <div class="md:col-span-6">
+                    <div class="md:col-span-7">
                         <x-ui.button type="submit" variant="secondary">Filtrar</x-ui.button>
                     </div>
                 </form>
 
                 <a
-                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'team_id', 'disposition_id'])) }}"
+                    href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'list_id', 'team_id', 'disposition_id'])) }}"
                     class="th-focus w-fit rounded-lg border px-3 py-2 text-xs font-semibold"
                     style="border-color: var(--border); color: var(--fg);"
                 >
@@ -139,12 +148,25 @@
 
         <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
             <x-ui.card>
-                <h2 class="text-lg font-semibold">Resumo de listas</h2>
+                <h2 class="text-lg font-semibold">Mailing por lista</h2>
+                <p class="mt-1 text-xs" style="color: var(--fg-muted);">Resumo de listas por status do mailing.</p>
                 <div class="mt-4 grid gap-2">
-                    @forelse ($lists as $list)
-                        <div class="flex items-center justify-between rounded-lg border p-3 text-sm" style="border-color: var(--border);">
-                            <span>{{ $list->name }}</span>
-                            <span class="font-semibold">{{ $list->contacts_count }} contatos</span>
+                    @forelse ($mailingSummaries as $list)
+                        @php($conversion = $list->contacts_count > 0 ? round(($list->answered_contacts_count / $list->contacts_count) * 100) : 0)
+                        <div class="grid gap-3 rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                            <div class="flex items-start justify-between gap-3">
+                                <span class="font-semibold">{{ $list->name }}</span>
+                                <span class="whitespace-nowrap font-semibold">{{ $list->contacts_count }} contatos</span>
+                            </div>
+                            <div class="grid gap-2 text-xs sm:grid-cols-2">
+                                <span class="rounded-lg px-2 py-1" style="background: var(--bg-subtle); color: var(--fg-muted);">Pendentes {{ $list->pending_contacts_count }}</span>
+                                <span class="rounded-lg px-2 py-1" style="background: var(--bg-subtle); color: var(--fg-muted);">Discando {{ $list->dialing_contacts_count }}</span>
+                                <span class="rounded-lg px-2 py-1" style="background: var(--bg-subtle); color: var(--fg-muted);">Atendidos {{ $list->answered_contacts_count }}</span>
+                                <span class="rounded-lg px-2 py-1" style="background: var(--bg-subtle); color: var(--fg-muted);">Impro {{ $list->unproductive_contacts_count }}</span>
+                                <span class="rounded-lg px-2 py-1" style="background: var(--bg-subtle); color: var(--fg-muted);">Callback {{ $list->callback_contacts_count }}</span>
+                                <span class="rounded-lg px-2 py-1" style="background: var(--bg-subtle); color: var(--fg-muted);">Esgotados {{ $list->exhausted_contacts_count }}</span>
+                            </div>
+                            <p class="text-xs font-semibold" style="color: var(--fg);">Aproveitamento {{ $conversion }}%</p>
                         </div>
                     @empty
                         <p class="text-sm" style="color: var(--fg-muted);">Sem listas cadastradas.</p>
