@@ -225,10 +225,77 @@
                             required
                         >
                             @foreach ($dispositions as $disposition)
-                                <option value="{{ $disposition->id }}">{{ $disposition->name }} | {{ $disposition->code }}</option>
+                                <option value="{{ $disposition->id }}">{{ $disposition->name }} | {{ $disposition->code }} | {{ $disposition->category }}</option>
                             @endforeach
                         </select>
                     </label>
+
+                    <div class="grid gap-3 rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
+                        <div>
+                            <p class="text-sm font-semibold">Retorno</p>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="grid gap-1 text-sm">
+                                <span class="font-semibold">Data e hora</span>
+                                <input
+                                    type="datetime-local"
+                                    name="callback_at"
+                                    class="rounded-lg border px-3 py-2"
+                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                >
+                            </label>
+
+                            <label class="grid gap-1 text-sm">
+                                <span class="font-semibold">Tipo de retorno</span>
+                                <select
+                                    name="callback_type"
+                                    class="rounded-lg border px-3 py-2"
+                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                >
+                                    <option value="">Sem retorno</option>
+                                    <option value="public">Publico</option>
+                                    <option value="private">Privado</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-3 rounded-lg border p-3" style="border-color: var(--border);">
+                        <div>
+                            <p class="text-sm font-semibold">Campos do atendimento</p>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <label class="grid gap-1 text-sm">
+                                <span class="font-semibold">Documento</span>
+                                <input
+                                    name="service_fields[documento]"
+                                    class="rounded-lg border px-3 py-2"
+                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                    placeholder="CPF/CNPJ"
+                                >
+                            </label>
+                            <label class="grid gap-1 text-sm">
+                                <span class="font-semibold">Protocolo</span>
+                                <input
+                                    name="service_fields[protocolo]"
+                                    class="rounded-lg border px-3 py-2"
+                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                    placeholder="PROTO-123"
+                                >
+                            </label>
+                            <label class="grid gap-1 text-sm">
+                                <span class="font-semibold">Valor</span>
+                                <input
+                                    name="service_fields[valor]"
+                                    class="rounded-lg border px-3 py-2"
+                                    style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                    placeholder="199.90"
+                                >
+                            </label>
+                        </div>
+                    </div>
 
                     <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Anotacoes do atendimento</span>

@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['company_id', 'user_id', 'campaign_id', 'contact_id', 'disposition_id', 'disposition_code', 'disposition_name', 'disposition_notes', 'direction', 'status', 'channel', 'phone', 'started_at', 'answered_at', 'ended_at'])]
+#[Fillable(['company_id', 'user_id', 'campaign_id', 'contact_id', 'disposition_id', 'disposition_code', 'disposition_name', 'disposition_notes', 'callback_type', 'callback_at', 'service_fields', 'direction', 'status', 'channel', 'phone', 'started_at', 'answered_at', 'ended_at'])]
 class Call extends Model
 {
     protected $casts = [
+        'callback_at' => 'datetime',
+        'service_fields' => 'array',
         'started_at' => 'datetime',
         'answered_at' => 'datetime',
         'ended_at' => 'datetime',

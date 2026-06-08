@@ -127,6 +127,8 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('agent-pause')
             ->assertSee('Venda concluida')
             ->assertSee('call-disposition')
+            ->assertSee('Retorno')
+            ->assertSee('Campos do atendimento')
             ->assertDontSee('Modulo em breve');
     }
 
@@ -273,6 +275,117 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('Cliente comprou', $call->disposition_name);
         $this->assertSame('Venda validada no simulador', $call->disposition_notes);
         $this->assertTrue($call->disposition->is($disposition));
+    }
+
+    public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista Retorno',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Cliente Retorno',
+            'phone' => '31999990055',
+            'status' => 'dialing',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Retorno',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Retornar depois',
+            'code' => 'RETORNO',
+            'category' => 'callback',
+            'status' => 'active',
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => $contact->phone,
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        $callbackAt = now()->addDay()->setSecond(0)->setMicrosecond(0);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+                'disposition_notes' => 'Cliente pediu retorno amanha',
+                'callback_type' => 'private',
+                'callback_at' => $callbackAt->format('Y-m-d\TH:i'),
+                'service_fields' => [
+                    'documento' => '12345678900',
+                    'protocolo' => 'PROTO-123',
+                    'valor' => '199.90',
+                    'vazio' => '',
+                ],
+            ])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $call->refresh();
+        $contact->refresh();
+
+        $this->assertSame('ended', $call->status);
+        $this->assertSame('RETORNO', $call->disposition_code);
+        $this->assertSame('private', $call->callback_type);
+        $this->assertTrue($callbackAt->equalTo($call->callback_at));
+        $this->assertSame([
+            'documento' => '12345678900',
+            'protocolo' => 'PROTO-123',
+            'valor' => '199.90',
+        ], $call->service_fields);
+        $this->assertSame('callback', $contact->status);
+        $this->assertSame('RETORNO', $contact->last_result);
+        $this->assertTrue($callbackAt->equalTo($contact->next_attempt_at));
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_callback_disposition_requires_callback_schedule(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        $disposition = Disposition::create([
+            'company_id' => $agent->company_id,
+            'name' => 'Retorno obrigatorio',
+            'code' => 'RETORNO_OBR',
+            'category' => 'callback',
+            'status' => 'active',
+        ]);
+        $call = Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertSessionHasErrors(['callback_at', 'callback_type']);
+
+        $this->assertSame('in_progress', $call->fresh()->status);
     }
 
     public function test_supervisor_can_start_and_end_manual_extension_call_without_becoming_available_agent(): void

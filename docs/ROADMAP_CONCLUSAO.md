@@ -103,11 +103,13 @@ Status: MVP simulado funcional.
 - [x] Historico recente do contato.
 - [x] Script de atendimento.
 - [x] Anotacoes do atendimento persistidas na tabulacao.
+- [x] Callback publico/privado com data e hora.
+- [x] Campos basicos do atendimento persistidos na chamada.
+- [x] Status de contato atualizado pela tabulacao.
 
 Pendencias importantes:
 
-- [ ] Campos dinamicos/formulario da campanha.
-- [ ] Agendamento de retorno publico ou privado.
+- [ ] Campos dinamicos configuraveis por campanha.
 - [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
 - [ ] Historico geral de chamadas recentes no painel.
 
@@ -307,9 +309,11 @@ Status: parcialmente concluida em 2026-06-07.
 1. [x] Exibir ficha do contato.
 2. [x] Exibir campanha/lista atual.
 3. [x] Exibir script de atendimento.
-4. [ ] Permitir campos de anotacao/formulario.
-5. Criar callback publico/privado.
+4. [x] Permitir campos de anotacao/formulario basico.
+5. [x] Criar callback publico/privado.
 6. [x] Mostrar historico recente do contato.
+7. [ ] Criar historico geral de chamadas recentes no painel.
+8. [ ] Criar formulario dinamico configuravel por campanha.
 
 Resultado esperado: agente consegue atender, registrar resultado e agendar retorno.
 
@@ -386,18 +390,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Callback e Campos Dinamicos Basicos
+Historico Geral de Chamadas no Painel do Agente
 ```
 
-Motivo: o agente ja recebe contato, historico e roteiro. Agora falta agendar retorno e registrar dados adicionais do atendimento.
+Motivo: o agente ja recebe contato, historico do contato, roteiro, tabulacao com anotacoes, callback e campos basicos. Agora falta uma visao geral das ultimas chamadas do proprio usuario para acompanhar atendimentos recentes sem sair do painel.
 
 Entregaveis desse proximo plano:
 
-- callback publico/privado;
-- data e hora de retorno;
-- status de contato como callback;
-- campos basicos extras no atendimento;
-- persistencia das informacoes na chamada;
+- ultimas chamadas do agente no painel;
+- filtros rapidos por resultado/status;
+- destaque para callbacks agendados;
+- abertura de detalhes em modal;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -415,3 +418,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-simulated-campaign-dialer-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-contact-card-design.md`
 - `docs/superpowers/specs/2026-06-07-agent-service-script-design.md`
+- `docs/superpowers/specs/2026-06-07-agent-callback-fields-design.md`

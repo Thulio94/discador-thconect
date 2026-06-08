@@ -142,6 +142,10 @@ class AgentPanelController extends Controller
                     ->where('status', 'active'),
             ],
             'disposition_notes' => ['nullable', 'string', 'max:1000'],
+            'callback_type' => ['nullable', Rule::in(['public', 'private'])],
+            'callback_at' => ['nullable', 'date'],
+            'service_fields' => ['nullable', 'array'],
+            'service_fields.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = $request->user();
@@ -150,17 +154,51 @@ class AgentPanelController extends Controller
             ->where('status', 'active')
             ->findOrFail($data['disposition_id']);
 
-        Call::query()
+        if ($disposition->category === 'callback' && (blank($data['callback_at'] ?? null) || blank($data['callback_type'] ?? null))) {
+            return back()
+                ->withErrors([
+                    'callback_at' => 'Informe a data e hora do retorno.',
+                    'callback_type' => 'Informe se o retorno sera publico ou privado.',
+                ])
+                ->withInput();
+        }
+
+        $callbackAt = filled($data['callback_at'] ?? null) ? $data['callback_at'] : null;
+        $serviceFields = collect($data['service_fields'] ?? [])
+            ->map(fn ($value) => is_string($value) ? trim($value) : $value)
+            ->filter(fn ($value) => filled($value))
+            ->all();
+
+        $call = Call::query()
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)
             ->where('id', $data['call_id'])
+            ->firstOrFail();
+
+        $call->update([
+            'status' => 'ended',
+            'disposition_id' => $disposition->id,
+            'disposition_code' => $disposition->code,
+            'disposition_name' => $disposition->name,
+            'disposition_notes' => $data['disposition_notes'] ?? null,
+            'callback_type' => $disposition->category === 'callback' ? $data['callback_type'] : null,
+            'callback_at' => $disposition->category === 'callback' ? $callbackAt : null,
+            'service_fields' => $serviceFields ?: null,
+            'ended_at' => now(),
+        ]);
+
+        $contactStatus = match ($disposition->category) {
+            'callback' => 'callback',
+            'success' => 'answered',
+            'negative', 'unproductive' => 'unproductive',
+            default => 'pending',
+        };
+
+        $call->contact()
             ->update([
-                'status' => 'ended',
-                'disposition_id' => $disposition->id,
-                'disposition_code' => $disposition->code,
-                'disposition_name' => $disposition->name,
-                'disposition_notes' => $data['disposition_notes'] ?? null,
-                'ended_at' => now(),
+                'status' => $contactStatus,
+                'last_result' => $disposition->code,
+                'next_attempt_at' => $disposition->category === 'callback' ? $callbackAt : null,
             ]);
 
         $this->closeOpenRecords($user->id, $user->company_id);
