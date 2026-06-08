@@ -28,6 +28,9 @@
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                 Inicio {{ $campaign->starts_at?->format('d/m/Y H:i') ?? 'nao iniciado' }} | Fim {{ $campaign->ends_at?->format('d/m/Y H:i') ?? 'em aberto' }}
                             </p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                Agenda {{ count($campaign->operational_schedule ?? []) }} dias configurados
+                            </p>
                             <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Discando {{ $summary['dialing'] ?? 0 }}</span>

@@ -132,6 +132,10 @@ Status: basico funcional, ainda nao completo.
 - [x] Cooldown entre tentativas.
 - [x] Fila de trabalho simulada por campanha.
 - [x] Peso por lista.
+- [x] Wizard visual de campanha em etapas.
+- [x] Agenda operacional por dia/horario.
+- [x] Configuracao visual de peso por lista no formulario.
+- [x] Revisao da campanha antes de salvar.
 - [x] Reciclar mailing improdutivo/callback/esgotado.
 - [x] Discagem simulada por campanha ativa.
 - [x] Chamada simulada vinculada a campanha e contato.
@@ -139,10 +143,8 @@ Status: basico funcional, ainda nao completo.
 
 Pendencias criticas:
 
-- [ ] Wizard completo de campanha.
-- [ ] Etapas: basico, modo de discagem, AMD/tentativas, rotas, agenda e revisao.
-- [ ] Agenda operacional por dia/horario.
-- [ ] Configuracao visual de peso por lista no formulario da campanha.
+- [ ] Aplicar agenda operacional automaticamente na discagem simulada.
+- [ ] Etapas avancadas: AMD/tentativas, rotas e limites.
 - [ ] Regras avancadas de tentativa por tabulacao.
 
 ### Supervisao
@@ -271,7 +273,7 @@ Status: parcialmente concluida em 2026-06-07.
 1. [x] Criar status operacional: rascunho, ativa, pausada, finalizada.
 2. [x] Criar acoes iniciar, pausar, reiniciar e finalizar.
 3. [x] Criar duplicacao de campanha.
-4. Criar agenda operacional simples.
+4. [x] Criar agenda operacional simples.
 5. Exibir progresso da campanha na listagem.
 
 Resultado esperado: administrador consegue preparar e controlar uma campanha simulada.
@@ -395,17 +397,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Wizard de Campanha e Agenda Operacional
+Aplicar Agenda Operacional na Discagem Simulada
 ```
 
-Motivo: o fluxo simulado ja atende agente, supervisao, fila, callbacks, relatorios e notificacoes. Agora falta melhorar a montagem da campanha com etapas guiadas e agenda operacional.
+Motivo: a campanha agora possui agenda por dia e horario. O proximo passo e fazer o discador simulado respeitar essa agenda antes de criar chamadas.
 
 Entregaveis desse proximo plano:
 
-- wizard de campanha em etapas;
-- agenda por dia e horario;
-- revisao antes de ativar;
-- configuracao visual de peso por lista;
+- bloqueio de discagem fora da agenda;
+- mensagem operacional quando a campanha estiver fora do horario;
+- teste de campanha ativa dentro e fora do horario;
+- exibicao do estado da agenda na listagem;
 - testes de isolamento multiempresa;
 - smoke no Docker.
 
@@ -427,3 +429,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-agent-recent-calls-design.md`
 - `docs/superpowers/specs/2026-06-07-supervision-operational-times-design.md`
 - `docs/superpowers/specs/2026-06-07-operational-notifications-design.md`
+- `docs/superpowers/specs/2026-06-08-campaign-wizard-schedule-design.md`

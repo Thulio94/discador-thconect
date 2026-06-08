@@ -43,6 +43,7 @@ class CampaignController extends Controller
     {
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId));
+        $this->validateListSelection($request, $companyId, $data['list_ids'] ?? []);
 
         $campaign = Campaign::create([
             'company_id' => $companyId,
@@ -52,6 +53,7 @@ class CampaignController extends Controller
             'dialing_mode' => $data['dialing_mode'],
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
+            'operational_schedule' => $this->schedulePayload($data['operational_schedule'] ?? []),
         ]);
 
         $this->syncRelations($campaign, $data['team_ids'] ?? [], $data['list_ids'] ?? []);
@@ -64,6 +66,7 @@ class CampaignController extends Controller
         abort_unless($campaign->company_id === $request->user()->company_id, 403);
 
         $data = $request->validate($this->rules($campaign->company_id, $campaign));
+        $this->validateListSelection($request, $campaign->company_id, $data['list_ids'] ?? []);
 
         $campaign->update([
             'name' => $data['name'],
@@ -72,6 +75,7 @@ class CampaignController extends Controller
             'dialing_mode' => $data['dialing_mode'],
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
+            'operational_schedule' => $this->schedulePayload($data['operational_schedule'] ?? []),
         ]);
 
         $this->syncRelations($campaign, $data['team_ids'] ?? [], $data['list_ids'] ?? []);
@@ -142,13 +146,14 @@ class CampaignController extends Controller
             'dialing_mode' => $campaign->dialing_mode,
             'status' => 'draft',
             'priority' => $campaign->priority,
+            'operational_schedule' => $campaign->operational_schedule,
         ]);
 
         $this->syncRelations(
             $copy,
             $campaign->teams()->pluck('teams.id')->all(),
             $campaign->contactLists()->get()->mapWithKeys(fn (ContactList $list): array => [
-                $list->id => ['weight' => (int) ($list->pivot->weight ?? 1)],
+                $list->id => ['selected' => '1', 'weight' => (int) ($list->pivot->weight ?? 1)],
             ])->all()
         );
 
@@ -189,7 +194,26 @@ class CampaignController extends Controller
             'team_ids' => ['required', 'array', 'min:1'],
             'team_ids.*' => [Rule::exists('teams', 'id')->where('company_id', $companyId)],
             'list_ids' => ['required', 'array', 'min:1'],
-            'list_ids.*' => [Rule::exists('contact_lists', 'id')->where('company_id', $companyId)],
+            'list_ids.*' => [
+                function (string $attribute, mixed $value, \Closure $fail) use ($companyId): void {
+                    if (is_array($value)) {
+                        return;
+                    }
+
+                    $exists = ContactList::query()
+                        ->where('company_id', $companyId)
+                        ->where('id', (int) $value)
+                        ->exists();
+
+                    if (! $exists) {
+                        $fail('Selecione apenas listas desta empresa.');
+                    }
+                },
+            ],
+            'operational_schedule' => ['nullable', 'array'],
+            'operational_schedule.*.enabled' => ['nullable'],
+            'operational_schedule.*.start' => ['nullable', 'date_format:H:i'],
+            'operational_schedule.*.end' => ['nullable', 'date_format:H:i'],
         ];
     }
 
@@ -202,9 +226,31 @@ class CampaignController extends Controller
         $campaign->contactLists()->sync($this->listSyncPayload($campaign, $listIds));
     }
 
+    private function validateListSelection(Request $request, int $companyId, array $listIds): void
+    {
+        $ids = collect($listIds)
+            ->map(fn ($value, $key): int => is_array($value) ? (int) $key : (int) $value)
+            ->filter()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        $validCount = ContactList::query()
+            ->where('company_id', $companyId)
+            ->whereIn('id', $ids)
+            ->count();
+
+        if ($validCount !== $ids->unique()->count()) {
+            back()->withErrors(['list_ids.0' => 'Selecione apenas listas desta empresa.'])->throwResponse();
+        }
+    }
+
     private function listSyncPayload(Campaign $campaign, array $listIds): array
     {
         return collect($listIds)
+            ->filter(fn ($value): bool => ! is_array($value) || filled($value['selected'] ?? null))
             ->mapWithKeys(function ($value, $key) use ($campaign): array {
                 if (is_array($value)) {
                     return [(int) $key => [
@@ -219,6 +265,21 @@ class CampaignController extends Controller
                 ]];
             })
             ->all();
+    }
+
+    private function schedulePayload(array $schedule): ?array
+    {
+        $payload = collect($schedule)
+            ->filter(fn (array $day): bool => filled($day['enabled'] ?? null))
+            ->map(fn (array $day): array => [
+                'enabled' => true,
+                'start' => $day['start'] ?? '09:00',
+                'end' => $day['end'] ?? '18:00',
+            ])
+            ->filter(fn (array $day): bool => $day['start'] < $day['end'])
+            ->all();
+
+        return $payload ?: null;
     }
 
     private function copyName(Campaign $campaign): string

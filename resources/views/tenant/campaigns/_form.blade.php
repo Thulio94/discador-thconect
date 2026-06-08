@@ -1,26 +1,56 @@
 @php
     $campaign = $campaign ?? null;
     $selectedTeamIds = collect(old('team_ids', $campaign?->teams?->pluck('id')->all() ?? []))->map(fn ($id) => (int) $id)->all();
-    $selectedListIds = collect(old('list_ids', $campaign?->contactLists?->pluck('id')->all() ?? []))->map(fn ($id) => (int) $id)->all();
+    $oldListIds = old('list_ids');
+    $selectedListIds = $oldListIds
+        ? collect($oldListIds)->filter(fn ($value) => ! is_array($value) || filled($value['selected'] ?? null))->map(fn ($value, $key) => (int) (is_array($value) ? $key : $value))->all()
+        : collect($campaign?->contactLists?->pluck('id')->all() ?? [])->map(fn ($id) => (int) $id)->all();
+    $listWeights = $oldListIds
+        ? collect($oldListIds)->mapWithKeys(fn ($value, $key) => [(int) (is_array($value) ? $key : $value) => (int) (is_array($value) ? ($value['weight'] ?? 1) : 1)])->all()
+        : collect($campaign?->contactLists ?? [])->mapWithKeys(fn ($list) => [$list->id => (int) ($list->pivot->weight ?? 1)])->all();
+    $schedule = old('operational_schedule', $campaign?->operational_schedule ?? []);
+    $days = [
+        'monday' => 'Segunda',
+        'tuesday' => 'Terca',
+        'wednesday' => 'Quarta',
+        'thursday' => 'Quinta',
+        'friday' => 'Sexta',
+        'saturday' => 'Sabado',
+        'sunday' => 'Domingo',
+    ];
 @endphp
 
 <div class="grid gap-4">
-    <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Nome</span>
-        <input name="name" value="{{ old('name', $campaign?->name) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
-    </label>
+    <div class="grid gap-2 sm:grid-cols-4">
+        @foreach (['Etapa 1' => 'Basico', 'Etapa 2' => 'Operacao', 'Etapa 3' => 'Publico', 'Etapa 4' => 'Revisao'] as $step => $label)
+            <div class="rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
+                <p class="text-[11px] font-semibold uppercase" style="color: var(--fg-muted);">{{ $step }}</p>
+                <p class="mt-1 text-sm font-semibold">{{ $label }}</p>
+            </div>
+        @endforeach
+    </div>
 
-    <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Descricao</span>
-        <textarea name="description" rows="2" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">{{ old('description', $campaign?->description) }}</textarea>
-    </label>
+    <div class="grid gap-4 rounded-lg border p-4" style="border-color: var(--border);">
+        <p class="text-sm font-semibold">Etapa 1 - Basico</p>
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Nome</span>
+            <input name="name" value="{{ old('name', $campaign?->name) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
+        </label>
 
-    <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Script de atendimento</span>
-        <textarea name="service_script" rows="4" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="Oriente o agente sobre abordagem, perguntas e proximos passos.">{{ old('service_script', $campaign?->service_script) }}</textarea>
-    </label>
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Descricao</span>
+            <textarea name="description" rows="2" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">{{ old('description', $campaign?->description) }}</textarea>
+        </label>
+    </div>
 
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 rounded-lg border p-4" style="border-color: var(--border);">
+        <p class="text-sm font-semibold">Etapa 2 - Operacao</p>
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Script de atendimento</span>
+            <textarea name="service_script" rows="4" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="Abordagem, perguntas e proximos passos.">{{ old('service_script', $campaign?->service_script) }}</textarea>
+        </label>
+
+        <div class="grid gap-4 md:grid-cols-3">
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Modo</span>
             <select name="dialing_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -45,9 +75,35 @@
             <span class="font-semibold">Prioridade</span>
             <input name="priority" type="number" min="1" max="10" value="{{ old('priority', $campaign?->priority ?? 1) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
         </label>
+        </div>
+
+        <div>
+            <p class="mb-2 text-sm font-semibold">Agenda operacional</p>
+            <div class="grid gap-2">
+                @foreach ($days as $key => $label)
+                    @php($day = $schedule[$key] ?? [])
+                    <div class="grid gap-2 rounded-lg border p-3 text-sm md:grid-cols-[130px_1fr_1fr]" style="border-color: var(--border);">
+                        <label class="flex items-center gap-2 font-semibold">
+                            <input type="checkbox" name="operational_schedule[{{ $key }}][enabled]" value="1" @checked(filled($day['enabled'] ?? null))>
+                            <span>{{ $label }}</span>
+                        </label>
+                        <label class="grid gap-1">
+                            <span class="text-xs" style="color: var(--fg-muted);">Inicio</span>
+                            <input type="time" name="operational_schedule[{{ $key }}][start]" value="{{ $day['start'] ?? '09:00' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                        </label>
+                        <label class="grid gap-1">
+                            <span class="text-xs" style="color: var(--fg-muted);">Fim</span>
+                            <input type="time" name="operational_schedule[{{ $key }}][end]" value="{{ $day['end'] ?? '18:00' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                        </label>
+                    </div>
+                @endforeach
+            </div>
+        </div>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 rounded-lg border p-4" style="border-color: var(--border);">
+        <p class="text-sm font-semibold">Etapa 3 - Publico</p>
+        <div class="grid gap-4 md:grid-cols-2">
         <div>
             <p class="mb-2 text-sm font-semibold">Equipes</p>
             @forelse ($teams as $team)
@@ -63,13 +119,38 @@
         <div>
             <p class="mb-2 text-sm font-semibold">Listas</p>
             @forelse ($lists as $list)
-                <label class="mb-2 flex items-center gap-2 rounded-lg border p-3 text-sm" style="border-color: var(--border);">
-                    <input type="checkbox" name="list_ids[]" value="{{ $list->id }}" @checked(in_array($list->id, $selectedListIds, true))>
-                    <span>{{ $list->name }}</span>
-                </label>
+                <div class="mb-2 grid gap-2 rounded-lg border p-3 text-sm sm:grid-cols-[minmax(0,1fr)_90px]" style="border-color: var(--border);">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="list_ids[{{ $list->id }}][selected]" value="1" @checked(in_array($list->id, $selectedListIds, true))>
+                        <span>{{ $list->name }}</span>
+                    </label>
+                    <label class="grid gap-1">
+                        <span class="text-xs font-semibold" style="color: var(--fg-muted);">Peso</span>
+                        <input type="number" min="1" max="10" name="list_ids[{{ $list->id }}][weight]" value="{{ $listWeights[$list->id] ?? 1 }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                    </label>
+                </div>
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Cadastre uma lista antes.</p>
             @endforelse
+        </div>
+        </div>
+    </div>
+
+    <div class="grid gap-3 rounded-lg border p-4" style="border-color: var(--border); background: var(--surface-alt);">
+        <p class="text-sm font-semibold">Etapa 4 - Revisao da campanha</p>
+        <div class="grid gap-2 text-sm sm:grid-cols-3">
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Modo</p>
+                <p class="mt-1 font-semibold">{{ old('dialing_mode', $campaign?->dialing_mode ?? 'preview') }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Status</p>
+                <p class="mt-1 font-semibold">{{ old('status', $campaign?->status ?? 'draft') }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Prioridade</p>
+                <p class="mt-1 font-semibold">{{ old('priority', $campaign?->priority ?? 1) }}</p>
+            </div>
         </div>
     </div>
 </div>

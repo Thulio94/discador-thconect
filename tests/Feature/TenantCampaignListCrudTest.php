@@ -104,6 +104,23 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSee('Blacklist aplicada automaticamente');
     }
 
+    public function test_campaign_form_shows_wizard_schedule_review_and_list_weights(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Wizard', 'status' => 'active']);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Etapa 1')
+            ->assertSee('Etapa 2')
+            ->assertSee('Etapa 3')
+            ->assertSee('Etapa 4')
+            ->assertSee('Agenda operacional')
+            ->assertSee('Peso')
+            ->assertSee('Revisao da campanha');
+    }
+
     public function test_tenant_admin_can_update_and_inactivate_contact_list(): void
     {
         [$admin] = $this->tenantAdmin();
@@ -162,6 +179,42 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame('Cumprimente o cliente e confirme o interesse.', $campaign->service_script);
         $this->assertSame(2, $campaign->teams()->count());
         $this->assertSame(2, $campaign->contactLists()->count());
+    }
+
+    public function test_tenant_admin_can_configure_campaign_schedule_and_list_weights(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $listA = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Peso A']);
+        $listB = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Peso B']);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Agenda',
+                'dialing_mode' => 'power',
+                'status' => 'draft',
+                'priority' => 2,
+                'team_ids' => [$team->id],
+                'list_ids' => [
+                    $listA->id => ['selected' => '1', 'weight' => 3],
+                    $listB->id => ['selected' => '1', 'weight' => 1],
+                ],
+                'operational_schedule' => [
+                    'monday' => ['enabled' => '1', 'start' => '09:00', 'end' => '18:00'],
+                    'saturday' => ['enabled' => '1', 'start' => '10:00', 'end' => '14:00'],
+                    'sunday' => ['start' => '09:00', 'end' => '12:00'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Agenda')->sole();
+
+        $this->assertSame([
+            'monday' => ['enabled' => true, 'start' => '09:00', 'end' => '18:00'],
+            'saturday' => ['enabled' => true, 'start' => '10:00', 'end' => '14:00'],
+        ], $campaign->operational_schedule);
+        $this->assertSame(3, (int) $campaign->contactLists()->where('contact_lists.id', $listA->id)->sole()->pivot->weight);
+        $this->assertSame(1, (int) $campaign->contactLists()->where('contact_lists.id', $listB->id)->sole()->pivot->weight);
     }
 
     public function test_tenant_admin_can_update_and_finish_campaign(): void
