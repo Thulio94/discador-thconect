@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-07
+Atualizado em: 2026-06-08
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -140,10 +140,11 @@ Status: basico funcional, ainda nao completo.
 - [x] Discagem simulada por campanha ativa.
 - [x] Chamada simulada vinculada a campanha e contato.
 - [x] Bloqueio de nova chamada para agente com chamada sem tabulacao.
+- [x] Agenda operacional aplicada automaticamente na discagem simulada.
+- [x] Exibicao do estado da agenda na listagem.
 
 Pendencias criticas:
 
-- [ ] Aplicar agenda operacional automaticamente na discagem simulada.
 - [ ] Etapas avancadas: AMD/tentativas, rotas e limites.
 - [ ] Regras avancadas de tentativa por tabulacao.
 
@@ -274,7 +275,8 @@ Status: parcialmente concluida em 2026-06-07.
 2. [x] Criar acoes iniciar, pausar, reiniciar e finalizar.
 3. [x] Criar duplicacao de campanha.
 4. [x] Criar agenda operacional simples.
-5. Exibir progresso da campanha na listagem.
+5. [x] Exibir progresso da campanha na listagem.
+6. [x] Exibir estado da agenda na listagem.
 
 Resultado esperado: administrador consegue preparar e controlar uma campanha simulada.
 
@@ -304,6 +306,7 @@ Status: concluida para a base do MVP simulado em 2026-06-07.
 3. [x] Gerar chamadas simuladas respeitando agentes disponiveis.
 4. [x] Amarrar chamada ao contato e campanha.
 5. [x] Evitar nova chamada para agente com chamada sem tabulacao.
+6. [x] Respeitar agenda operacional antes de gerar chamadas.
 
 Resultado esperado: campanha ativa gera chamadas simuladas para agentes disponiveis.
 
@@ -397,18 +400,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Aplicar Agenda Operacional na Discagem Simulada
+Regras Avancadas de Tentativa por Tabulacao
 ```
 
-Motivo: a campanha agora possui agenda por dia e horario. O proximo passo e fazer o discador simulado respeitar essa agenda antes de criar chamadas.
+Motivo: a discagem simulada ja respeita capacidade, fila, cooldown e agenda. O proximo passo e deixar cada tabulacao definir se o contato volta para fila, quando volta e quantas tentativas pode receber.
 
 Entregaveis desse proximo plano:
 
-- bloqueio de discagem fora da agenda;
-- mensagem operacional quando a campanha estiver fora do horario;
-- teste de campanha ativa dentro e fora do horario;
-- exibicao do estado da agenda na listagem;
-- testes de isolamento multiempresa;
+- regras de tentativa por tabulacao;
+- cooldown especifico por resultado;
+- limite de tentativas antes de esgotar;
+- reciclagem respeitando regras;
+- testes de fila e painel do agente;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -430,3 +433,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-07-supervision-operational-times-design.md`
 - `docs/superpowers/specs/2026-06-07-operational-notifications-design.md`
 - `docs/superpowers/specs/2026-06-08-campaign-wizard-schedule-design.md`
+- `docs/superpowers/specs/2026-06-08-campaign-schedule-dialer-design.md`

@@ -454,6 +454,8 @@ class TenantCampaignListCrudTest extends TestCase
 
     public function test_tenant_admin_can_trigger_simulated_campaign_dialer_from_campaign(): void
     {
+        $this->travelTo(now()->next('Monday')->setTime(10, 0));
+
         [$admin, $team] = $this->tenantAdmin();
         $agent = User::factory()->create([
             'company_id' => $admin->company_id,
@@ -480,6 +482,9 @@ class TenantCampaignListCrudTest extends TestCase
             'name' => 'Campanha Acionamento',
             'dialing_mode' => 'power',
             'status' => 'active',
+            'operational_schedule' => [
+                'monday' => ['enabled' => true, 'start' => '09:00', 'end' => '18:00'],
+            ],
         ]);
         $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
         $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
@@ -500,6 +505,82 @@ class TenantCampaignListCrudTest extends TestCase
         ]);
         $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
         $this->assertSame('dialing', $contact->fresh()->status);
+    }
+
+    public function test_tenant_admin_sees_campaign_outside_schedule_state_on_index(): void
+    {
+        $this->travelTo(now()->next('Monday')->setTime(20, 0));
+
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Agenda Visivel', 'status' => 'active']);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Estado Agenda',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'operational_schedule' => [
+                'monday' => ['enabled' => true, 'start' => '09:00', 'end' => '18:00'],
+            ],
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Campanha Estado Agenda')
+            ->assertSee('Fora da agenda');
+    }
+
+    public function test_tenant_admin_cannot_trigger_simulated_dialer_outside_campaign_schedule(): void
+    {
+        $this->travelTo(now()->next('Monday')->setTime(20, 0));
+
+        [$admin, $team] = $this->tenantAdmin();
+        $agent = User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $admin->role_id,
+            'user_type' => 'agent',
+            'extension' => '1301',
+            'status' => 'active',
+        ]);
+        $team->users()->attach($agent, ['company_id' => $admin->company_id, 'membership_type' => 'agent']);
+        $agent->agentStatuses()->create([
+            'company_id' => $admin->company_id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Agenda', 'status' => 'active']);
+        $contact = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lead Fora Agenda',
+            'phone' => '31999990021',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Agenda Bloqueada',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'operational_schedule' => [
+                'monday' => ['enabled' => true, 'start' => '09:00', 'end' => '18:00'],
+            ],
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
+
+        $this->actingAs($admin)
+            ->patch(route('tenant.campaigns.dial', $campaign))
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, 'fora da agenda operacional'));
+
+        $this->assertDatabaseMissing('calls', [
+            'company_id' => $admin->company_id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+        ]);
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame('pending', $contact->fresh()->status);
     }
 
     public function test_campaign_cannot_use_team_or_list_from_another_company(): void

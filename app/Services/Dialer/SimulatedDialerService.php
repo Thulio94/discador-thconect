@@ -8,9 +8,20 @@ use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Contact;
 use App\Models\User;
+use Carbon\CarbonInterface;
 
 class SimulatedDialerService
 {
+    private const WEEK_DAYS = [
+        0 => 'sunday',
+        1 => 'monday',
+        2 => 'tuesday',
+        3 => 'wednesday',
+        4 => 'thursday',
+        5 => 'friday',
+        6 => 'saturday',
+    ];
+
     public function __construct(
         private readonly AgentCapacityService $capacity,
         private readonly MailingQueueService $queue,
@@ -19,6 +30,10 @@ class SimulatedDialerService
     public function runCampaign(Campaign $campaign): int
     {
         if ($campaign->status !== 'active') {
+            return 0;
+        }
+
+        if (! $this->isCampaignInOperationalSchedule($campaign)) {
             return 0;
         }
 
@@ -42,6 +57,28 @@ class SimulatedDialerService
         }
 
         return $created;
+    }
+
+    public function isCampaignInOperationalSchedule(Campaign $campaign, ?CarbonInterface $moment = null): bool
+    {
+        $schedule = $campaign->operational_schedule ?? [];
+
+        if ($schedule === []) {
+            return true;
+        }
+
+        $moment ??= now();
+        $day = $schedule[self::WEEK_DAYS[$moment->dayOfWeek] ?? ''] ?? null;
+
+        if (! is_array($day) || empty($day['enabled'])) {
+            return false;
+        }
+
+        $start = $day['start'] ?? '00:00';
+        $end = $day['end'] ?? '23:59';
+        $current = $moment->format('H:i');
+
+        return $current >= $start && $current <= $end;
     }
 
     private function availableAgents(Campaign $campaign)

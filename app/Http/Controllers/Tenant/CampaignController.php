@@ -28,11 +28,15 @@ class CampaignController extends Controller
             ->latest()
             ->paginate(12);
         $queue = app(MailingQueueService::class);
+        $dialer = app(SimulatedDialerService::class);
 
         return view('tenant.campaigns.index', [
             'campaigns' => $campaigns,
             'mailingSummaries' => $campaigns->getCollection()
                 ->mapWithKeys(fn (Campaign $campaign): array => [$campaign->id => $queue->summaryForCampaign($campaign)])
+                ->all(),
+            'scheduleStates' => $campaigns->getCollection()
+                ->mapWithKeys(fn (Campaign $campaign): array => [$campaign->id => $dialer->isCampaignInOperationalSchedule($campaign)])
                 ->all(),
             'teams' => Team::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
@@ -174,6 +178,12 @@ class CampaignController extends Controller
     public function dial(Request $request, Campaign $campaign, SimulatedDialerService $dialer): RedirectResponse
     {
         abort_unless($campaign->company_id === $request->user()->company_id, 403);
+
+        if (! $dialer->isCampaignInOperationalSchedule($campaign)) {
+            return redirect()
+                ->route('tenant.campaigns.index')
+                ->with('status', 'Campanha fora da agenda operacional. Nenhuma chamada simulada foi criada.');
+        }
 
         $count = $dialer->runCampaign($campaign);
 

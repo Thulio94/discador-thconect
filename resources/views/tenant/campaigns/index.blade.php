@@ -30,6 +30,9 @@
                             </p>
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                 Agenda {{ count($campaign->operational_schedule ?? []) }} dias configurados
+                                @if (count($campaign->operational_schedule ?? []) > 0)
+                                    | {{ ($scheduleStates[$campaign->id] ?? true) ? 'Dentro da agenda' : 'Fora da agenda' }}
+                                @endif
                             </p>
                             <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
