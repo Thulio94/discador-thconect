@@ -190,10 +190,10 @@ Status: MVP funcional, avancado pendente.
 - [x] Exportacao CSV.
 - [x] Exportacao XLSX.
 - [x] Exportacao PDF.
+- [x] Historico de exportacoes.
 
 Pendencias importantes:
 
-- [ ] Historico de exportacoes.
 - [ ] Agendamento de relatorios.
 
 ### Notificacoes
@@ -401,17 +401,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Historico de Exportacoes dos Relatorios
+Agendamento de Relatorios
 ```
 
-Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas, tempos medios, conversao, CSV, XLSX e PDF. O proximo passo e registrar exportacoes para auditoria e acompanhamento.
+Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas, tempos medios, conversao, CSV, XLSX, PDF e historico de exportacoes. O proximo passo e permitir rotinas recorrentes para gestores.
 
 Entregaveis desse proximo plano:
 
-- tabela de historico de exportacoes;
-- registro de usuario, formato, filtros e data;
-- listagem do historico na tela de relatorios;
-- testes de isolamento por empresa;
+- cadastro de agendamento com formato e filtros;
+- frequencia diaria/semanal;
+- status ativo/inativo;
+- registro de ultima execucao simulada;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -442,3 +442,4 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-reports-conversion-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-xlsx-export-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-pdf-export-design.md`
+- `docs/superpowers/specs/2026-06-08-report-export-history-design.md`

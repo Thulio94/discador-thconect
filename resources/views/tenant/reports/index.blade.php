@@ -166,6 +166,28 @@
             </div>
         </x-ui.card>
 
+        <x-ui.card>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 class="text-lg font-semibold">Historico de exportacoes</h2>
+                <span class="text-xs" style="color: var(--fg-muted);">{{ $exportHistory->count() }} recentes</span>
+            </div>
+            <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                @forelse ($exportHistory as $export)
+                    <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="font-semibold">{{ strtoupper($export->format) }}</span>
+                            <span class="text-xs" style="color: var(--fg-muted);">{{ $export->created_at->format('d/m/Y H:i') }}</span>
+                        </div>
+                        <p class="mt-2 text-xs" style="color: var(--fg-muted);">{{ $export->user?->name ?? 'Usuario removido' }}</p>
+                        <p class="mt-3 font-semibold">{{ $export->records_count }} {{ $export->records_count === 1 ? 'registro' : 'registros' }}</p>
+                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">{{ $export->filter_label }}</p>
+                    </div>
+                @empty
+                    <p class="text-sm" style="color: var(--fg-muted);">Nenhuma exportacao registrada.</p>
+                @endforelse
+            </div>
+        </x-ui.card>
+
         <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
             <x-ui.card>
                 <h2 class="text-lg font-semibold">Mailing por lista</h2>

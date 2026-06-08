@@ -7,6 +7,7 @@ use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Models\Disposition;
+use App\Models\ReportExport;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Reports\SimplePdfReport;
@@ -56,6 +57,7 @@ class ReportController extends Controller
             'campaignPerformance' => $this->campaignPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'teamPerformance' => $this->teamPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'dispositionSummary' => $this->dispositionSummary($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
+            'exportHistory' => $this->exportHistory($companyId),
             'filters' => [
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
@@ -74,6 +76,7 @@ class ReportController extends Controller
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
             ->with(['user', 'campaign', 'disposition'])
             ->oldest('started_at');
+        $this->recordExport($request, 'csv', clone $callsQuery, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId);
 
         return response()->streamDownload(function () use ($callsQuery): void {
             $output = fopen('php://output', 'w');
@@ -97,6 +100,7 @@ class ReportController extends Controller
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
             ->with(['user', 'campaign', 'disposition'])
             ->oldest('started_at');
+        $this->recordExport($request, 'xlsx', clone $callsQuery, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId);
 
         return response()->streamDownload(function () use ($callsQuery): void {
             $spreadsheet = new Spreadsheet;
@@ -130,6 +134,7 @@ class ReportController extends Controller
         $callsQuery = $this->callsQuery($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId)
             ->with(['user', 'campaign', 'disposition'])
             ->oldest('started_at');
+        $this->recordExport($request, 'pdf', clone $callsQuery, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId);
         $timeMetrics = $this->timeMetrics(clone $callsQuery);
         $conversionMetrics = $this->conversionMetrics(clone $callsQuery);
         $totalCalls = (clone $callsQuery)->count();
@@ -496,6 +501,55 @@ class ReportController extends Controller
         }
 
         return $filters === [] ? 'Todos' : implode(', ', array_filter($filters));
+    }
+
+    private function recordExport(Request $request, string $format, $query, $dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId): void
+    {
+        ReportExport::create([
+            'company_id' => $request->user()->company_id,
+            'user_id' => $request->user()->id,
+            'format' => $format,
+            'filters' => $this->exportFilters($dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
+            'records_count' => (clone $query)->count(),
+        ]);
+    }
+
+    private function exportFilters($dateFrom, $dateTo, ?int $userId, ?int $campaignId, ?int $dispositionId, ?int $teamId, ?int $listId): array
+    {
+        return array_filter([
+            'date_from' => $dateFrom->toDateString(),
+            'date_to' => $dateTo->toDateString(),
+            'user_id' => $userId,
+            'campaign_id' => $campaignId,
+            'disposition_id' => $dispositionId,
+            'team_id' => $teamId,
+            'list_id' => $listId,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function exportHistory(int $companyId)
+    {
+        return ReportExport::query()
+            ->where('company_id', $companyId)
+            ->with('user')
+            ->latest()
+            ->limit(8)
+            ->get()
+            ->each(function (ReportExport $export) use ($companyId): void {
+                $export->setAttribute('filter_label', $this->historyFilterLabel($companyId, $export->filters ?? []));
+            });
+    }
+
+    private function historyFilterLabel(int $companyId, array $filters): string
+    {
+        return $this->pdfFilterLabel(
+            $companyId,
+            $filters['user_id'] ?? null,
+            $filters['campaign_id'] ?? null,
+            $filters['disposition_id'] ?? null,
+            $filters['team_id'] ?? null,
+            $filters['list_id'] ?? null
+        );
     }
 
     private function whereCallBelongsToTeam($query, int $companyId, int $teamId)

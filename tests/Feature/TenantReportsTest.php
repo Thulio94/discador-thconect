@@ -8,6 +8,7 @@ use App\Models\Campaign;
 use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Disposition;
+use App\Models\ReportExport;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
@@ -730,6 +731,65 @@ class TenantReportsTest extends TestCase
         $this->assertStringContainsString('Conversoes: 1', $pdf);
         $this->assertStringNotContainsString('Campanha PDF B', $pdf);
         $this->assertStringNotContainsString('31999991099', $pdf);
+    }
+
+    public function test_reports_register_and_show_export_history(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Historico');
+        [$otherAdmin, $otherCompany] = $this->tenantUser('company_admin', null, 'Admin Outra Hist');
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Historico', 'dialing_mode' => 'preview', 'status' => 'active']);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999991101',
+            'started_at' => now()->subMinutes(5),
+            'ended_at' => now(),
+        ]);
+
+        ReportExport::create([
+            'company_id' => $otherCompany->id,
+            'user_id' => $otherAdmin->id,
+            'format' => 'pdf',
+            'filters' => ['campaign_id' => 999],
+            'records_count' => 7,
+        ]);
+
+        foreach (['export' => 'csv', 'export-xlsx' => 'xlsx', 'export-pdf' => 'pdf'] as $routeSuffix => $format) {
+            $this->actingAs($admin)
+                ->get(route('tenant.reports.'.$routeSuffix, ['campaign_id' => $campaign->id]))
+                ->assertOk();
+
+            $this->assertDatabaseHas('report_exports', [
+                'company_id' => $company->id,
+                'user_id' => $admin->id,
+                'format' => $format,
+                'records_count' => 1,
+            ]);
+        }
+
+        $export = ReportExport::query()
+            ->where('company_id', $company->id)
+            ->where('format', 'csv')
+            ->firstOrFail();
+
+        $this->assertSame($campaign->id, $export->filters['campaign_id']);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index'))
+            ->assertOk()
+            ->assertSee('Historico de exportacoes')
+            ->assertSee('CSV')
+            ->assertSee('XLSX')
+            ->assertSee('PDF')
+            ->assertSee('1 registro')
+            ->assertSee('Campanha Historico')
+            ->assertDontSee('7 registros');
     }
 
     public function test_reports_csv_export_respects_filters_and_tenant_isolation(): void
