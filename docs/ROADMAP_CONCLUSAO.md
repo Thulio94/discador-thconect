@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-08
+Atualizado em: 2026-06-13
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -173,7 +173,7 @@ Pendencias importantes:
 
 ### Relatorios
 
-Status: MVP funcional, avancado pendente.
+Status: MVP funcional.
 
 - [x] Tela real de relatorios.
 - [x] Filtros por periodo, agente, campanha, equipe e tabulacao.
@@ -191,10 +191,14 @@ Status: MVP funcional, avancado pendente.
 - [x] Exportacao XLSX.
 - [x] Exportacao PDF.
 - [x] Historico de exportacoes.
+- [x] Agendamento de relatorios.
+- [x] Frequencia diaria e semanal.
+- [x] Execucao simulada manual com ultima execucao.
 
-Pendencias importantes:
+Evolucoes futuras:
 
-- [ ] Agendamento de relatorios.
+- [ ] Execucao automatica pelo Laravel Scheduler.
+- [ ] Envio e armazenamento dos arquivos gerados.
 
 ### Notificacoes
 
@@ -401,17 +405,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Agendamento de Relatorios
+Atualizacao em tempo real da supervisao e notificacoes por polling leve
 ```
 
-Motivo: o relatorio ja tem visao por agente, equipe, campanha, tabulacao, mailing/lista, chamadas analiticas, tempos medios, conversao, CSV, XLSX, PDF e historico de exportacoes. O proximo passo e permitir rotinas recorrentes para gestores.
+Motivo: o relatorio ja possui cadastro de rotinas, frequencia, filtros, status e execucao simulada registrada. O proximo ganho operacional do MVP e reduzir a defasagem das telas de supervisao e notificacoes sem ativar telefonia real ou integracoes.
 
 Entregaveis desse proximo plano:
 
-- cadastro de agendamento com formato e filtros;
-- frequencia diaria/semanal;
-- status ativo/inativo;
-- registro de ultima execucao simulada;
+- polling leve e configuravel na supervisao;
+- atualizacao das chamadas e dos status sem recarregar a pagina;
+- fallback de polling para notificacoes;
+- prevencao de requisicoes concorrentes;
 - smoke no Docker.
 
 ## Referencias de Planejamento Existentes
@@ -443,3 +447,5 @@ Entregaveis desse proximo plano:
 - `docs/superpowers/specs/2026-06-08-reports-xlsx-export-design.md`
 - `docs/superpowers/specs/2026-06-08-reports-pdf-export-design.md`
 - `docs/superpowers/specs/2026-06-08-report-export-history-design.md`
+- `docs/superpowers/specs/2026-06-13-report-scheduling-design.md`
+- `docs/superpowers/plans/2026-06-13-report-scheduling.md`
