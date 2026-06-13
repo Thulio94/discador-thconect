@@ -9,6 +9,7 @@ use App\Http\Controllers\Tenant\ComingSoonController;
 use App\Http\Controllers\Tenant\ContactListController;
 use App\Http\Controllers\Tenant\NotificationController;
 use App\Http\Controllers\Tenant\ReportController;
+use App\Http\Controllers\Tenant\ReportScheduleController;
 use App\Http\Controllers\Tenant\RoleController;
 use App\Http\Controllers\Tenant\SettingController;
 use App\Http\Controllers\Tenant\SupervisionController;
@@ -54,6 +55,10 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
         Route::get('reports/export/xlsx', [ReportController::class, 'exportXlsx'])->name('reports.export-xlsx');
         Route::get('reports/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf');
+        Route::post('reports/schedules', [ReportScheduleController::class, 'store'])->name('reports.schedules.store');
+        Route::put('reports/schedules/{reportSchedule}', [ReportScheduleController::class, 'update'])->name('reports.schedules.update');
+        Route::patch('reports/schedules/{reportSchedule}/status', [ReportScheduleController::class, 'toggleStatus'])->name('reports.schedules.status');
+        Route::post('reports/schedules/{reportSchedule}/run', [ReportScheduleController::class, 'run'])->name('reports.schedules.run');
         Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
         Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
         Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->name('settings.pause-reasons.store');
