@@ -154,6 +154,67 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('31999990033');
     }
 
+    public function test_supervision_poll_returns_filtered_tenant_fragments_with_no_store_headers(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        [$paused] = $this->tenantUser('agent', $company, 'Agente Polling');
+        [$otherAgent] = $this->tenantUser('agent', null, 'Agente Externo Polling');
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Equipe Polling',
+            'slug' => 'equipe-polling',
+            'status' => 'active',
+        ]);
+        $team->users()->attach($paused, [
+            'company_id' => $company->id,
+            'membership_type' => 'agent',
+        ]);
+
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $paused->id,
+            'status' => 'paused',
+            'started_at' => now()->subMinutes(25),
+        ]);
+        AgentStatus::create([
+            'company_id' => $otherAgent->company_id,
+            'user_id' => $otherAgent->id,
+            'status' => 'paused',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.poll', [
+                'status' => 'paused',
+                'team_id' => $team->id,
+            ]))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertHeader('X-Poll-Interval', '10')
+            ->assertSee('id="supervision-metrics"', false)
+            ->assertSee('id="supervision-agents"', false)
+            ->assertSee('Agente Polling')
+            ->assertSee('Pausa longa')
+            ->assertDontSee('Agente Externo Polling')
+            ->assertDontSee('<html', false);
+    }
+
+    public function test_supervision_poll_rejects_team_from_another_company(): void
+    {
+        [$supervisor] = $this->tenantUser('supervisor');
+        [, $otherCompany] = $this->tenantUser('agent');
+        $otherTeam = Team::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Equipe Externa',
+            'slug' => 'equipe-externa',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.poll', ['team_id' => $otherTeam->id]))
+            ->assertNotFound();
+    }
+
     private function tenantUser(string $type, ?Company $company = null, ?string $name = null): array
     {
         $company ??= Company::create(['name' => 'Tenant Supervisao '.fake()->unique()->numberBetween(1000, 9999)]);

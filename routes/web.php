@@ -50,6 +50,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->name('agent.pause');
         Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->name('agent.calls.store');
         Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->name('agent.calls.end');
+        Route::get('supervision/poll', [SupervisionController::class, 'poll'])->name('supervision.poll');
         Route::get('supervision', [SupervisionController::class, 'index'])->name('supervision.index');
         Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
