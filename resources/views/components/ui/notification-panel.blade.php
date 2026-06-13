@@ -3,6 +3,13 @@
 <aside
     id="notification-panel"
     data-unread-count="{{ $unreadCount }}"
+    x-data="pollingRegion({
+        url: @js(route('tenant.notifications.poll'), JSON_UNESCAPED_SLASHES),
+        selectors: ['#notification-panel'],
+        intervalSeconds: 10,
+    })"
+    x-init="start()"
+    x-on:visibilitychange.document="handleVisibilityChange()"
     class="hidden border-l p-4 lg:grid lg:w-80"
     style="background: color-mix(in srgb, var(--surface) 94%, transparent); border-color: var(--border);"
 >

@@ -6,7 +6,19 @@
         </div>
     </x-slot>
 
-    <div class="grid gap-4">
+    <div
+        class="grid gap-4"
+        x-data="pollingRegion({
+            url: @js(route('tenant.supervision.poll', array_filter([
+                'status' => $selectedStatus,
+                'team_id' => $selectedTeamId,
+            ])), JSON_UNESCAPED_SLASHES),
+            selectors: ['#supervision-metrics', '#supervision-agents'],
+            intervalSeconds: 10,
+        })"
+        x-init="start()"
+        x-on:visibilitychange.document="handleVisibilityChange()"
+    >
         @include('tenant.supervision._metrics')
 
         <x-ui.card>

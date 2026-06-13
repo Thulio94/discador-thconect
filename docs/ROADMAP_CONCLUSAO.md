@@ -167,8 +167,8 @@ Status: MVP simulado funcional.
 
 Pendencias importantes:
 
-- [ ] Atualizacao em tempo real ou polling leve.
-- [ ] Eventos/notificacoes operacionais persistidos.
+- [x] Atualizacao por polling leve.
+- [x] Eventos/notificacoes operacionais persistidos.
 - [ ] Acoes reais de monitoria somente na fase de telefonia real.
 
 ### Relatorios
@@ -218,7 +218,7 @@ Status: MVP operacional.
 Pendencias importantes:
 
 - [ ] Reverb/Echo para tempo real.
-- [ ] Fallback por polling.
+- [x] Fallback por polling para notificacoes.
 - [ ] Preferencias por usuario.
 
 ## Modulos Mantidos Como "Em Breve"
@@ -340,7 +340,7 @@ Objetivo: dar visao de operacao em andamento.
 2. [x] Mostrar tempo em chamada.
 3. [x] Mostrar campanha atual.
 4. [x] Criar alertas de pausa longa e chamada longa.
-5. Atualizar via polling leve ou Reverb.
+5. [x] Atualizar via polling leve.
 
 Resultado esperado: supervisor acompanha a operacao sem telefonia real.
 
@@ -365,7 +365,7 @@ Objetivo: transformar notificacoes em recurso ativo do sistema.
 2. [x] Notificar campanha iniciada/pausada/finalizada.
 3. [x] Notificar agente em pausa longa.
 4. [x] Notificar chamada sem tabulacao.
-5. Ligar Reverb/Echo ou polling.
+5. [x] Ligar fallback por polling.
 
 Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 
@@ -405,18 +405,19 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano de implementacao recomendado e:
 
 ```text
-Atualizacao em tempo real da supervisao e notificacoes por polling leve
+Preparacao para Producao
 ```
 
-Motivo: o relatorio ja possui cadastro de rotinas, frequencia, filtros, status e execucao simulada registrada. O proximo ganho operacional do MVP e reduzir a defasagem das telas de supervisao e notificacoes sem ativar telefonia real ou integracoes.
+Motivo: o MVP simulado ja possui os fluxos operacionais essenciais e atualizacao leve das telas criticas. O proximo passo e tornar a entrega reproduzivel, segura, observavel e recuperavel antes de publicar o sistema.
 
 Entregaveis desse proximo plano:
 
-- polling leve e configuravel na supervisao;
-- atualizacao das chamadas e dos status sem recarregar a pagina;
-- fallback de polling para notificacoes;
-- prevencao de requisicoes concorrentes;
-- smoke no Docker.
+- imagem Docker imutavel;
+- compose de producao sem bind mounts;
+- segredos e cookies seguros;
+- HTTPS, health checks e restart policies;
+- backup e restore do MariaDB;
+- logs, monitoramento e runbook de deploy.
 
 ## Referencias de Planejamento Existentes
 
