@@ -12,7 +12,9 @@
                 <h2 class="text-lg font-semibold">Usuarios com ramal</h2>
                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">Todos os usuarios possuem ramal. Apenas agentes entram em campanhas.</p>
             </div>
-            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'user-create')">Novo usuario</x-ui.button>
+            @can('tenant.users.create')
+                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'user-create')">Novo usuario</x-ui.button>
+            @endcan
         </div>
 
         <div class="mt-5 grid gap-3">
@@ -32,13 +34,15 @@
         </div>
     </x-ui.card>
 
-    <x-ui.modal name="user-create" title="Novo usuario">
-        <form method="POST" action="{{ route('tenant.users.store') }}">
-            @csrf
-            @include('tenant.users._form', ['user' => null, 'roles' => $roles, 'teams' => $teams])
-            <div class="mt-5 flex justify-end">
-                <x-ui.button type="submit">Criar usuario</x-ui.button>
-            </div>
-        </form>
-    </x-ui.modal>
+    @can('tenant.users.create')
+        <x-ui.modal name="user-create" title="Novo usuario">
+            <form method="POST" action="{{ route('tenant.users.store') }}">
+                @csrf
+                @include('tenant.users._form', ['user' => null, 'roles' => $roles, 'teams' => $teams])
+                <div class="mt-5 flex justify-end">
+                    <x-ui.button type="submit">Criar usuario</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endcan
 </x-app-layout>

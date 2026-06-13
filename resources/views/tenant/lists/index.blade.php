@@ -12,7 +12,9 @@
                 <h2 class="text-lg font-semibold">Listas de contatos</h2>
                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">Cada campanha pode usar uma ou varias listas. Blacklist aplicada automaticamente.</p>
             </div>
-            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'list-create')">Nova lista</x-ui.button>
+            @can('tenant.lists.create')
+                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'list-create')">Nova lista</x-ui.button>
+            @endcan
         </div>
 
         <div class="mt-5 grid gap-3">
@@ -28,11 +30,16 @@
                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $list->status }}</span>
                     </div>
                     <div class="mt-4 flex flex-wrap justify-end gap-2">
-                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'list-edit-{{ $list->id }}')">Editar</x-ui.button>
-                        <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'list-delete-{{ $list->id }}')">Inativar</x-ui.button>
+                        @can('tenant.lists.update')
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'list-edit-{{ $list->id }}')">Editar</x-ui.button>
+                        @endcan
+                        @can('tenant.lists.delete')
+                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'list-delete-{{ $list->id }}')">Inativar</x-ui.button>
+                        @endcan
                     </div>
                 </div>
 
+                @can('tenant.lists.update')
                 <x-ui.modal name="list-edit-{{ $list->id }}" title="Editar lista">
                     <form method="POST" action="{{ route('tenant.lists.update', $list) }}">
                         @csrf
@@ -44,7 +51,9 @@
                         </div>
                     </form>
                 </x-ui.modal>
+                @endcan
 
+                @can('tenant.lists.delete')
                 <x-ui.modal name="list-delete-{{ $list->id }}" title="Inativar lista" max-width="md">
                     <form method="POST" action="{{ route('tenant.lists.destroy', $list) }}">
                         @csrf
@@ -56,12 +65,14 @@
                         </div>
                     </form>
                 </x-ui.modal>
+                @endcan
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma lista cadastrada.</p>
             @endforelse
         </div>
     </x-ui.card>
 
+    @can('tenant.lists.create')
     <x-ui.modal name="list-create" title="Nova lista">
         <form method="POST" action="{{ route('tenant.lists.store') }}">
             @csrf
@@ -71,4 +82,5 @@
             </div>
         </form>
     </x-ui.modal>
+    @endcan
 </x-app-layout>

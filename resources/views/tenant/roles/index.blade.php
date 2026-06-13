@@ -12,7 +12,9 @@
                 <h2 class="text-lg font-semibold">Perfis</h2>
                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">Permissoes agrupadas por modulo.</p>
             </div>
-            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'role-create')">Novo perfil</x-ui.button>
+            @can('tenant.roles.create')
+                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'role-create')">Novo perfil</x-ui.button>
+            @endcan
         </div>
 
         <div class="mt-5 grid gap-3">
@@ -27,6 +29,7 @@
         </div>
     </x-ui.card>
 
+    @can('tenant.roles.create')
     <x-ui.modal name="role-create" title="Novo perfil" max-width="4xl">
         <form method="POST" action="{{ route('tenant.roles.store') }}">
             @csrf
@@ -61,4 +64,5 @@
             </div>
         </form>
     </x-ui.modal>
+    @endcan
 </x-app-layout>

@@ -1,27 +1,32 @@
 @php
     $user = Auth::user();
     $theme = $user?->theme_preference ?: 'thconectclaro';
-    $notifications = $user?->appNotifications()->latest()->limit(8)->get() ?? collect();
-    $unreadCount = $user?->appNotifications()->whereNull('read_at')->count() ?? 0;
+    $canReadNotifications = ! $user?->is_super_admin && Gate::allows('tenant.notifications.read');
+    $notifications = $canReadNotifications ? $user->appNotifications()->latest()->limit(8)->get() : collect();
+    $unreadCount = $canReadNotifications ? $user->appNotifications()->whereNull('read_at')->count() : 0;
     $navItems = $user?->is_super_admin
         ? [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
             ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'users', 'active' => request()->routeIs('super-admin.companies.*')],
         ]
         : [
-            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
-            ['label' => 'Usuarios', 'href' => route('tenant.users.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.users.*')],
-            ['label' => 'Equipes', 'href' => route('tenant.teams.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.teams.*')],
-            ['label' => 'Perfis', 'href' => route('tenant.roles.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.roles.*')],
-            ['label' => 'Listas', 'href' => route('tenant.lists.index'), 'icon' => 'add', 'active' => request()->routeIs('tenant.lists.*')],
-            ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.campaigns.*')],
-            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.agent.*')],
-            ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*')],
-            ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'download', 'active' => request()->routeIs('tenant.reports.*')],
-            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'soon' => true],
-            ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.settings.*')],
-            ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'soon' => true],
+            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard'), 'ability' => 'tenant.dashboard.read'],
+            ['label' => 'Usuarios', 'href' => route('tenant.users.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.users.*'), 'ability' => 'tenant.users.read'],
+            ['label' => 'Equipes', 'href' => route('tenant.teams.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.teams.*'), 'ability' => 'tenant.teams.read'],
+            ['label' => 'Perfis', 'href' => route('tenant.roles.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.roles.*'), 'ability' => 'tenant.roles.read'],
+            ['label' => 'Listas', 'href' => route('tenant.lists.index'), 'icon' => 'add', 'active' => request()->routeIs('tenant.lists.*'), 'ability' => 'tenant.lists.read'],
+            ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.campaigns.*'), 'ability' => 'tenant.campaigns.read'],
+            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access'],
+            ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*'), 'ability' => 'tenant.supervision.read'],
+            ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'download', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
+            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read', 'soon' => true],
+            ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.settings.*'), 'ability' => 'tenant.settings.read'],
+            ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'ability' => 'tenant.integrations.read', 'soon' => true],
         ];
+    $navItems = collect($navItems)
+        ->filter(fn (array $item): bool => ! isset($item['ability']) || Gate::allows($item['ability']))
+        ->values()
+        ->all();
 @endphp
 
 <!DOCTYPE html>
@@ -37,7 +42,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased" style="background: var(--bg); color: var(--fg);">
-        <div class="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)_320px]">
+        <div class="min-h-screen lg:grid {{ $canReadNotifications ? 'lg:grid-cols-[272px_minmax(0,1fr)_320px]' : 'lg:grid-cols-[272px_minmax(0,1fr)]' }}">
             <aside class="border-r px-4 py-5" style="background: var(--surface); border-color: var(--border);">
                 <div class="flex items-center gap-3 px-2">
                     <div class="grid h-10 w-10 place-items-center rounded-lg font-bold" style="background: var(--primary); color: #fff;">
@@ -80,7 +85,9 @@
                 {{ $slot }}
             </main>
 
-            <x-ui.notification-panel :notifications="$notifications" :unread-count="$unreadCount" />
+            @if ($canReadNotifications)
+                <x-ui.notification-panel :notifications="$notifications" :unread-count="$unreadCount" />
+            @endif
         </div>
 
         <x-ui.toast-stack />

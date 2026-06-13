@@ -12,7 +12,9 @@
                 <h2 class="text-lg font-semibold">Equipes</h2>
                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">Agentes e supervisores podem participar de varias equipes.</p>
             </div>
-            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'team-create')">Nova equipe</x-ui.button>
+            @can('tenant.teams.create')
+                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'team-create')">Nova equipe</x-ui.button>
+            @endcan
         </div>
 
         <div class="mt-5 grid gap-3">
@@ -29,6 +31,7 @@
         </div>
     </x-ui.card>
 
+    @can('tenant.teams.create')
     <x-ui.modal name="team-create" title="Nova equipe">
         <form method="POST" action="{{ route('tenant.teams.store') }}">
             @csrf
@@ -64,4 +67,5 @@
             </div>
         </form>
     </x-ui.modal>
+    @endcan
 </x-app-layout>

@@ -28,7 +28,9 @@
                     <h2 class="text-lg font-semibold">Motivos de pausa</h2>
                     <p class="text-sm" style="color: var(--fg-muted);">Opcoes usadas no painel do agente.</p>
                 </div>
-                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-pause-reason')">Novo motivo</x-ui.button>
+                @can('tenant.settings.create')
+                    <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-pause-reason')">Novo motivo</x-ui.button>
+                @endcan
             </div>
 
             <div class="mt-4 grid gap-2">
@@ -41,8 +43,12 @@
                         <span>{{ $reason->is_billable ? 'Produtiva' : 'Nao produtiva' }}</span>
                         <span>{{ $reason->status }}</span>
                         <div class="flex flex-wrap justify-start gap-2 md:justify-end">
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'edit-pause-reason-{{ $reason->id }}')">Editar</x-ui.button>
-                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'delete-pause-reason-{{ $reason->id }}')">Inativar</x-ui.button>
+                            @can('tenant.settings.update')
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'edit-pause-reason-{{ $reason->id }}')">Editar</x-ui.button>
+                            @endcan
+                            @can('tenant.settings.delete')
+                                <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'delete-pause-reason-{{ $reason->id }}')">Inativar</x-ui.button>
+                            @endcan
                         </div>
                     </div>
                 @empty
@@ -57,7 +63,9 @@
                     <h2 class="text-lg font-semibold">Tabulacoes</h2>
                     <p class="text-sm" style="color: var(--fg-muted);">Classificacoes futuras para encerramento e relatorios de chamadas.</p>
                 </div>
-                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-disposition')">Nova tabulacao</x-ui.button>
+                @can('tenant.settings.create')
+                    <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-disposition')">Nova tabulacao</x-ui.button>
+                @endcan
             </div>
 
             <div class="mt-4 grid gap-2">
@@ -78,8 +86,12 @@
                         <span>{{ $disposition->category }}</span>
                         <span>{{ $disposition->status }}</span>
                         <div class="flex flex-wrap justify-start gap-2 md:justify-end">
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'edit-disposition-{{ $disposition->id }}')">Editar</x-ui.button>
-                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'delete-disposition-{{ $disposition->id }}')">Inativar</x-ui.button>
+                            @can('tenant.settings.update')
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'edit-disposition-{{ $disposition->id }}')">Editar</x-ui.button>
+                            @endcan
+                            @can('tenant.settings.delete')
+                                <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'delete-disposition-{{ $disposition->id }}')">Inativar</x-ui.button>
+                            @endcan
                         </div>
                     </div>
                 @empty
@@ -94,7 +106,9 @@
                     <h2 class="text-lg font-semibold">Blacklist</h2>
                     <p class="text-sm" style="color: var(--fg-muted);">Numeros bloqueados para campanhas futuras.</p>
                 </div>
-                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-blacklist-number')">Adicionar numero</x-ui.button>
+                @can('tenant.settings.create')
+                    <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-blacklist-number')">Adicionar numero</x-ui.button>
+                @endcan
             </div>
 
             <div class="mt-4 grid gap-2">
@@ -104,8 +118,12 @@
                         <span>{{ $number->reason ?? 'Sem motivo' }}</span>
                         <span>{{ $number->status }}</span>
                         <div class="flex flex-wrap justify-start gap-2 md:justify-end">
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'edit-blacklist-number-{{ $number->id }}')">Editar</x-ui.button>
-                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'delete-blacklist-number-{{ $number->id }}')">Inativar</x-ui.button>
+                            @can('tenant.settings.update')
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'edit-blacklist-number-{{ $number->id }}')">Editar</x-ui.button>
+                            @endcan
+                            @can('tenant.settings.delete')
+                                <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'delete-blacklist-number-{{ $number->id }}')">Inativar</x-ui.button>
+                            @endcan
                         </div>
                     </div>
                 @empty
@@ -130,14 +148,19 @@
         </div>
     </div>
 
+    @can('tenant.settings.create')
     <x-ui.modal name="create-pause-reason" title="Novo motivo de pausa" max-width="lg">
         @include('tenant.settings.partials.pause-reason-form', ['action' => route('tenant.settings.pause-reasons.store'), 'reason' => null])
     </x-ui.modal>
+    @endcan
 
     @foreach ($pauseReasons as $reason)
+        @can('tenant.settings.update')
         <x-ui.modal name="edit-pause-reason-{{ $reason->id }}" title="Editar motivo de pausa" max-width="lg">
             @include('tenant.settings.partials.pause-reason-form', ['action' => route('tenant.settings.pause-reasons.update', $reason), 'reason' => $reason, 'method' => 'PUT'])
         </x-ui.modal>
+        @endcan
+        @can('tenant.settings.delete')
         <x-ui.modal name="delete-pause-reason-{{ $reason->id }}" title="Inativar motivo de pausa" max-width="md">
             <form method="POST" action="{{ route('tenant.settings.pause-reasons.destroy', $reason) }}">
                 @csrf
@@ -149,16 +172,22 @@
                 </div>
             </form>
         </x-ui.modal>
+        @endcan
     @endforeach
 
+    @can('tenant.settings.create')
     <x-ui.modal name="create-disposition" title="Nova tabulacao" max-width="lg">
         @include('tenant.settings.partials.disposition-form', ['action' => route('tenant.settings.dispositions.store'), 'disposition' => null])
     </x-ui.modal>
+    @endcan
 
     @foreach ($dispositions as $disposition)
+        @can('tenant.settings.update')
         <x-ui.modal name="edit-disposition-{{ $disposition->id }}" title="Editar tabulacao" max-width="lg">
             @include('tenant.settings.partials.disposition-form', ['action' => route('tenant.settings.dispositions.update', $disposition), 'disposition' => $disposition, 'method' => 'PUT'])
         </x-ui.modal>
+        @endcan
+        @can('tenant.settings.delete')
         <x-ui.modal name="delete-disposition-{{ $disposition->id }}" title="Inativar tabulacao" max-width="md">
             <form method="POST" action="{{ route('tenant.settings.dispositions.destroy', $disposition) }}">
                 @csrf
@@ -170,16 +199,22 @@
                 </div>
             </form>
         </x-ui.modal>
+        @endcan
     @endforeach
 
+    @can('tenant.settings.create')
     <x-ui.modal name="create-blacklist-number" title="Adicionar numero" max-width="lg">
         @include('tenant.settings.partials.blacklist-form', ['action' => route('tenant.settings.blacklist.store'), 'number' => null])
     </x-ui.modal>
+    @endcan
 
     @foreach ($blacklistNumbers as $number)
+        @can('tenant.settings.update')
         <x-ui.modal name="edit-blacklist-number-{{ $number->id }}" title="Editar numero" max-width="lg">
             @include('tenant.settings.partials.blacklist-form', ['action' => route('tenant.settings.blacklist.update', $number), 'number' => $number, 'method' => 'PUT'])
         </x-ui.modal>
+        @endcan
+        @can('tenant.settings.delete')
         <x-ui.modal name="delete-blacklist-number-{{ $number->id }}" title="Inativar numero" max-width="md">
             <form method="POST" action="{{ route('tenant.settings.blacklist.destroy', $number) }}">
                 @csrf
@@ -191,5 +226,6 @@
                 </div>
             </form>
         </x-ui.modal>
+        @endcan
     @endforeach
 </x-app-layout>

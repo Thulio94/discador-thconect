@@ -359,9 +359,11 @@
                     <p class="rounded-lg border p-4 text-sm" style="border-color: var(--border); color: var(--fg-muted);">
                         Cadastre uma tabulacao ativa em Configuracoes para encerrar chamadas.
                     </p>
-                    <div class="flex justify-end">
-                        <a href="{{ route('tenant.settings.index') }}" class="th-focus inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold" style="background: var(--primary); color: #fff; border-radius: var(--radius-md);">Abrir configuracoes</a>
-                    </div>
+                    @can('tenant.settings.read')
+                        <div class="flex justify-end">
+                            <a href="{{ route('tenant.settings.index') }}" class="th-focus inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold" style="background: var(--primary); color: #fff; border-radius: var(--radius-md);">Abrir configuracoes</a>
+                        </div>
+                    @endcan
                 </div>
             @endif
         </x-ui.modal>

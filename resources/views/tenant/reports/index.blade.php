@@ -68,6 +68,7 @@
                     </div>
                 </form>
 
+                @can('tenant.reports.export')
                 <div class="flex flex-wrap gap-2">
                     <a
                         href="{{ route('tenant.reports.export', request()->only(['date_from', 'date_to', 'user_id', 'campaign_id', 'list_id', 'team_id', 'disposition_id'])) }}"
@@ -91,6 +92,7 @@
                         Exportar PDF
                     </a>
                 </div>
+                @endcan
             </div>
         </x-ui.card>
 
@@ -166,6 +168,8 @@
             </div>
         </x-ui.card>
 
+        @can('tenant.reports.export')
+        @can('tenant.reports.schedules')
         <x-ui.card>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-lg font-semibold">Historico de exportacoes</h2>
@@ -187,6 +191,7 @@
                 @endforelse
             </div>
         </x-ui.card>
+        @endcan
 
         <x-ui.card>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -246,6 +251,7 @@
                 @endforelse
             </div>
         </x-ui.card>
+        @endcan
 
         <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
             <x-ui.card>
@@ -344,6 +350,7 @@
         </div>
     </div>
 
+    @can('tenant.reports.schedules')
     <x-ui.modal name="report-schedule-create" title="Novo agendamento" max-width="4xl">
         <form method="POST" action="{{ route('tenant.reports.schedules.store') }}">
             @csrf
@@ -366,4 +373,5 @@
             </form>
         </x-ui.modal>
     @endforeach
+    @endcan
 </x-app-layout>
