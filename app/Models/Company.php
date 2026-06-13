@@ -90,4 +90,9 @@ class Company extends Model
     {
         return $this->hasMany(ReportExport::class);
     }
+
+    public function reportSchedules(): HasMany
+    {
+        return $this->hasMany(ReportSchedule::class);
+    }
 }

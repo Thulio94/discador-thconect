@@ -86,6 +86,11 @@ class User extends Authenticatable
         return $this->hasMany(ReportExport::class);
     }
 
+    public function reportSchedules(): HasMany
+    {
+        return $this->hasMany(ReportSchedule::class);
+    }
+
     public function hasPermission(string $permissionKey): bool
     {
         if ($this->is_super_admin) {
