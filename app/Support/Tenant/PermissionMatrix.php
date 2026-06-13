@@ -11,8 +11,30 @@ class PermissionMatrix
             'users' => ['label' => 'Usuarios', 'permissions' => self::crud('users')],
             'roles' => ['label' => 'Perfis', 'permissions' => self::crud('roles')],
             'teams' => ['label' => 'Equipes', 'permissions' => self::crud('teams')],
+            'lists' => ['label' => 'Listas', 'permissions' => self::crud('lists')],
+            'campaigns' => [
+                'label' => 'Campanhas',
+                'permissions' => [
+                    ...self::crud('campaigns'),
+                    'operate' => ['key' => 'campaigns.operate', 'label' => 'Operar'],
+                ],
+            ],
+            'agent' => ['label' => 'Agente', 'permissions' => self::actions('agent', [
+                'access' => 'Acessar',
+            ])],
+            'supervision' => ['label' => 'Supervisao', 'permissions' => self::onlyRead('supervision')],
+            'reports' => ['label' => 'Relatorios', 'permissions' => self::actions('reports', [
+                'read' => 'Ler',
+                'export' => 'Exportar',
+                'schedules' => 'Agendar',
+            ])],
+            'telephony' => ['label' => 'Telefonia', 'permissions' => self::onlyRead('telephony')],
+            'settings' => ['label' => 'Configuracoes', 'permissions' => self::crud('settings')],
             'licenses' => ['label' => 'Licencas', 'permissions' => self::crud('licenses')],
-            'notifications' => ['label' => 'Notificacoes', 'permissions' => self::onlyRead('notifications')],
+            'notifications' => ['label' => 'Notificacoes', 'permissions' => self::actions('notifications', [
+                'read' => 'Ler',
+                'update' => 'Marcar como lida',
+            ])],
             'integrations' => ['label' => 'Integracoes', 'permissions' => self::onlyRead('integrations')],
         ];
     }
@@ -38,5 +60,14 @@ class PermissionMatrix
     private static function onlyRead(string $module): array
     {
         return ['read' => ['key' => "{$module}.read", 'label' => 'Ler']];
+    }
+
+    private static function actions(string $module, array $actions): array
+    {
+        return collect($actions)
+            ->mapWithKeys(fn (string $label, string $action): array => [
+                $action => ['key' => "{$module}.{$action}", 'label' => $label],
+            ])
+            ->all();
     }
 }

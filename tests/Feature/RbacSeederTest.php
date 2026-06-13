@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\Tenant\PermissionMatrix;
 use Database\Seeders\DemoTenantSeeder;
@@ -22,6 +23,11 @@ class RbacSeederTest extends TestCase
         $this->seed(PermissionSeeder::class);
 
         $this->assertContains('users.create', PermissionMatrix::keys());
+        $this->assertContains('campaigns.operate', PermissionMatrix::keys());
+        $this->assertContains('agent.access', PermissionMatrix::keys());
+        $this->assertContains('reports.export', PermissionMatrix::keys());
+        $this->assertContains('reports.schedules', PermissionMatrix::keys());
+        $this->assertContains('settings.delete', PermissionMatrix::keys());
         $this->assertContains('integrations.read', PermissionMatrix::keys());
         $this->assertDatabaseHas('permissions', [
             'key' => 'users.create',
@@ -44,7 +50,46 @@ class RbacSeederTest extends TestCase
         ]);
 
         $this->assertTrue(Gate::forUser($user)->allows('tenant.users.create'));
-        $this->assertFalse(Gate::forUser($user)->allows('tenant.users.delete'));
+        $this->assertTrue(Gate::forUser($user)->allows('tenant.users.delete'));
+        $this->assertTrue(Gate::forUser($user)->allows('tenant.settings.delete'));
+    }
+
+    public function test_user_types_and_role_tenant_limit_permissions(): void
+    {
+        $this->seed(PermissionSeeder::class);
+
+        $company = Company::create(['name' => 'Tenant A']);
+        $otherCompany = Company::create(['name' => 'Tenant B']);
+
+        $agentRole = $this->role($company, 'Agente', ['users.read', 'agent.access']);
+        $supervisorRole = $this->role($company, 'Supervisor', ['agent.access', 'supervision.read']);
+        $adminRole = $company->roles()->create([
+            'name' => 'Administrador A',
+            'slug' => 'administrador-a',
+            'is_admin' => true,
+        ]);
+        $otherAdminRole = $otherCompany->roles()->create([
+            'name' => 'Administrador B',
+            'slug' => 'administrador-b',
+            'is_admin' => true,
+        ]);
+
+        $agent = $this->tenantUser($company, $agentRole, 'agent');
+        $agentWithAdminRole = $this->tenantUser($company, $adminRole, 'agent');
+        $supervisor = $this->tenantUser($company, $supervisorRole, 'supervisor');
+        $invalidAdmin = $this->tenantUser($company, $otherAdminRole, 'company_admin');
+        $superAdmin = User::factory()->create([
+            'is_super_admin' => true,
+            'user_type' => 'super_admin',
+        ]);
+
+        $this->assertFalse(Gate::forUser($agent)->allows('tenant.users.read'));
+        $this->assertTrue(Gate::forUser($agent)->allows('tenant.agent.access'));
+        $this->assertFalse(Gate::forUser($agentWithAdminRole)->allows('tenant.users.read'));
+        $this->assertFalse(Gate::forUser($supervisor)->allows('tenant.agent.access'));
+        $this->assertTrue(Gate::forUser($supervisor)->allows('tenant.supervision.read'));
+        $this->assertFalse(Gate::forUser($invalidAdmin)->allows('tenant.users.read'));
+        $this->assertFalse(Gate::forUser($superAdmin)->allows('tenant.users.read'));
     }
 
     public function test_super_admin_seeder_creates_default_admin(): void
@@ -73,5 +118,30 @@ class RbacSeederTest extends TestCase
         $this->assertTrue($company->roles()->where('slug', 'administrador')->sole()->is_admin);
         $this->assertSame(2, $company->teams()->sole()->agents()->count());
         $this->assertSame(1, $company->teams()->sole()->supervisors()->count());
+    }
+
+    private function role(Company $company, string $name, array $permissionKeys): Role
+    {
+        $role = $company->roles()->create([
+            'name' => $name,
+            'slug' => str($name)->slug(),
+            'is_admin' => false,
+        ]);
+
+        $role->permissions()->sync(
+            Permission::query()->whereIn('key', $permissionKeys)->pluck('id')
+        );
+
+        return $role;
+    }
+
+    private function tenantUser(Company $company, Role $role, string $userType): User
+    {
+        return User::factory()->create([
+            'company_id' => $company->id,
+            'role_id' => $role->id,
+            'user_type' => $userType,
+            'extension' => fake()->unique()->numerify('1###'),
+        ]);
     }
 }

@@ -93,13 +93,30 @@ class User extends Authenticatable
 
     public function hasPermission(string $permissionKey): bool
     {
-        if ($this->is_super_admin) {
-            return true;
+        if ($this->is_super_admin || ! $this->company_id) {
+            return false;
         }
 
         $role = $this->role;
 
         if (! $role || $role->company_id !== $this->company_id) {
+            return false;
+        }
+
+        if ($this->user_type === 'company_admin' && $role->is_admin) {
+            return true;
+        }
+
+        if ($this->user_type === 'agent' && ! in_array($permissionKey, [
+            'dashboard.read',
+            'agent.access',
+            'notifications.read',
+            'notifications.update',
+        ], true)) {
+            return false;
+        }
+
+        if ($this->user_type === 'supervisor' && $permissionKey === 'agent.access') {
             return false;
         }
 

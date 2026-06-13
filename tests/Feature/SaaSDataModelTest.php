@@ -91,7 +91,7 @@ class SaaSDataModelTest extends TestCase
         $this->assertSame('agent', $agent->teams->first()->pivot->membership_type);
         $this->assertTrue($team->fresh()->agents->contains($agent));
         $this->assertTrue($team->supervisors->contains($supervisor));
-        $this->assertTrue($agent->hasPermission('campaigns.view'));
+        $this->assertTrue($supervisor->hasPermission('campaigns.view'));
         $this->assertFalse($agent->hasPermission('campaigns.delete'));
         $this->assertDatabaseHas('app_notifications', [
             'company_id' => $company->id,
