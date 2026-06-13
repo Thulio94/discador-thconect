@@ -111,11 +111,24 @@ class RbacSeederTest extends TestCase
         $this->seed(DemoTenantSeeder::class);
 
         $company = Company::where('name', 'THCONECT Demo')->sole();
+        $adminRole = $company->roles()->where('slug', 'administrador')->with('permissions')->sole();
+        $supervisorRole = $company->roles()->where('slug', 'supervisor')->with('permissions')->sole();
+        $agentRole = $company->roles()->where('slug', 'agente')->with('permissions')->sole();
+        $supervisor = $company->users()->where('email', 'supervisor.demo@discador.local')->sole();
+        $agent = $company->users()->where('email', 'agente1.demo@discador.local')->sole();
 
         $this->assertSame(2, $company->license->max_calls_per_available_agent);
         $this->assertSame(4, $company->users()->count());
         $this->assertSame(1, $company->teams()->count());
-        $this->assertTrue($company->roles()->where('slug', 'administrador')->sole()->is_admin);
+        $this->assertTrue($adminRole->is_admin);
+        $this->assertFalse($supervisorRole->is_admin);
+        $this->assertFalse($agentRole->is_admin);
+        $this->assertTrue($supervisorRole->permissions->contains('key', 'supervision.read'));
+        $this->assertTrue($supervisorRole->permissions->contains('key', 'agent.access'));
+        $this->assertTrue($agentRole->permissions->contains('key', 'agent.access'));
+        $this->assertFalse($agentRole->permissions->contains('key', 'users.read'));
+        $this->assertSame($supervisorRole->id, $supervisor->role_id);
+        $this->assertSame($agentRole->id, $agent->role_id);
         $this->assertSame(2, $company->teams()->sole()->agents()->count());
         $this->assertSame(1, $company->teams()->sole()->supervisors()->count());
     }

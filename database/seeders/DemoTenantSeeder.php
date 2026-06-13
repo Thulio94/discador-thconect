@@ -40,28 +40,40 @@ class DemoTenantSeeder extends Seeder
             ],
         );
 
-        $adminRole = Role::query()->updateOrCreate(
-            [
-                'company_id' => $company->id,
-                'slug' => 'administrador',
-            ],
-            [
-                'name' => 'Administrador',
-                'is_admin' => true,
-            ],
+        $adminRole = $this->role(
+            $company,
+            'Administrador',
+            'administrador',
+            PermissionMatrix::keys(),
+            true,
         );
 
-        $adminRole->permissions()->sync(
-            Permission::query()
-                ->whereIn('key', PermissionMatrix::keys())
-                ->pluck('id')
-                ->all()
-        );
+        $supervisorRole = $this->role($company, 'Supervisor', 'supervisor', [
+            'dashboard.read',
+            'teams.read',
+            'lists.read',
+            'campaigns.read',
+            'campaigns.operate',
+            'agent.access',
+            'supervision.read',
+            'reports.read',
+            'reports.export',
+            'reports.schedules',
+            'notifications.read',
+            'notifications.update',
+        ]);
+
+        $agentRole = $this->role($company, 'Agente', 'agente', [
+            'dashboard.read',
+            'agent.access',
+            'notifications.read',
+            'notifications.update',
+        ]);
 
         $companyAdmin = $this->user($company, $adminRole, 'Administrador Demo', 'admin.demo@discador.local', 'company_admin', '1100');
-        $supervisor = $this->user($company, $adminRole, 'Supervisor Demo', 'supervisor.demo@discador.local', 'supervisor', '1200');
-        $agentOne = $this->user($company, $adminRole, 'Agente Demo 1', 'agente1.demo@discador.local', 'agent', '1301');
-        $agentTwo = $this->user($company, $adminRole, 'Agente Demo 2', 'agente2.demo@discador.local', 'agent', '1302');
+        $supervisor = $this->user($company, $supervisorRole, 'Supervisor Demo', 'supervisor.demo@discador.local', 'supervisor', '1200');
+        $agentOne = $this->user($company, $agentRole, 'Agente Demo 1', 'agente1.demo@discador.local', 'agent', '1301');
+        $agentTwo = $this->user($company, $agentRole, 'Agente Demo 2', 'agente2.demo@discador.local', 'agent', '1302');
 
         $team = Team::query()->updateOrCreate(
             [
@@ -79,6 +91,34 @@ class DemoTenantSeeder extends Seeder
             $agentOne->id => ['membership_type' => 'agent'],
             $agentTwo->id => ['membership_type' => 'agent'],
         ]);
+    }
+
+    private function role(
+        Company $company,
+        string $name,
+        string $slug,
+        array $permissionKeys,
+        bool $isAdmin = false,
+    ): Role {
+        $role = Role::query()->updateOrCreate(
+            [
+                'company_id' => $company->id,
+                'slug' => $slug,
+            ],
+            [
+                'name' => $name,
+                'is_admin' => $isAdmin,
+            ],
+        );
+
+        $role->permissions()->sync(
+            Permission::query()
+                ->whereIn('key', $permissionKeys)
+                ->pluck('id')
+                ->all()
+        );
+
+        return $role;
     }
 
     private function user(Company $company, Role $role, string $name, string $email, string $type, string $extension): User
