@@ -34,47 +34,71 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
     ->prefix('tenant')
     ->name('tenant.')
     ->group(function (): void {
-        Route::resource('users', UserController::class)->except(['create', 'show', 'edit']);
-        Route::resource('teams', TeamController::class)->except(['create', 'show', 'edit']);
-        Route::resource('roles', RoleController::class)->except(['create', 'show', 'edit']);
-        Route::resource('lists', ContactListController::class)->except(['create', 'show', 'edit']);
-        Route::patch('campaigns/{campaign}/start', [CampaignController::class, 'start'])->name('campaigns.start');
-        Route::patch('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('campaigns.pause');
-        Route::patch('campaigns/{campaign}/restart', [CampaignController::class, 'restart'])->name('campaigns.restart');
-        Route::patch('campaigns/{campaign}/recycle', [CampaignController::class, 'recycle'])->name('campaigns.recycle');
-        Route::patch('campaigns/{campaign}/dial', [CampaignController::class, 'dial'])->name('campaigns.dial');
-        Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])->name('campaigns.duplicate');
-        Route::resource('campaigns', CampaignController::class)->except(['create', 'show', 'edit']);
-        Route::get('agent', [AgentPanelController::class, 'index'])->name('agent.index');
-        Route::patch('agent/status', [AgentPanelController::class, 'status'])->name('agent.status');
-        Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->name('agent.pause');
-        Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->name('agent.calls.store');
-        Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->name('agent.calls.end');
-        Route::get('supervision/poll', [SupervisionController::class, 'poll'])->name('supervision.poll');
-        Route::get('supervision', [SupervisionController::class, 'index'])->name('supervision.index');
-        Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
-        Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
-        Route::get('reports/export/xlsx', [ReportController::class, 'exportXlsx'])->name('reports.export-xlsx');
-        Route::get('reports/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export-pdf');
-        Route::post('reports/schedules', [ReportScheduleController::class, 'store'])->name('reports.schedules.store');
-        Route::put('reports/schedules/{reportSchedule}', [ReportScheduleController::class, 'update'])->name('reports.schedules.update');
-        Route::patch('reports/schedules/{reportSchedule}/status', [ReportScheduleController::class, 'toggleStatus'])->name('reports.schedules.status');
-        Route::post('reports/schedules/{reportSchedule}/run', [ReportScheduleController::class, 'run'])->name('reports.schedules.run');
-        Route::get('telephony', ComingSoonController::class)->defaults('module', 'telephony')->name('telephony.index');
-        Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
-        Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->name('settings.pause-reasons.store');
-        Route::put('settings/pause-reasons/{pauseReason}', [SettingController::class, 'updatePauseReason'])->name('settings.pause-reasons.update');
-        Route::delete('settings/pause-reasons/{pauseReason}', [SettingController::class, 'destroyPauseReason'])->name('settings.pause-reasons.destroy');
-        Route::post('settings/dispositions', [SettingController::class, 'storeDisposition'])->name('settings.dispositions.store');
-        Route::put('settings/dispositions/{disposition}', [SettingController::class, 'updateDisposition'])->name('settings.dispositions.update');
-        Route::delete('settings/dispositions/{disposition}', [SettingController::class, 'destroyDisposition'])->name('settings.dispositions.destroy');
-        Route::post('settings/blacklist', [SettingController::class, 'storeBlacklist'])->name('settings.blacklist.store');
-        Route::put('settings/blacklist/{blacklistNumber}', [SettingController::class, 'updateBlacklist'])->name('settings.blacklist.update');
-        Route::delete('settings/blacklist/{blacklistNumber}', [SettingController::class, 'destroyBlacklist'])->name('settings.blacklist.destroy');
-        Route::get('integrations', ComingSoonController::class)->defaults('module', 'integrations')->name('integrations.index');
-        Route::get('notifications/poll', [NotificationController::class, 'poll'])->name('notifications.poll');
-        Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
-        Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+        Route::get('users', [UserController::class, 'index'])->middleware('can:tenant.users.read')->name('users.index');
+        Route::post('users', [UserController::class, 'store'])->middleware('can:tenant.users.create')->name('users.store');
+        Route::put('users/{user}', [UserController::class, 'update'])->middleware('can:tenant.users.update')->name('users.update');
+        Route::delete('users/{user}', [UserController::class, 'destroy'])->middleware('can:tenant.users.delete')->name('users.destroy');
+
+        Route::get('teams', [TeamController::class, 'index'])->middleware('can:tenant.teams.read')->name('teams.index');
+        Route::post('teams', [TeamController::class, 'store'])->middleware('can:tenant.teams.create')->name('teams.store');
+        Route::put('teams/{team}', [TeamController::class, 'update'])->middleware('can:tenant.teams.update')->name('teams.update');
+        Route::delete('teams/{team}', [TeamController::class, 'destroy'])->middleware('can:tenant.teams.delete')->name('teams.destroy');
+
+        Route::get('roles', [RoleController::class, 'index'])->middleware('can:tenant.roles.read')->name('roles.index');
+        Route::post('roles', [RoleController::class, 'store'])->middleware('can:tenant.roles.create')->name('roles.store');
+        Route::put('roles/{role}', [RoleController::class, 'update'])->middleware('can:tenant.roles.update')->name('roles.update');
+        Route::delete('roles/{role}', [RoleController::class, 'destroy'])->middleware('can:tenant.roles.delete')->name('roles.destroy');
+
+        Route::get('lists', [ContactListController::class, 'index'])->middleware('can:tenant.lists.read')->name('lists.index');
+        Route::post('lists', [ContactListController::class, 'store'])->middleware('can:tenant.lists.create')->name('lists.store');
+        Route::put('lists/{list}', [ContactListController::class, 'update'])->middleware('can:tenant.lists.update')->name('lists.update');
+        Route::delete('lists/{list}', [ContactListController::class, 'destroy'])->middleware('can:tenant.lists.delete')->name('lists.destroy');
+
+        Route::get('campaigns', [CampaignController::class, 'index'])->middleware('can:tenant.campaigns.read')->name('campaigns.index');
+        Route::post('campaigns', [CampaignController::class, 'store'])->middleware('can:tenant.campaigns.create')->name('campaigns.store');
+        Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->middleware('can:tenant.campaigns.update')->name('campaigns.update');
+        Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])->middleware('can:tenant.campaigns.delete')->name('campaigns.destroy');
+        Route::post('campaigns/{campaign}/duplicate', [CampaignController::class, 'duplicate'])->middleware('can:tenant.campaigns.create')->name('campaigns.duplicate');
+        Route::patch('campaigns/{campaign}/start', [CampaignController::class, 'start'])->middleware('can:tenant.campaigns.operate')->name('campaigns.start');
+        Route::patch('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->middleware('can:tenant.campaigns.operate')->name('campaigns.pause');
+        Route::patch('campaigns/{campaign}/restart', [CampaignController::class, 'restart'])->middleware('can:tenant.campaigns.operate')->name('campaigns.restart');
+        Route::patch('campaigns/{campaign}/recycle', [CampaignController::class, 'recycle'])->middleware('can:tenant.campaigns.operate')->name('campaigns.recycle');
+        Route::patch('campaigns/{campaign}/dial', [CampaignController::class, 'dial'])->middleware('can:tenant.campaigns.operate')->name('campaigns.dial');
+
+        Route::get('agent', [AgentPanelController::class, 'index'])->middleware('can:tenant.agent.access')->name('agent.index');
+        Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware('can:tenant.agent.access')->name('agent.status');
+        Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->middleware('can:tenant.agent.access')->name('agent.pause');
+        Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->middleware('can:tenant.agent.access')->name('agent.calls.store');
+        Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->middleware('can:tenant.agent.access')->name('agent.calls.end');
+
+        Route::get('supervision/poll', [SupervisionController::class, 'poll'])->middleware('can:tenant.supervision.read')->name('supervision.poll');
+        Route::get('supervision', [SupervisionController::class, 'index'])->middleware('can:tenant.supervision.read')->name('supervision.index');
+
+        Route::get('reports', [ReportController::class, 'index'])->middleware('can:tenant.reports.read')->name('reports.index');
+        Route::get('reports/export', [ReportController::class, 'export'])->middleware('can:tenant.reports.export')->name('reports.export');
+        Route::get('reports/export/xlsx', [ReportController::class, 'exportXlsx'])->middleware('can:tenant.reports.export')->name('reports.export-xlsx');
+        Route::get('reports/export/pdf', [ReportController::class, 'exportPdf'])->middleware('can:tenant.reports.export')->name('reports.export-pdf');
+        Route::post('reports/schedules', [ReportScheduleController::class, 'store'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.store');
+        Route::put('reports/schedules/{reportSchedule}', [ReportScheduleController::class, 'update'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.update');
+        Route::patch('reports/schedules/{reportSchedule}/status', [ReportScheduleController::class, 'toggleStatus'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.status');
+        Route::post('reports/schedules/{reportSchedule}/run', [ReportScheduleController::class, 'run'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.run');
+
+        Route::get('telephony', ComingSoonController::class)->middleware('can:tenant.telephony.read')->defaults('module', 'telephony')->name('telephony.index');
+        Route::get('settings', [SettingController::class, 'index'])->middleware('can:tenant.settings.read')->name('settings.index');
+        Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->middleware('can:tenant.settings.create')->name('settings.pause-reasons.store');
+        Route::put('settings/pause-reasons/{pauseReason}', [SettingController::class, 'updatePauseReason'])->middleware('can:tenant.settings.update')->name('settings.pause-reasons.update');
+        Route::delete('settings/pause-reasons/{pauseReason}', [SettingController::class, 'destroyPauseReason'])->middleware('can:tenant.settings.delete')->name('settings.pause-reasons.destroy');
+        Route::post('settings/dispositions', [SettingController::class, 'storeDisposition'])->middleware('can:tenant.settings.create')->name('settings.dispositions.store');
+        Route::put('settings/dispositions/{disposition}', [SettingController::class, 'updateDisposition'])->middleware('can:tenant.settings.update')->name('settings.dispositions.update');
+        Route::delete('settings/dispositions/{disposition}', [SettingController::class, 'destroyDisposition'])->middleware('can:tenant.settings.delete')->name('settings.dispositions.destroy');
+        Route::post('settings/blacklist', [SettingController::class, 'storeBlacklist'])->middleware('can:tenant.settings.create')->name('settings.blacklist.store');
+        Route::put('settings/blacklist/{blacklistNumber}', [SettingController::class, 'updateBlacklist'])->middleware('can:tenant.settings.update')->name('settings.blacklist.update');
+        Route::delete('settings/blacklist/{blacklistNumber}', [SettingController::class, 'destroyBlacklist'])->middleware('can:tenant.settings.delete')->name('settings.blacklist.destroy');
+
+        Route::get('integrations', ComingSoonController::class)->middleware('can:tenant.integrations.read')->defaults('module', 'integrations')->name('integrations.index');
+        Route::get('notifications/poll', [NotificationController::class, 'poll'])->middleware('can:tenant.notifications.read')->name('notifications.poll');
+        Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->middleware('can:tenant.notifications.update')->name('notifications.read-all');
+        Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->middleware('can:tenant.notifications.update')->name('notifications.read');
     });
 
 Route::middleware('auth')->group(function (): void {

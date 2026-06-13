@@ -9,6 +9,7 @@ use App\Models\Campaign;
 use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Disposition;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
@@ -881,6 +882,10 @@ class TenantAgentPanelTest extends TestCase
             'slug' => 'operacao-'.fake()->unique()->numberBetween(1000, 9999),
             'is_admin' => true,
         ]);
+        $role->permissions()->attach(Permission::query()->firstOrCreate(
+            ['key' => 'agent.access'],
+            ['name' => 'Acessar', 'module' => 'agent'],
+        ));
         $user = User::factory()->create([
             'company_id' => $company->id,
             'role_id' => $role->id,

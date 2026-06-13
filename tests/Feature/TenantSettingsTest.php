@@ -6,6 +6,7 @@ use App\Models\BlacklistNumber;
 use App\Models\Company;
 use App\Models\Disposition;
 use App\Models\PauseReason;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -227,6 +228,12 @@ class TenantSettingsTest extends TestCase
             'slug' => 'administrador-'.fake()->unique()->numberBetween(1000, 9999),
             'is_admin' => true,
         ]);
+        if ($type === 'agent') {
+            $role->permissions()->attach(Permission::query()->firstOrCreate(
+                ['key' => 'agent.access'],
+                ['name' => 'Acessar', 'module' => 'agent'],
+            ));
+        }
         $admin = User::factory()->create([
             'company_id' => $company->id,
             'role_id' => $role->id,

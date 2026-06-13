@@ -116,10 +116,6 @@ class User extends Authenticatable
             return false;
         }
 
-        if ($this->user_type === 'supervisor' && $permissionKey === 'agent.access') {
-            return false;
-        }
-
         $role->loadMissing('permissions');
 
         return $role->permissions->contains('key', $permissionKey);

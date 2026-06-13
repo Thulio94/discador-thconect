@@ -6,6 +6,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
@@ -235,6 +236,10 @@ class TenantSupervisionTest extends TestCase
             'slug' => 'operacao-'.fake()->unique()->numberBetween(1000, 9999),
             'is_admin' => true,
         ]);
+        $role->permissions()->attach(Permission::query()->firstOrCreate(
+            ['key' => 'supervision.read'],
+            ['name' => 'Ler', 'module' => 'supervision'],
+        ));
 
         $user = User::factory()->create([
             'company_id' => $company->id,

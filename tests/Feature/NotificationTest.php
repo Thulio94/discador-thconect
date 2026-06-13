@@ -6,6 +6,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\Notifications\AppNotificationService;
@@ -226,6 +227,12 @@ class NotificationTest extends TestCase
             'slug' => 'operacao-'.$extension,
             'is_admin' => true,
         ]);
+        if ($type === 'supervisor') {
+            $role->permissions()->attach(Permission::query()->firstOrCreate(
+                ['key' => 'supervision.read'],
+                ['name' => 'Ler', 'module' => 'supervision'],
+            ));
+        }
 
         return User::factory()->create([
             'company_id' => $company->id,

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -77,9 +78,17 @@ class CoreRoutesTest extends TestCase
             'starts_at' => now()->subDay()->toDateString(),
             'ends_at' => now()->addMonth()->toDateString(),
         ]);
+        $role = Role::create([
+            'company_id' => $company->id,
+            'name' => 'Administrador',
+            'slug' => 'administrador',
+            'is_admin' => true,
+        ]);
 
         return User::factory()->create([
             'company_id' => $company->id,
+            'role_id' => $role->id,
+            'user_type' => 'company_admin',
             'status' => 'active',
             'extension' => '1001',
         ]);

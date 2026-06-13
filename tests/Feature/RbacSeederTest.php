@@ -86,7 +86,7 @@ class RbacSeederTest extends TestCase
         $this->assertFalse(Gate::forUser($agent)->allows('tenant.users.read'));
         $this->assertTrue(Gate::forUser($agent)->allows('tenant.agent.access'));
         $this->assertFalse(Gate::forUser($agentWithAdminRole)->allows('tenant.users.read'));
-        $this->assertFalse(Gate::forUser($supervisor)->allows('tenant.agent.access'));
+        $this->assertTrue(Gate::forUser($supervisor)->allows('tenant.agent.access'));
         $this->assertTrue(Gate::forUser($supervisor)->allows('tenant.supervision.read'));
         $this->assertFalse(Gate::forUser($invalidAdmin)->allows('tenant.users.read'));
         $this->assertFalse(Gate::forUser($superAdmin)->allows('tenant.users.read'));

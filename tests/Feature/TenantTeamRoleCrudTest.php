@@ -66,6 +66,7 @@ class TenantTeamRoleCrudTest extends TestCase
             'company_id' => $company->id,
             'name' => 'Administrador',
             'slug' => 'administrador',
+            'is_admin' => true,
         ]);
 
         $admin = User::factory()->create([

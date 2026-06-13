@@ -7,12 +7,17 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
     public function __invoke(Request $request): View
     {
         $user = $request->user();
+
+        if (! $user->is_super_admin) {
+            Gate::authorize('tenant.dashboard.read');
+        }
 
         return view('dashboard', [
             'companiesCount' => $user->is_super_admin ? Company::query()->count() : null,
