@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -69,6 +70,12 @@ class PollingMarkupTest extends TestCase
             'slug' => 'operacao-polling-'.fake()->unique()->numberBetween(1000, 9999),
             'is_admin' => true,
         ]);
+        if ($type === 'supervisor') {
+            $role->permissions()->attach(Permission::query()->firstOrCreate(
+                ['key' => 'supervision.read'],
+                ['name' => 'Ler', 'module' => 'supervision'],
+            ));
+        }
 
         return User::factory()->create([
             'company_id' => $company->id,

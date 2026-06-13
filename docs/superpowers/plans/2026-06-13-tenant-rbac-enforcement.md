@@ -45,7 +45,7 @@ $this->assertContains('settings.delete', PermissionMatrix::keys());
 $this->assertTrue(Gate::forUser($tenantAdmin)->allows('tenant.settings.delete'));
 $this->assertFalse(Gate::forUser($agent)->allows('tenant.users.read'));
 $this->assertTrue(Gate::forUser($agent)->allows('tenant.agent.access'));
-$this->assertFalse(Gate::forUser($supervisor)->allows('tenant.agent.access'));
+$this->assertTrue(Gate::forUser($supervisor)->allows('tenant.agent.access'));
 $this->assertFalse(Gate::forUser($superAdmin)->allows('tenant.users.read'));
 ```
 
@@ -118,10 +118,6 @@ if ($this->user_type === 'agent' && ! in_array($permissionKey, [
     'notifications.read',
     'notifications.update',
 ], true)) {
-    return false;
-}
-
-if ($this->user_type === 'supervisor' && $permissionKey === 'agent.access') {
     return false;
 }
 
@@ -348,7 +344,7 @@ $this->assertTrue($adminRole->is_admin);
 $this->assertFalse($supervisorRole->is_admin);
 $this->assertFalse($agentRole->is_admin);
 $this->assertTrue($supervisorRole->permissions->contains('key', 'supervision.read'));
-$this->assertFalse($supervisorRole->permissions->contains('key', 'agent.access'));
+$this->assertTrue($supervisorRole->permissions->contains('key', 'agent.access'));
 $this->assertTrue($agentRole->permissions->contains('key', 'agent.access'));
 $this->assertSame($supervisorRole->id, $supervisor->role_id);
 $this->assertSame($agentRole->id, $agentOne->role_id);
@@ -375,6 +371,7 @@ $supervisorRole = $this->role($company, 'Supervisor', 'supervisor', [
     'lists.read',
     'campaigns.read',
     'campaigns.operate',
+    'agent.access',
     'supervision.read',
     'reports.read',
     'reports.export',
@@ -593,7 +590,7 @@ Expected: cada rota funcional do tenant exibe um middleware `can:tenant.*`.
 No navegador local em `http://localhost:8087`, validar:
 
 - Administrador Demo: todos os modulos do tenant;
-- Supervisor Demo: supervisao, campanhas e relatorios, sem painel do agente;
+- Supervisor Demo: supervisao, campanhas, relatorios e chamadas manuais, sem entrar na capacidade das campanhas;
 - Agente Demo: dashboard, agente e notificacoes, sem CRUDs;
 - Super Admin: painel global sem links operacionais.
 

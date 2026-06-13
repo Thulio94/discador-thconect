@@ -45,7 +45,8 @@ O sistema utilizara um modelo hibrido:
 
 - acessa apenas modulos e operacoes concedidos pelo perfil;
 - pode participar de varias equipes e campanhas para acompanhamento;
-- nao pode assumir o fluxo operacional reservado ao agente.
+- pode usar o painel operacional para chamadas manuais quando possuir `agent.access`;
+- nao entra na selecao de agentes disponiveis para discagem de campanhas.
 
 ### Agente
 
@@ -114,7 +115,7 @@ O seeder de permissoes utilizara `updateOrCreate` para registrar as novas chaves
 
 Perfis nao administrativos manterao as permissoes atuais. As novas permissoes precisarao ser escolhidas pelo administrador na tela de perfis. Para evitar perda imediata de acesso no ambiente de desenvolvimento, os perfis padrao de supervisor e agente criados pelo seeder serao atualizados com conjuntos coerentes:
 
-- supervisor: dashboard, equipes em leitura, listas em leitura, campanhas em leitura e operacao, supervisao, relatorios e notificacoes;
+- supervisor: dashboard, equipes em leitura, listas em leitura, campanhas em leitura e operacao, chamadas manuais, supervisao, relatorios e notificacoes;
 - agente: dashboard, painel do agente e notificacoes.
 
 ## Seguranca adicional

@@ -64,10 +64,15 @@ Status: MVP operacional.
 - [x] Agentes e supervisores em varias equipes.
 - [x] Apenas agentes contam para campanhas/capacidade.
 - [x] Perfis e permissoes.
+- [x] RBAC aplicado em todas as rotas funcionais do tenant.
+- [x] Administrador da empresa com acesso integral ao proprio tenant.
+- [x] Sidebar e comandos filtrados pelas permissoes do perfil.
+- [x] Acesso direto sem permissao respondendo com `403`.
+- [x] Perfis demo separados para administrador, supervisor e agente.
 
 Pendencias recomendadas:
 
-- [ ] Melhorar matriz visual de permissoes por modulo.
+- [x] Matriz visual de permissoes por modulo.
 - [ ] Auditoria de login/alteracoes de usuario.
 - [ ] Filtro e busca nos cadastros grandes.
 
