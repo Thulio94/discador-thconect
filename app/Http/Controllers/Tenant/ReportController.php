@@ -8,6 +8,7 @@ use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Models\Disposition;
 use App\Models\ReportExport;
+use App\Models\ReportSchedule;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Reports\SimplePdfReport;
@@ -58,6 +59,12 @@ class ReportController extends Controller
             'teamPerformance' => $this->teamPerformance($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'dispositionSummary' => $this->dispositionSummary($companyId, $dateFrom, $dateTo, $userId, $campaignId, $dispositionId, $teamId, $listId),
             'exportHistory' => $this->exportHistory($companyId),
+            'reportSchedules' => ReportSchedule::query()
+                ->where('company_id', $companyId)
+                ->with('user')
+                ->latest()
+                ->get()
+                ->each(fn (ReportSchedule $schedule) => $this->withScheduleLabels($schedule, $companyId)),
             'filters' => [
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
@@ -550,6 +557,42 @@ class ReportController extends Controller
             $filters['team_id'] ?? null,
             $filters['list_id'] ?? null
         );
+    }
+
+    private function withScheduleLabels(ReportSchedule $schedule, int $companyId): ReportSchedule
+    {
+        $weekdays = [
+            0 => 'Domingo',
+            1 => 'Segunda-feira',
+            2 => 'Terca-feira',
+            3 => 'Quarta-feira',
+            4 => 'Quinta-feira',
+            5 => 'Sexta-feira',
+            6 => 'Sabado',
+        ];
+        $filters = $schedule->filters ?? [];
+        $periodDays = (int) ($filters['period_days'] ?? 30);
+        $filterNames = $this->historyFilterLabel($companyId, $filters);
+
+        $schedule->setAttribute(
+            'frequency_label',
+            $schedule->frequency === 'weekly'
+                ? 'Semanal - '.($weekdays[$schedule->weekday] ?? 'dia nao definido')
+                : 'Diario'
+        );
+        $schedule->setAttribute(
+            'filter_label',
+            'Ultimos '.$periodDays.' dias'.($filterNames === 'Todos' ? '' : ' | '.$filterNames)
+        );
+        $schedule->setAttribute(
+            'last_run_label',
+            $schedule->last_run_at
+                ? $schedule->last_run_at->format('d/m/Y H:i').' | '.$schedule->last_records_count.' registros'
+                : 'Nunca executado'
+        );
+        $schedule->setAttribute('status_label', $schedule->status === 'active' ? 'Ativo' : 'Inativo');
+
+        return $schedule;
     }
 
     private function whereCallBelongsToTeam($query, int $companyId, int $teamId)

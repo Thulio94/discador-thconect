@@ -233,6 +233,32 @@ class TenantReportScheduleTest extends TestCase
         $this->assertDatabaseCount('report_exports', 0);
     }
 
+    public function test_reports_panel_shows_only_company_schedules_and_modal_controls(): void
+    {
+        [$admin, $company] = $this->tenantUser();
+        [$otherAdmin, $otherCompany] = $this->tenantUser();
+        $schedule = $this->schedule($company, $admin, 'Resumo diario');
+        $this->schedule($otherCompany, $otherAdmin, 'Rotina outra empresa');
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index'))
+            ->assertOk()
+            ->assertSee('Agendamentos de relatorios')
+            ->assertSee('Novo agendamento')
+            ->assertSee('Resumo diario')
+            ->assertSee('Executar agora')
+            ->assertSee('Editar')
+            ->assertSee('Inativar')
+            ->assertSee('name="period_days"', false)
+            ->assertSee('name="format"', false)
+            ->assertSee('name="frequency"', false)
+            ->assertSee('name="run_time"', false)
+            ->assertSee('report-schedule-edit-'.$schedule->id)
+            ->assertDontSee('Rotina outra empresa')
+            ->assertDontSee('window.confirm', false)
+            ->assertDontSee('javascript:alert', false);
+    }
+
     private function createCall(Company $company, User $user, Campaign $campaign, Carbon $startedAt, string $phone): Call
     {
         return Call::create([

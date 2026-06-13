@@ -188,6 +188,65 @@
             </div>
         </x-ui.card>
 
+        <x-ui.card>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold">Agendamentos de relatorios</h2>
+                    <p class="mt-1 text-xs" style="color: var(--fg-muted);">Rotinas recorrentes com execucao simulada e registro no historico.</p>
+                </div>
+                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'report-schedule-create')">
+                    Novo agendamento
+                </x-ui.button>
+            </div>
+
+            <div class="mt-4 grid gap-3">
+                @forelse ($reportSchedules as $schedule)
+                    <div class="grid gap-4 rounded-lg border p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center" style="border-color: var(--border);">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="font-semibold">{{ $schedule->name }}</p>
+                                <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ strtoupper($schedule->format) }}</span>
+                                <span class="rounded-full px-2 py-1 text-xs" style="background: var(--primary-soft); color: var(--fg);">{{ $schedule->status_label }}</span>
+                            </div>
+                            <p class="mt-2 text-sm">{{ $schedule->frequency_label }} as {{ substr($schedule->run_time, 0, 5) }}</p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">{{ $schedule->filter_label }}</p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">Criado por {{ $schedule->user?->name ?? 'Usuario removido' }} | {{ $schedule->last_run_label }}</p>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 lg:justify-end">
+                            @if ($schedule->status === 'active')
+                                <form method="POST" action="{{ route('tenant.reports.schedules.run', $schedule) }}">
+                                    @csrf
+                                    <x-ui.button type="submit">Executar agora</x-ui.button>
+                                </form>
+                            @else
+                                <x-ui.button type="button" disabled>Executar agora</x-ui.button>
+                            @endif
+
+                            <x-ui.button
+                                type="button"
+                                variant="secondary"
+                                x-data
+                                x-on:click="$dispatch('open-modal', 'report-schedule-edit-{{ $schedule->id }}')"
+                            >
+                                Editar
+                            </x-ui.button>
+
+                            <form method="POST" action="{{ route('tenant.reports.schedules.status', $schedule) }}">
+                                @csrf
+                                @method('PATCH')
+                                <x-ui.button type="submit" variant="secondary">
+                                    {{ $schedule->status === 'active' ? 'Inativar' : 'Ativar' }}
+                                </x-ui.button>
+                            </form>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-sm" style="color: var(--fg-muted);">Nenhum agendamento cadastrado.</p>
+                @endforelse
+            </div>
+        </x-ui.card>
+
         <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
             <x-ui.card>
                 <h2 class="text-lg font-semibold">Mailing por lista</h2>
@@ -284,4 +343,27 @@
             </x-ui.card>
         </div>
     </div>
+
+    <x-ui.modal name="report-schedule-create" title="Novo agendamento" max-width="4xl">
+        <form method="POST" action="{{ route('tenant.reports.schedules.store') }}">
+            @csrf
+            @include('tenant.reports._schedule-form', ['schedule' => null])
+            <div class="mt-5 flex justify-end">
+                <x-ui.button type="submit">Criar agendamento</x-ui.button>
+            </div>
+        </form>
+    </x-ui.modal>
+
+    @foreach ($reportSchedules as $schedule)
+        <x-ui.modal name="report-schedule-edit-{{ $schedule->id }}" title="Editar agendamento" max-width="4xl">
+            <form method="POST" action="{{ route('tenant.reports.schedules.update', $schedule) }}">
+                @csrf
+                @method('PUT')
+                @include('tenant.reports._schedule-form', ['schedule' => $schedule])
+                <div class="mt-5 flex justify-end">
+                    <x-ui.button type="submit">Salvar alteracoes</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endforeach
 </x-app-layout>
