@@ -72,6 +72,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::put('settings/blacklist/{blacklistNumber}', [SettingController::class, 'updateBlacklist'])->name('settings.blacklist.update');
         Route::delete('settings/blacklist/{blacklistNumber}', [SettingController::class, 'destroyBlacklist'])->name('settings.blacklist.destroy');
         Route::get('integrations', ComingSoonController::class)->defaults('module', 'integrations')->name('integrations.index');
+        Route::get('notifications/poll', [NotificationController::class, 'poll'])->name('notifications.poll');
         Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
         Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     });

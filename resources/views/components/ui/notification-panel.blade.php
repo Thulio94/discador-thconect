@@ -1,6 +1,8 @@
 @props(['notifications' => collect(), 'unreadCount' => 0])
 
 <aside
+    id="notification-panel"
+    data-unread-count="{{ $unreadCount }}"
     class="hidden border-l p-4 lg:grid lg:w-80"
     style="background: color-mix(in srgb, var(--surface) 94%, transparent); border-color: var(--border);"
 >
@@ -18,8 +20,9 @@
         @forelse ($notifications as $notification)
             <a
                 href="{{ $notification->action_url ?: '#' }}"
+                data-notification-state="{{ $notification->read_at ? 'read' : 'unread' }}"
                 class="rounded-xl border p-3 text-sm"
-                style="border-color: var(--border); background: var(--bg-subtle); color: var(--fg);"
+                style="border-color: var(--border); background: {{ $notification->read_at ? 'var(--bg-subtle)' : 'var(--primary-soft)' }}; color: var(--fg);"
             >
                 <span class="block font-semibold">{{ $notification->title }}</span>
                 <span class="mt-1 block text-xs" style="color: var(--fg-muted);">{{ $notification->message }}</span>

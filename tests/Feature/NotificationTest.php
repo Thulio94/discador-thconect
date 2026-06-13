@@ -68,6 +68,50 @@ class NotificationTest extends TestCase
         $this->assertSame(0, $user->appNotifications()->whereNull('read_at')->count());
     }
 
+    public function test_notification_poll_returns_only_current_user_panel_and_unread_state(): void
+    {
+        $company = $this->company();
+        $user = $this->tenantUser($company, 'company_admin', '1001');
+        $otherUser = $this->tenantUser($company, 'supervisor', '1002');
+
+        $read = app(AppNotificationService::class)->createForUser(
+            $user,
+            'system',
+            'info',
+            'Aviso lido',
+            'Mensagem lida'
+        );
+        $read->update(['read_at' => now()]);
+        app(AppNotificationService::class)->createForUser(
+            $user,
+            'system',
+            'warning',
+            'Aviso novo',
+            'Mensagem nova'
+        );
+        app(AppNotificationService::class)->createForUser(
+            $otherUser,
+            'system',
+            'info',
+            'Aviso externo',
+            'Nao mostrar'
+        );
+
+        $this->actingAs($user)
+            ->get(route('tenant.notifications.poll'))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertHeader('X-Poll-Interval', '10')
+            ->assertSee('id="notification-panel"', false)
+            ->assertSee('data-unread-count="1"', false)
+            ->assertSee('Aviso novo')
+            ->assertSee('Aviso lido')
+            ->assertSee('data-notification-state="unread"', false)
+            ->assertSee('data-notification-state="read"', false)
+            ->assertDontSee('Aviso externo')
+            ->assertDontSee('<html', false);
+    }
+
     public function test_campaign_operational_action_notifies_company_admins_and_supervisors(): void
     {
         $company = $this->company();
@@ -151,10 +195,10 @@ class NotificationTest extends TestCase
         ]);
 
         $this->actingAs($supervisor)
-            ->get(route('tenant.supervision.index'))
+            ->get(route('tenant.supervision.poll'))
             ->assertOk();
         $this->actingAs($supervisor)
-            ->get(route('tenant.supervision.index'))
+            ->get(route('tenant.supervision.poll'))
             ->assertOk();
 
         $this->assertSame(1, $supervisor->appNotifications()->where('title', 'Pausa longa')->count());
