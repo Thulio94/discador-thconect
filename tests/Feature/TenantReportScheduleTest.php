@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\ReportExport;
 use App\Models\ReportSchedule;
 use App\Models\Role;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -156,6 +159,95 @@ class TenantReportScheduleTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_active_schedule_run_counts_filtered_calls_and_registers_export_history(): void
+    {
+        Carbon::setTestNow('2026-06-13 10:00:00');
+        [$admin, $company] = $this->tenantUser();
+        [$otherAdmin, $otherCompany] = $this->tenantUser();
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Executada',
+            'dialing_mode' => 'preview',
+            'status' => 'active',
+        ]);
+        $otherCampaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Ignorada',
+            'dialing_mode' => 'preview',
+            'status' => 'active',
+        ]);
+        $schedule = $this->schedule($company, $admin);
+        $schedule->update([
+            'filters' => [
+                'period_days' => 30,
+                'campaign_id' => $campaign->id,
+            ],
+        ]);
+
+        $this->createCall($company, $admin, $campaign, now()->subDays(5), '31999991001');
+        $this->createCall($company, $admin, $campaign, now()->subDays(31), '31999991002');
+        $this->createCall($company, $admin, $otherCampaign, now()->subDays(2), '31999991003');
+        $otherCompanyCampaign = Campaign::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Campanha Outra Empresa',
+            'dialing_mode' => 'preview',
+            'status' => 'active',
+        ]);
+        $this->createCall($otherCompany, $otherAdmin, $otherCompanyCampaign, now()->subDay(), '31999991004');
+
+        $this->actingAs($admin)
+            ->post(route('tenant.reports.schedules.run', $schedule))
+            ->assertRedirect(route('tenant.reports.index'))
+            ->assertSessionHas('status', 'Agendamento executado. 1 registros encontrados.');
+
+        $schedule->refresh();
+        $this->assertSame(1, $schedule->last_records_count);
+        $this->assertTrue($schedule->last_run_at->equalTo(now()));
+
+        $this->assertDatabaseHas('report_exports', [
+            'company_id' => $company->id,
+            'user_id' => $admin->id,
+            'format' => 'xlsx',
+            'records_count' => 1,
+        ]);
+
+        $export = ReportExport::query()->where('company_id', $company->id)->latest()->firstOrFail();
+        $this->assertSame($campaign->id, $export->filters['campaign_id']);
+        $this->assertSame('2026-05-15', $export->filters['date_from']);
+        $this->assertSame('2026-06-13', $export->filters['date_to']);
+        $this->assertSame($schedule->id, $export->filters['schedule_id']);
+    }
+
+    public function test_inactive_schedule_cannot_run(): void
+    {
+        [$admin, $company] = $this->tenantUser();
+        $schedule = $this->schedule($company, $admin);
+        $schedule->update(['status' => 'inactive']);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.reports.schedules.run', $schedule))
+            ->assertRedirect()
+            ->assertSessionHasErrors('schedule');
+
+        $this->assertNull($schedule->refresh()->last_run_at);
+        $this->assertDatabaseCount('report_exports', 0);
+    }
+
+    private function createCall(Company $company, User $user, Campaign $campaign, Carbon $startedAt, string $phone): Call
+    {
+        return Call::create([
+            'company_id' => $company->id,
+            'user_id' => $user->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => $phone,
+            'started_at' => $startedAt,
+            'ended_at' => $startedAt->copy()->addMinute(),
+        ]);
+    }
+
     private function schedule(Company $company, User $user, string $name = 'Resumo diario'): ReportSchedule
     {
         return ReportSchedule::create([
@@ -204,5 +296,12 @@ class TenantReportScheduleTest extends TestCase
         ]);
 
         return [$user, $company];
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 }

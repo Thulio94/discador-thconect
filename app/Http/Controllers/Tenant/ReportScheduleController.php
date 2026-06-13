@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\ReportSchedule;
+use App\Services\Reports\SimulatedReportScheduleRunner;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ReportScheduleController extends Controller
 {
@@ -45,6 +47,26 @@ class ReportScheduleController extends Controller
             ->with('status', $status === 'active'
                 ? 'Agendamento ativado com sucesso.'
                 : 'Agendamento inativado com sucesso.');
+    }
+
+    public function run(
+        Request $request,
+        ReportSchedule $reportSchedule,
+        SimulatedReportScheduleRunner $runner
+    ): RedirectResponse {
+        $this->authorizeTenant($request, $reportSchedule);
+
+        if ($reportSchedule->status !== 'active') {
+            throw ValidationException::withMessages([
+                'schedule' => 'Ative o agendamento antes de executar.',
+            ]);
+        }
+
+        $recordsCount = $runner->run($reportSchedule, $request->user());
+
+        return redirect()
+            ->route('tenant.reports.index')
+            ->with('status', sprintf('Agendamento executado. %d registros encontrados.', $recordsCount));
     }
 
     private function authorizeTenant(Request $request, ReportSchedule $reportSchedule): void
