@@ -529,6 +529,52 @@ class TenantReportsTest extends TestCase
         $this->assertStringContainsString('40s', $csv);
     }
 
+    public function test_reports_keep_cancelled_attempts_out_of_service_metrics(): void
+    {
+        [$admin, $company] = $this->tenantUser('company_admin');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Lote');
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Lote',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $base = now()->setSecond(0);
+
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990710',
+            'started_at' => $base->copy()->subMinutes(4),
+            'answered_at' => $base->copy()->subMinutes(4),
+            'ended_at' => $base->copy()->subMinutes(2),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'end_reason' => 'answered_elsewhere',
+            'channel' => 'simulated',
+            'phone' => '31999990711',
+            'started_at' => $base->copy()->subMinutes(10),
+            'ended_at' => $base,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.index', ['campaign_id' => $campaign->id]))
+            ->assertOk()
+            ->assertSee('2 chamadas')
+            ->assertSee('Cancelada - outra tentativa atendida')
+            ->assertSee('TMA 2 min')
+            ->assertDontSee('TMA 6 min');
+    }
+
     public function test_reports_show_conversion_by_campaign_team_and_agent(): void
     {
         [$admin, $company] = $this->tenantUser('company_admin');

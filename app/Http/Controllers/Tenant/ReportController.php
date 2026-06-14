@@ -344,7 +344,9 @@ class ReportController extends Controller
     private function timeMetrics($query): array
     {
         $calls = (clone $query)
+            ->where('status', 'ended')
             ->whereNotNull('started_at')
+            ->whereNotNull('answered_at')
             ->whereNotNull('ended_at')
             ->get(['started_at', 'answered_at', 'ended_at']);
 
@@ -428,6 +430,17 @@ class ReportController extends Controller
     {
         $this->withTimeLabels($call);
         $call->setAttribute('conversion_label', $call->disposition?->is_success ? 'sim' : 'nao');
+        $call->setAttribute(
+            'status_label',
+            $call->status === 'cancelled' && $call->end_reason === 'answered_elsewhere'
+                ? 'Cancelada - outra tentativa atendida'
+                : match ($call->status) {
+                    'in_progress' => 'Em andamento',
+                    'ended' => 'Encerrada',
+                    'cancelled' => 'Cancelada',
+                    default => ucfirst($call->status),
+                },
+        );
 
         return $call;
     }

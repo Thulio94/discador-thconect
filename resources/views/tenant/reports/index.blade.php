@@ -312,7 +312,7 @@
                                     <td class="px-3 py-3">{{ $call->disposition_name ?? 'Sem tabulacao' }}</td>
                                     <td class="px-3 py-3">
                                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">
-                                            {{ $call->status }} | {{ $call->channel }}
+                                            {{ $call->status_label }} | {{ $call->channel }}
                                         </span>
                                     </td>
                                     <td class="px-3 py-3">{{ $call->started_at?->format('d/m/Y H:i') ?? 'sem data' }}</td>
@@ -337,7 +337,7 @@
                         <div class="grid gap-2 rounded-lg border p-3 text-sm md:hidden" style="border-color: var(--border);">
                             <div class="flex items-start justify-between gap-3">
                                 <span class="font-semibold">{{ $call->phone ?? 'Sem numero' }}</span>
-                                <span style="color: var(--fg-muted);">{{ $call->status }}</span>
+                                <span style="color: var(--fg-muted);">{{ $call->status_label }}</span>
                             </div>
                             <span>{{ $call->user?->name ?? 'Sem agente' }} | {{ $call->campaign?->name ?? 'Sem campanha' }}</span>
                             <span style="color: var(--fg-muted);">{{ $call->disposition_name ?? 'Sem tabulacao' }}</span>
