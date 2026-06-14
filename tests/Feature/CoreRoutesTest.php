@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Call;
 use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
@@ -26,6 +27,33 @@ class CoreRoutesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Dashboard');
+    }
+
+    public function test_tenant_dashboard_shows_current_call_capacity_usage(): void
+    {
+        $user = $this->tenantUser();
+        $user->company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 10,
+        ]);
+
+        foreach (range(1, 2) as $index) {
+            Call::create([
+                'company_id' => $user->company_id,
+                'direction' => 'outbound',
+                'status' => 'in_progress',
+                'channel' => 'simulated',
+                'phone' => '3199999080'.$index,
+                'started_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('2 chamadas ativas')
+            ->assertSee('Limite por operador: 3')
+            ->assertSee('Teto da empresa: 10');
     }
 
     public function test_super_admin_companies_route_loads(): void

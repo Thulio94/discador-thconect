@@ -15,7 +15,13 @@ class CompanyController extends Controller
     public function index(): View
     {
         return view('super-admin.companies.index', [
-            'companies' => Company::query()->with('license')->latest()->paginate(12),
+            'companies' => Company::query()
+                ->with('license')
+                ->withCount([
+                    'calls as active_calls_count' => fn ($query) => $query->where('status', 'in_progress'),
+                ])
+                ->latest()
+                ->paginate(12),
         ]);
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Call;
 use App\Models\Company;
 use App\Models\Team;
 use App\Models\User;
@@ -24,6 +25,10 @@ class DashboardController extends Controller
             'usersCount' => $user->company_id ? User::query()->where('company_id', $user->company_id)->count() : User::query()->count(),
             'teamsCount' => $user->company_id ? Team::query()->where('company_id', $user->company_id)->count() : Team::query()->count(),
             'license' => $user->company?->license,
+            'activeCallsCount' => Call::query()
+                ->when($user->company_id, fn ($query) => $query->where('company_id', $user->company_id))
+                ->where('status', 'in_progress')
+                ->count(),
         ]);
     }
 }

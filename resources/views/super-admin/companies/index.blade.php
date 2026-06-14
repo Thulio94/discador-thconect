@@ -22,7 +22,9 @@
                         <div>
                             <p class="font-semibold">{{ $company->name }}</p>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">
-                                Chamadas por operador disponivel: {{ $company->license?->max_calls_per_available_agent ?? '-' }}
+                                {{ $company->active_calls_count }} ativa de {{ $company->license?->max_concurrent_calls ?? 'sem teto' }}
+                                <span aria-hidden="true"> · </span>
+                                {{ $company->license?->max_calls_per_available_agent ?? '-' }} por operador disponivel
                             </p>
                         </div>
                         <div class="flex gap-2">

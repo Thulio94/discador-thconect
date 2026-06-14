@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Call;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,6 +66,31 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->assertSessionHas('status');
 
         $this->assertSame('inactive', $company->fresh()->status);
+    }
+
+    public function test_super_admin_company_list_shows_current_call_usage(): void
+    {
+        $company = Company::create(['name' => 'Empresa Capacidade']);
+        $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => now()->subDay()->toDateString(),
+            'ends_at' => now()->addMonth()->toDateString(),
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 10,
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('super-admin.companies.index'))
+            ->assertOk()
+            ->assertSee('1 ativa de 10')
+            ->assertSee('3 por operador disponivel');
     }
 
     private function superAdmin(): User

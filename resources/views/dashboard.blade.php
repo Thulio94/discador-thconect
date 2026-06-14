@@ -18,8 +18,12 @@
         </x-ui.card>
 
         <x-ui.card title="Chamadas">
-            <p class="text-3xl font-bold">{{ $license?->max_calls_per_available_agent ?? '-' }}</p>
-            <p class="mt-2 text-sm" style="color: var(--fg-muted);">Capacidade sera calculada pelo plano.</p>
+            <p class="text-3xl font-bold">{{ $activeCallsCount }} chamadas ativas</p>
+            <p class="mt-2 text-sm" style="color: var(--fg-muted);">
+                Limite por operador: {{ $license?->max_calls_per_available_agent ?? '-' }}
+                <span aria-hidden="true"> · </span>
+                Teto da empresa: {{ $license?->max_concurrent_calls ?? 'sem teto' }}
+            </p>
         </x-ui.card>
     </div>
 </x-app-layout>
