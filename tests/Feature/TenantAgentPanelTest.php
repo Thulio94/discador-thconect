@@ -90,6 +90,7 @@ class TenantAgentPanelTest extends TestCase
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'available', 'started_at' => now()]);
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $secondAgent->id, 'status' => 'available', 'started_at' => now()]);
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $supervisor->id, 'status' => 'available', 'started_at' => now()]);
+        $company->licenses()->firstOrFail()->update(['max_concurrent_calls' => 1]);
 
         $service = app(AgentCapacityService::class);
 
@@ -118,6 +119,16 @@ class TenantAgentPanelTest extends TestCase
                 'started_at' => now(),
             ]);
         }
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'started_at' => now()->subMinute(),
+            'ended_at' => now(),
+        ]);
 
         $service = app(AgentCapacityService::class);
 
@@ -162,6 +173,58 @@ class TenantAgentPanelTest extends TestCase
 
         $this->assertSame(
             6,
+            app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
+        );
+    }
+
+    public function test_remaining_campaign_capacity_is_zero_when_active_calls_reach_global_limit(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 2,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+
+        foreach ([$agent, $secondAgent] as $activeAgent) {
+            Call::create([
+                'company_id' => $company->id,
+                'user_id' => $activeAgent->id,
+                'campaign_id' => $campaign->id,
+                'direction' => 'outbound',
+                'status' => 'in_progress',
+                'channel' => 'simulated',
+                'started_at' => now(),
+            ]);
+        }
+
+        $this->assertSame(
+            0,
+            app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
+        );
+    }
+
+    public function test_remaining_campaign_capacity_returns_capacity_when_below_global_vacancies(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 2,
+            'max_concurrent_calls' => 5,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
+        ]);
+
+        $this->assertSame(
+            2,
             app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
         );
     }
