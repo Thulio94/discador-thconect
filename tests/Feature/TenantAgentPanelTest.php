@@ -956,6 +956,53 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(1, $contact->fresh()->attempts_count);
     }
 
+    public function test_simulated_dialer_creates_concurrent_batches_with_one_winner_per_agent(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 6,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Concorrente',
+            'status' => 'active',
+        ]);
+
+        foreach (range(1, 6) as $index) {
+            $list->contacts()->create([
+                'company_id' => $company->id,
+                'name' => 'Lead Concorrente '.$index,
+                'phone' => '3199999010'.$index,
+                'status' => 'pending',
+            ]);
+        }
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $created = app(SimulatedDialerService::class)->runCampaign($campaign);
+        $calls = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->orderBy('id')
+            ->get();
+        $winners = $calls->where('status', 'in_progress');
+        $cancelled = $calls->where('status', 'cancelled');
+
+        $this->assertSame(6, $created);
+        $this->assertCount(6, $calls);
+        $this->assertCount(2, $winners);
+        $this->assertCount(4, $cancelled);
+        $this->assertSame(4, $cancelled->where('end_reason', 'answered_elsewhere')->count());
+        $this->assertSame([$agent->id, $secondAgent->id], $winners->pluck('user_id')->sort()->values()->all());
+        $this->assertTrue($cancelled->every(fn (Call $call) => $call->answered_at === null));
+        $this->assertTrue($cancelled->every(fn (Call $call) => $call->ended_at !== null));
+        $this->assertSame(6, $list->contacts()->where('attempts_count', 1)->count());
+        $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame('in_call', $secondAgent->fresh()->currentAgentStatus->status);
+    }
+
     public function test_simulated_dialer_does_not_assign_new_call_to_agent_with_untabulated_call(): void
     {
         [$agent, $company] = $this->tenantUser('agent');

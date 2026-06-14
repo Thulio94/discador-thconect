@@ -6,9 +6,9 @@ use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
-use App\Models\Contact;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 class SimulatedDialerService
 {
@@ -37,26 +37,50 @@ class SimulatedDialerService
             return 0;
         }
 
-        $limit = min($this->capacity->allowedCallsForCampaign($campaign), $this->availableAgents($campaign)->count());
+        return DB::transaction(function () use ($campaign): int {
+            $campaign->load('company.license');
+            $licenseId = $campaign->company?->license?->getKey();
 
-        if ($limit < 1) {
-            return 0;
-        }
-
-        $created = 0;
-
-        foreach ($this->availableAgents($campaign)->limit($limit)->get() as $agent) {
-            $contact = $this->queue->nextContactForCampaign($campaign);
-
-            if (! $contact) {
-                break;
+            if ($licenseId !== null) {
+                $campaign->company->licenses()
+                    ->whereKey($licenseId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
             }
 
-            $this->createCall($campaign, $agent, $contact);
-            $created++;
-        }
+            $campaign->unsetRelation('company');
+            $campaign->load('company.license', 'teams');
 
-        return $created;
+            $remaining = $this->capacity->remainingConcurrentCallsForCampaign($campaign);
+            $callsPerAgent = max(
+                1,
+                (int) ($campaign->company?->license?->max_calls_per_available_agent ?? 1),
+            );
+
+            if ($remaining < 1) {
+                return 0;
+            }
+
+            $created = 0;
+
+            foreach ($this->availableAgents($campaign)->get() as $agent) {
+                $batchSize = min($callsPerAgent, $remaining);
+                $batchCreated = $this->createBatch($campaign, $agent, $batchSize);
+
+                if ($batchCreated === 0) {
+                    break;
+                }
+
+                $created += $batchCreated;
+                $remaining -= $batchCreated;
+
+                if ($remaining < 1) {
+                    break;
+                }
+            }
+
+            return $created;
+        }, 3);
     }
 
     public function isCampaignInOperationalSchedule(Campaign $campaign, ?CarbonInterface $moment = null): bool
@@ -102,30 +126,51 @@ class SimulatedDialerService
             ->orderBy('users.id');
     }
 
-    private function createCall(Campaign $campaign, User $agent, Contact $contact): void
+    private function createBatch(Campaign $campaign, User $agent, int $batchSize): int
     {
+        $created = 0;
+
+        for ($attempt = 0; $attempt < $batchSize; $attempt++) {
+            $contact = $this->queue->nextContactForCampaign($campaign);
+
+            if (! $contact) {
+                break;
+            }
+
+            $isWinner = $created === 0;
+
+            Call::create([
+                'company_id' => $campaign->company_id,
+                'user_id' => $agent->id,
+                'campaign_id' => $campaign->id,
+                'contact_id' => $contact->id,
+                'direction' => 'outbound',
+                'status' => $isWinner ? 'in_progress' : 'cancelled',
+                'end_reason' => $isWinner ? null : 'answered_elsewhere',
+                'channel' => 'simulated',
+                'phone' => $contact->phone,
+                'started_at' => now(),
+                'answered_at' => $isWinner ? now() : null,
+                'ended_at' => $isWinner ? null : now(),
+            ]);
+
+            $this->queue->markAttempt($contact, now()->addMinutes(30));
+            $created++;
+        }
+
+        if ($created === 0) {
+            return 0;
+        }
+
         $this->closeOpenAgentRecords($agent);
-
-        Call::create([
-            'company_id' => $campaign->company_id,
-            'user_id' => $agent->id,
-            'campaign_id' => $campaign->id,
-            'contact_id' => $contact->id,
-            'direction' => 'outbound',
-            'status' => 'in_progress',
-            'channel' => 'simulated',
-            'phone' => $contact->phone,
-            'started_at' => now(),
-            'answered_at' => now(),
-        ]);
-
-        $this->queue->markAttempt($contact, now()->addMinutes(30));
 
         $agent->agentStatuses()->create([
             'company_id' => $campaign->company_id,
             'status' => 'in_call',
             'started_at' => now(),
         ]);
+
+        return $created;
     }
 
     private function closeOpenAgentRecords(User $agent): void
