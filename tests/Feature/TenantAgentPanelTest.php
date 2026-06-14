@@ -97,6 +97,75 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(4, $service->allowedCallsForCampaign($campaign));
     }
 
+    public function test_remaining_campaign_capacity_respects_company_active_calls_and_global_limit(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 5,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+
+        foreach ([$agent, $secondAgent] as $activeAgent) {
+            Call::create([
+                'company_id' => $company->id,
+                'user_id' => $activeAgent->id,
+                'campaign_id' => $campaign->id,
+                'direction' => 'outbound',
+                'status' => 'in_progress',
+                'channel' => 'simulated',
+                'started_at' => now(),
+            ]);
+        }
+
+        $service = app(AgentCapacityService::class);
+
+        $this->assertSame(2, $service->activeCallsForCompany($company->id));
+        $this->assertSame(3, $service->remainingConcurrentCallsForCampaign($campaign));
+    }
+
+    public function test_active_call_from_another_company_does_not_reduce_campaign_limit(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        [$otherAgent] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 5,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+        Call::create([
+            'company_id' => $otherAgent->company_id,
+            'user_id' => $otherAgent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
+        ]);
+
+        $this->assertSame(
+            5,
+            app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
+        );
+    }
+
+    public function test_campaign_capacity_has_no_global_limit_when_max_concurrent_calls_is_null(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => null,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+
+        $this->assertSame(
+            6,
+            app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
+        );
+    }
+
     public function test_agent_panel_route_loads_real_panel(): void
     {
         [$agent] = $this->tenantUser('agent');
@@ -861,6 +930,38 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(0, $created);
         $this->assertSame('pending', $contact->fresh()->status);
         $this->assertSame(1, Call::where('company_id', $company->id)->count());
+    }
+
+    private function campaignWithAvailableAgents(Company $company, array $agents): Campaign
+    {
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Equipe Capacidade '.fake()->unique()->numberBetween(1000, 9999),
+            'slug' => 'equipe-capacidade-'.fake()->unique()->numberBetween(1000, 9999),
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Capacidade Restante',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        foreach ($agents as $agent) {
+            $team->users()->attach($agent, [
+                'company_id' => $company->id,
+                'membership_type' => 'agent',
+            ]);
+            AgentStatus::create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'status' => 'available',
+                'started_at' => now(),
+            ]);
+        }
+
+        $campaign->teams()->sync([$team->id => ['company_id' => $company->id]]);
+
+        return $campaign;
     }
 
     private function tenantUser(string $type, ?Company $company = null): array

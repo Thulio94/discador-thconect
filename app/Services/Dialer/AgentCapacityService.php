@@ -2,6 +2,7 @@
 
 namespace App\Services\Dialer;
 
+use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\User;
 
@@ -47,12 +48,32 @@ class AgentCapacityService
 
         $license = $campaign->company?->license;
         $callsPerAgent = max(1, (int) ($license?->max_calls_per_available_agent ?? 1));
-        $allowed = $this->availableAgentsForCampaign($campaign) * $callsPerAgent;
 
-        if ($license?->max_concurrent_calls) {
-            return min($allowed, $license->max_concurrent_calls);
+        return $this->availableAgentsForCampaign($campaign) * $callsPerAgent;
+    }
+
+    public function activeCallsForCompany(int $companyId): int
+    {
+        return Call::query()
+            ->where('company_id', $companyId)
+            ->where('status', 'in_progress')
+            ->count();
+    }
+
+    public function remainingConcurrentCallsForCampaign(Campaign $campaign): int
+    {
+        $campaign->loadMissing('company.license');
+
+        $capacity = $this->allowedCallsForCampaign($campaign);
+        $globalLimit = $campaign->company?->license?->max_concurrent_calls;
+
+        if ($globalLimit === null) {
+            return $capacity;
         }
 
-        return $allowed;
+        return max(
+            0,
+            min($capacity, $globalLimit - $this->activeCallsForCompany($campaign->company_id)),
+        );
     }
 }
