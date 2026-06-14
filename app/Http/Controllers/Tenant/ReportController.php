@@ -346,7 +346,6 @@ class ReportController extends Controller
         $calls = (clone $query)
             ->where('status', 'ended')
             ->whereNotNull('started_at')
-            ->whereNotNull('answered_at')
             ->whereNotNull('ended_at')
             ->get(['started_at', 'answered_at', 'ended_at']);
 
