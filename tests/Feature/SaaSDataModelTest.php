@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Call;
 use App\Models\Company;
 use App\Models\CompanyLicense;
 use App\Models\Permission;
@@ -17,6 +18,19 @@ use Tests\TestCase;
 class SaaSDataModelTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_call_persists_technical_end_reason(): void
+    {
+        $company = Company::create(['name' => 'Tenant A']);
+
+        $call = Call::create([
+            'company_id' => $company->id,
+            'status' => 'cancelled',
+            'end_reason' => 'answered_elsewhere',
+        ]);
+
+        $this->assertSame('answered_elsewhere', $call->fresh()->end_reason);
+    }
 
     public function test_saas_tenant_relations_license_limits_team_memberships_and_permissions(): void
     {
