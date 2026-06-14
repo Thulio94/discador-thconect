@@ -16,6 +16,9 @@ use App\Models\User;
 use App\Services\Dialer\AgentCapacityService;
 use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 class TenantAgentPanelTest extends TestCase
@@ -1001,6 +1004,220 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(6, $list->contacts()->where('attempts_count', 1)->count());
         $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
         $this->assertSame('in_call', $secondAgent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_simulated_dialer_locks_license_first_and_revalidates_agent_before_creating_winner(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $team = Team::create(['company_id' => $company->id, 'name' => 'Fila Lock', 'slug' => 'fila-lock']);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Mailing Lock', 'status' => 'active']);
+        $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Lock',
+            'phone' => '31999990199',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Lock',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $campaign->teams()->sync([$team->id => ['company_id' => $company->id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = str_replace(['`', '"'], '', strtolower($query->sql));
+        });
+
+        app(SimulatedDialerService::class)->runCampaign($campaign);
+
+        $this->assertStringContainsString('from company_licenses', $queries[0]);
+
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', $queries[0]);
+        }
+
+        $userLockIndex = collect($queries)->search(
+            fn (string $sql): bool => str_contains($sql, 'from users')
+                && str_contains($sql, 'users.id = ?')
+                && str_contains($sql, 'limit 1')
+        );
+        $callInsertIndex = collect($queries)->search(
+            fn (string $sql): bool => str_contains($sql, 'insert into calls')
+        );
+
+        $this->assertNotFalse($userLockIndex);
+        $this->assertNotFalse($callInsertIndex);
+        $this->assertTrue($userLockIndex < $callInsertIndex);
+        $this->assertStringContainsString('status = ?', $queries[$userLockIndex]);
+        $this->assertStringContainsString('user_type = ?', $queries[$userLockIndex]);
+        $this->assertStringContainsString('agent_statuses', $queries[$userLockIndex]);
+        $this->assertStringContainsString('calls', $queries[$userLockIndex]);
+        $this->assertStringContainsString('disposition_id is null', $queries[$userLockIndex]);
+
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', $queries[$userLockIndex]);
+        }
+    }
+
+    public function test_simulated_dialer_serializes_two_mariadb_workers(): void
+    {
+        if (env('RUN_MARIADB_CONCURRENCY_TEST') !== '1') {
+            $this->markTestSkipped('Set RUN_MARIADB_CONCURRENCY_TEST=1 to run the MariaDB concurrency test.');
+        }
+
+        $this->assertSame('mysql', DB::getDriverName());
+        $this->assertStringEndsWith('_test', DB::connection()->getDatabaseName());
+        $this->assertSame(
+            'REPEATABLE-READ',
+            DB::selectOne('select @@transaction_isolation as isolation_level')->isolation_level,
+        );
+
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 6,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Concorrencia MariaDB',
+            'status' => 'active',
+        ]);
+
+        foreach (range(1, 6) as $index) {
+            $list->contacts()->create([
+                'company_id' => $company->id,
+                'name' => 'Lead MariaDB '.$index,
+                'phone' => '3199999020'.$index,
+                'status' => 'pending',
+            ]);
+        }
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        DB::commit();
+
+        $barrier = storage_path('framework/testing/dialer-concurrency-'.uniqid());
+        mkdir($barrier, 0777, true);
+        $workerCode = <<<'PHP'
+require getcwd().'/vendor/autoload.php';
+$app = require getcwd().'/bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+touch($argv[2].'/'.getmypid().'.ready');
+while (! file_exists($argv[2].'/go')) {
+    usleep(10000);
+}
+$campaign = App\Models\Campaign::findOrFail((int) $argv[1]);
+echo app(App\Services\Dialer\SimulatedDialerService::class)->runCampaign($campaign);
+PHP;
+        $environment = [
+            'APP_ENV' => 'testing',
+            'DB_CONNECTION' => 'mysql',
+            'DB_HOST' => (string) config('database.connections.mysql.host'),
+            'DB_PORT' => (string) config('database.connections.mysql.port'),
+            'DB_DATABASE' => DB::connection()->getDatabaseName(),
+            'DB_USERNAME' => (string) config('database.connections.mysql.username'),
+            'DB_PASSWORD' => (string) config('database.connections.mysql.password'),
+        ];
+        $workers = [
+            new Process([PHP_BINARY, '-r', $workerCode, (string) $campaign->id, $barrier], base_path(), $environment),
+            new Process([PHP_BINARY, '-r', $workerCode, (string) $campaign->id, $barrier], base_path(), $environment),
+        ];
+
+        try {
+            foreach ($workers as $worker) {
+                $worker->start();
+            }
+
+            $deadline = microtime(true) + 15;
+
+            while (count(glob($barrier.'/*.ready')) < 2 && microtime(true) < $deadline) {
+                usleep(10000);
+            }
+
+            $this->assertCount(2, glob($barrier.'/*.ready'));
+            touch($barrier.'/go');
+
+            foreach ($workers as $worker) {
+                $worker->wait();
+                $this->assertTrue($worker->isSuccessful(), $worker->getErrorOutput());
+            }
+
+            $this->assertSame(6, array_sum(array_map(
+                fn (Process $worker): int => (int) trim($worker->getOutput()),
+                $workers,
+            )));
+            $this->assertSame(6, Call::where('campaign_id', $campaign->id)->count());
+            $this->assertSame(2, Call::where('campaign_id', $campaign->id)->where('status', 'in_progress')->count());
+            $this->assertSame(4, Call::where('campaign_id', $campaign->id)->where('status', 'cancelled')->count());
+            $this->assertSame(6, $list->contacts()->where('attempts_count', 1)->count());
+        } finally {
+            foreach ($workers as $worker) {
+                if ($worker->isRunning()) {
+                    $worker->stop();
+                }
+            }
+
+            foreach (glob($barrier.'/*') as $file) {
+                unlink($file);
+            }
+
+            rmdir($barrier);
+            Artisan::call('migrate:fresh', ['--force' => true]);
+            DB::beginTransaction();
+        }
+    }
+
+    public function test_simulated_dialer_rejects_agent_with_ended_call_without_disposition(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $team = Team::create(['company_id' => $company->id, 'name' => 'Fila Sem Tabulacao', 'slug' => 'fila-sem-tabulacao']);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Mailing Sem Tabulacao', 'status' => 'active']);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Sem Tabulacao',
+            'phone' => '31999990299',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Sem Tabulacao',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $campaign->teams()->sync([$team->id => ['company_id' => $company->id]]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'available', 'started_at' => now()]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990298',
+            'started_at' => now()->subMinute(),
+            'ended_at' => now(),
+        ]);
+
+        $created = app(SimulatedDialerService::class)->runCampaign($campaign);
+
+        $this->assertSame(0, $created);
+        $this->assertSame('pending', $contact->fresh()->status);
+        $this->assertSame(1, Call::where('company_id', $company->id)->count());
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
     }
 
     public function test_simulated_dialer_does_not_assign_new_call_to_agent_with_untabulated_call(): void

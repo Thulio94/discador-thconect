@@ -6,6 +6,7 @@ use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
+use App\Models\CompanyLicense;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -38,23 +39,25 @@ class SimulatedDialerService
         }
 
         return DB::transaction(function () use ($campaign): int {
-            $campaign->load('company.license');
-            $licenseId = $campaign->company?->license?->getKey();
+            $license = CompanyLicense::query()
+                ->where('company_id', $campaign->company_id)
+                ->where('status', 'active')
+                ->where('starts_at', '<=', today())
+                ->where('ends_at', '>=', today())
+                ->orderByDesc('starts_at')
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
 
-            if ($licenseId !== null) {
-                $campaign->company->licenses()
-                    ->whereKey($licenseId)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-            }
-
-            $campaign->unsetRelation('company');
-            $campaign->load('company.license', 'teams');
+            $company = $campaign->company()->firstOrFail();
+            $company->setRelation('license', $license);
+            $campaign->setRelation('company', $company);
+            $campaign->load('teams');
 
             $remaining = $this->capacity->remainingConcurrentCallsForCampaign($campaign);
             $callsPerAgent = max(
                 1,
-                (int) ($campaign->company?->license?->max_calls_per_available_agent ?? 1),
+                (int) ($license?->max_calls_per_available_agent ?? 1),
             );
 
             if ($remaining < 1) {
@@ -64,6 +67,12 @@ class SimulatedDialerService
             $created = 0;
 
             foreach ($this->availableAgents($campaign)->get() as $agent) {
+                $agent = $this->lockEligibleAgent($campaign, $agent->id);
+
+                if (! $agent) {
+                    continue;
+                }
+
                 $batchSize = min($callsPerAgent, $remaining);
                 $batchCreated = $this->createBatch($campaign, $agent, $batchSize);
 
@@ -124,6 +133,25 @@ class SimulatedDialerService
             ->whereDoesntHave('calls', fn ($query) => $query->where('status', 'in_progress'))
             ->distinct('users.id')
             ->orderBy('users.id');
+    }
+
+    private function lockEligibleAgent(Campaign $campaign, int $agentId): ?User
+    {
+        return User::query()
+            ->whereKey($agentId)
+            ->where('company_id', $campaign->company_id)
+            ->where('status', 'active')
+            ->where('user_type', 'agent')
+            ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
+            ->whereDoesntHave('calls', function ($query): void {
+                $query->where('status', 'in_progress')
+                    ->orWhere(function ($query): void {
+                        $query->where('status', 'ended')
+                            ->whereNull('disposition_id');
+                    });
+            })
+            ->lockForUpdate()
+            ->first();
     }
 
     private function createBatch(Campaign $campaign, User $agent, int $batchSize): int
