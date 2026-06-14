@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-13
+Atualizado em: 2026-06-14
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -45,6 +45,9 @@ Status: MVP operacional.
 - [x] Limite de usuarios.
 - [x] Limite de chamadas por agente disponivel.
 - [x] Limite absoluto de chamadas simultaneas.
+- [x] Limite por agente aplicado em lotes reais do simulador.
+- [x] Teto simultaneo compartilhado entre campanhas da empresa.
+- [x] Indicadores de uso contratado versus chamadas ativas.
 - [x] Flags de recursos como power, preview, predictive e AMD.
 - [x] Inativacao de empresa em vez de exclusao fisica.
 
@@ -145,6 +148,8 @@ Status: basico funcional, ainda nao completo.
 - [x] Reciclar mailing improdutivo/callback/esgotado.
 - [x] Discagem simulada por campanha ativa.
 - [x] Chamada simulada vinculada a campanha e contato.
+- [x] Tentativas concorrentes com uma chamada vencedora por agente.
+- [x] Cancelamento auditavel das tentativas excedentes.
 - [x] Bloqueio de nova chamada para agente com chamada sem tabulacao.
 - [x] Agenda operacional aplicada automaticamente na discagem simulada.
 - [x] Exibicao do estado da agenda na listagem.
