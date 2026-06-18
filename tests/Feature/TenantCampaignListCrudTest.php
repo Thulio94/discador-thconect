@@ -86,6 +86,49 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertFalse($list->contacts()->where('phone', '12345')->exists());
     }
 
+    public function test_contact_can_store_multiple_ordered_phones_for_a_lead(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $list = ContactList::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lista Telefones',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Maria',
+            'phone' => '31999990001',
+            'status' => 'pending',
+        ]);
+
+        $contact->phones()->createMany([
+            [
+                'company_id' => $admin->company_id,
+                'phone' => '31999990001',
+                'column_name' => 'Telefone principal',
+                'position' => 0,
+                'is_primary' => true,
+                'status' => 'pending',
+            ],
+            [
+                'company_id' => $admin->company_id,
+                'phone' => '31988880002',
+                'column_name' => 'Telefone extra',
+                'position' => 1,
+                'is_primary' => false,
+                'status' => 'pending',
+            ],
+        ]);
+
+        $this->assertSame([
+            '31999990001',
+            '31988880002',
+        ], $contact->fresh()->phones()->orderBy('position')->pluck('phone')->all());
+        $this->assertTrue($contact->fresh()->phones()->where('phone', '31999990001')->sole()->is_primary);
+        $this->assertFalse($contact->fresh()->phones()->where('phone', '31988880002')->sole()->is_primary);
+    }
+
     public function test_tenant_admin_can_view_contact_lists_index(): void
     {
         [$admin] = $this->tenantAdmin();
