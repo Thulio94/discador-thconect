@@ -86,6 +86,19 @@ class ServiceFieldValidatorTest extends TestCase
         $this->assertSame([], $result->errors);
     }
 
+    public function test_required_string_flag_is_treated_as_required(): void
+    {
+        $result = $this->validator->validate([
+            ['key' => 'documento', 'label' => 'Documento', 'type' => 'text', 'required' => '1'],
+        ], [
+            'documento' => '',
+        ]);
+
+        $this->assertSame([
+            'service_fields.documento' => 'Informe Documento.',
+        ], $result->errors);
+    }
+
     public function test_text_longer_than_255_characters_is_invalid(): void
     {
         $result = $this->validator->validate([

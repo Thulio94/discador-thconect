@@ -19,7 +19,7 @@ final class ServiceFieldValidator
             $key = (string) $field['key'];
             $label = isset($field['label']) ? (string) $field['label'] : $key;
             $type = isset($field['type']) ? (string) $field['type'] : 'text';
-            $required = ($field['required'] ?? false) === true;
+            $required = filter_var($field['required'] ?? false, FILTER_VALIDATE_BOOL);
             $value = $values[$key] ?? null;
 
             if (is_string($value)) {
