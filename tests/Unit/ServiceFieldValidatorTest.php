@@ -159,4 +159,107 @@ class ServiceFieldValidatorTest extends TestCase
         ], $result->errors);
         $this->assertSame([], $result->values);
     }
+
+    public function test_it_normalizes_brazilian_and_e164_phones(): void
+    {
+        $schema = [
+            ['key' => 'fixo', 'type' => 'phone', 'label' => 'Telefone fixo'],
+            ['key' => 'celular', 'type' => 'phone', 'label' => 'Celular'],
+            ['key' => 'internacional', 'type' => 'phone', 'label' => 'Internacional'],
+        ];
+
+        $result = $this->validator->validate($schema, [
+            'fixo' => '(31) 3333-4444',
+            'celular' => '(31) 99999-0000',
+            'internacional' => '+1 202-555-0123',
+        ]);
+
+        $this->assertTrue($result->passes());
+        $this->assertSame([
+            'fixo' => '3133334444',
+            'celular' => '31999990000',
+            'internacional' => '12025550123',
+        ], $result->values);
+        $this->assertSame([], $result->errors);
+    }
+
+    public function test_it_rejects_phone_outside_the_allowed_ranges(): void
+    {
+        $schema = [
+            ['key' => 'br', 'type' => 'phone', 'label' => 'Telefone'],
+            ['key' => 'e164', 'type' => 'phone', 'label' => 'Internacional'],
+        ];
+
+        $result = $this->validator->validate($schema, [
+            'br' => '123456789',
+            'e164' => '+1234567',
+        ]);
+
+        $this->assertFalse($result->passes());
+        $this->assertSame([
+            'service_fields.br' => 'Telefone possui telefone invalido.',
+            'service_fields.e164' => 'Internacional possui telefone invalido.',
+        ], $result->errors);
+        $this->assertSame([], $result->values);
+    }
+
+    public function test_it_normalizes_email_and_rejects_invalid_email(): void
+    {
+        $result = $this->validator->validate([
+            ['key' => 'valid_email', 'type' => 'email', 'label' => 'E-mail'],
+            ['key' => 'email', 'type' => 'email', 'label' => 'E-mail'],
+        ], [
+            'valid_email' => ' CLIENTE@EXAMPLE.COM ',
+            'email' => 'cliente@',
+        ]);
+
+        $this->assertFalse($result->passes());
+        $this->assertSame(['valid_email' => 'cliente@example.com'], $result->values);
+        $this->assertSame([
+            'service_fields.email' => 'E-mail possui e-mail invalido.',
+        ], $result->errors);
+    }
+
+    public function test_it_converts_brazilian_currency_to_integer_cents(): void
+    {
+        $schema = [
+            ['key' => 'inteiro', 'type' => 'currency', 'label' => 'Valor'],
+            ['key' => 'decimal_um_digito', 'type' => 'currency', 'label' => 'Valor'],
+            ['key' => 'decimal_dois_digitos', 'type' => 'currency', 'label' => 'Valor'],
+            ['key' => 'com_milhar', 'type' => 'currency', 'label' => 'Valor'],
+        ];
+
+        $result = $this->validator->validate($schema, [
+            'inteiro' => '10',
+            'decimal_um_digito' => '10,5',
+            'decimal_dois_digitos' => '10,50',
+            'com_milhar' => 'R$ 1.234,56',
+        ]);
+
+        $this->assertTrue($result->passes());
+        $this->assertSame([
+            'inteiro' => 1000,
+            'decimal_um_digito' => 1050,
+            'decimal_dois_digitos' => 1050,
+            'com_milhar' => 123456,
+        ], $result->values);
+        $this->assertSame([], $result->errors);
+    }
+
+    public function test_it_rejects_negative_or_malformed_currency(): void
+    {
+        foreach (['-10,00', '10,123', '1.23,45', 'R$ abc'] as $value) {
+            $result = $this->validator->validate([
+                ['key' => 'valor', 'type' => 'currency', 'label' => 'Valor da proposta'],
+            ], [
+                'valor' => $value,
+            ]);
+
+            $this->assertFalse($result->passes());
+            $this->assertSame([
+                'service_fields.valor' => 'Valor da proposta possui moeda invalida.',
+            ], $result->errors);
+            $this->assertSame([], $result->values);
+        }
+    }
 }
