@@ -69,6 +69,52 @@ class ServiceFieldValidatorTest extends TestCase
         $this->assertSame([], $result->values);
     }
 
+    public function test_it_normalizes_valid_cpf_and_cnpj(): void
+    {
+        $schema = [
+            ['key' => 'cpf', 'label' => 'CPF Cliente', 'type' => 'cpf', 'required' => true],
+            ['key' => 'cnpj', 'label' => 'CNPJ Empresa', 'type' => 'cnpj', 'required' => true],
+        ];
+
+        $result = $this->validator->validate($schema, [
+            'cpf' => '529.982.247-25',
+            'cnpj' => '04.252.011/0001-10',
+        ]);
+
+        $this->assertTrue($result->passes());
+        $this->assertSame([], $result->errors);
+        $this->assertSame([
+            'cpf' => '52998224725',
+            'cnpj' => '04252011000110',
+        ], $result->values);
+    }
+
+    public function test_it_rejects_invalid_and_repeated_documents(): void
+    {
+        $schema = [
+            ['key' => 'cpf_invalido', 'label' => 'CPF Invalido', 'type' => 'cpf'],
+            ['key' => 'cpf_repetido', 'label' => 'CPF Repetido', 'type' => 'cpf'],
+            ['key' => 'cnpj_invalido', 'label' => 'CNPJ Invalido', 'type' => 'cnpj'],
+            ['key' => 'cnpj_repetido', 'label' => 'CNPJ Repetido', 'type' => 'cnpj'],
+        ];
+
+        $result = $this->validator->validate($schema, [
+            'cpf_invalido' => '529.982.247-24',
+            'cpf_repetido' => '111.111.111-11',
+            'cnpj_invalido' => '04.252.011/0001-11',
+            'cnpj_repetido' => '11.111.111/1111-11',
+        ]);
+
+        $this->assertFalse($result->passes());
+        $this->assertSame([
+            'service_fields.cpf_invalido' => 'CPF Invalido possui CPF invalido.',
+            'service_fields.cpf_repetido' => 'CPF Repetido possui CPF invalido.',
+            'service_fields.cnpj_invalido' => 'CNPJ Invalido possui CNPJ invalido.',
+            'service_fields.cnpj_repetido' => 'CNPJ Repetido possui CNPJ invalido.',
+        ], $result->errors);
+        $this->assertSame([], $result->values);
+    }
+
     public function test_required_number_accepts_zero_and_optional_blank_text_is_omitted(): void
     {
         $schema = [

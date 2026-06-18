@@ -53,6 +53,8 @@ final class ServiceFieldValidator
         return match ($type) {
             'number' => $this->validateNumber($value, $label),
             'date' => $this->validateDate($value, $label),
+            'cpf' => $this->validateCpf($value, $label),
+            'cnpj' => $this->validateCnpj($value, $label),
             default => $this->validateText($value, $label),
         };
     }
@@ -92,5 +94,73 @@ final class ServiceFieldValidator
         }
 
         return [true, $value, null];
+    }
+
+    private function validateCpf(mixed $value, string $label): array
+    {
+        if (! is_string($value)) {
+            return [false, null, "{$label} possui CPF invalido."];
+        }
+
+        $document = preg_replace('/\D/', '', $value);
+
+        if ($document === null || strlen($document) !== 11 || preg_match('/^(\d)\1{10}$/', $document) === 1) {
+            return [false, null, "{$label} possui CPF invalido."];
+        }
+
+        $digits = array_map('intval', str_split($document));
+
+        for ($position = 9; $position <= 10; $position++) {
+            $sum = 0;
+
+            for ($index = 0; $index < $position; $index++) {
+                $sum += $digits[$index] * ($position + 1 - $index);
+            }
+
+            $checkDigit = ($sum * 10) % 11;
+            $checkDigit = $checkDigit === 10 ? 0 : $checkDigit;
+
+            if ($digits[$position] !== $checkDigit) {
+                return [false, null, "{$label} possui CPF invalido."];
+            }
+        }
+
+        return [true, $document, null];
+    }
+
+    private function validateCnpj(mixed $value, string $label): array
+    {
+        if (! is_string($value)) {
+            return [false, null, "{$label} possui CNPJ invalido."];
+        }
+
+        $document = preg_replace('/\D/', '', $value);
+
+        if ($document === null || strlen($document) !== 14 || preg_match('/^(\d)\1{13}$/', $document) === 1) {
+            return [false, null, "{$label} possui CNPJ invalido."];
+        }
+
+        $digits = array_map('intval', str_split($document));
+        $weights = [
+            [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+            [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+        ];
+
+        foreach ($weights as $position => $weightSet) {
+            $sum = 0;
+
+            foreach ($weightSet as $index => $weight) {
+                $sum += $digits[$index] * $weight;
+            }
+
+            $remainder = $sum % 11;
+            $checkDigit = $remainder < 2 ? 0 : 11 - $remainder;
+
+            if ($digits[12 + $position] !== $checkDigit) {
+                return [false, null, "{$label} possui CNPJ invalido."];
+            }
+        }
+
+        return [true, $document, null];
     }
 }
