@@ -4,11 +4,23 @@ namespace Tests\Unit;
 
 use App\Services\Campaigns\ServiceFieldValidator;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 class ServiceFieldValidatorTest extends TestCase
 {
+    private ServiceFieldValidator $validator;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->validator = new ServiceFieldValidator;
+    }
+
     public function test_it_normalizes_valid_schema_values_and_ignores_unknown_keys(): void
     {
+        $this->assertFalse((new ReflectionMethod(ServiceFieldValidator::class, 'validate'))->isStatic());
+
         $schema = [
             ['key' => 'nome', 'type' => 'text', 'label' => 'Nome do cliente', 'required' => true],
             ['key' => 'quantidade', 'type' => 'number', 'label' => 'Quantidade'],
@@ -16,7 +28,7 @@ class ServiceFieldValidatorTest extends TestCase
             ['key' => 'nascimento', 'type' => 'date', 'label' => 'Data de nascimento'],
         ];
 
-        $result = ServiceFieldValidator::validate($schema, [
+        $result = $this->validator->validate($schema, [
             'nome' => '  Cliente  ',
             'quantidade' => '12,5',
             'taxa' => '12.50',
@@ -42,7 +54,7 @@ class ServiceFieldValidatorTest extends TestCase
             ['key' => 'data', 'type' => 'date', 'label' => 'Data de nascimento'],
         ];
 
-        $result = ServiceFieldValidator::validate($schema, [
+        $result = $this->validator->validate($schema, [
             'nome' => '   ',
             'numero' => 'doze',
             'data' => '2026-02-30',
@@ -64,7 +76,7 @@ class ServiceFieldValidatorTest extends TestCase
             ['key' => 'observacao', 'type' => 'text'],
         ];
 
-        $result = ServiceFieldValidator::validate($schema, [
+        $result = $this->validator->validate($schema, [
             'quantidade' => '0',
             'observacao' => '   ',
         ]);
@@ -76,7 +88,7 @@ class ServiceFieldValidatorTest extends TestCase
 
     public function test_text_longer_than_255_characters_is_invalid(): void
     {
-        $result = ServiceFieldValidator::validate([
+        $result = $this->validator->validate([
             ['key' => 'observacao', 'type' => 'text', 'label' => 'Observacao'],
         ], [
             'observacao' => str_repeat('a', 256),

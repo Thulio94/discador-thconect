@@ -6,7 +6,7 @@ use DateTimeImmutable;
 
 final class ServiceFieldValidator
 {
-    public static function validate(array $schema, array $values): ServiceFieldValidationResult
+    public function validate(array $schema, array $values): ServiceFieldValidationResult
     {
         $normalizedValues = [];
         $errors = [];
@@ -34,7 +34,7 @@ final class ServiceFieldValidator
                 continue;
             }
 
-            [$valid, $normalized, $message] = self::validateField($type, $value, $label);
+            [$valid, $normalized, $message] = $this->validateField($type, $value, $label);
 
             if (! $valid) {
                 $errors["service_fields.{$key}"] = $message;
@@ -48,16 +48,16 @@ final class ServiceFieldValidator
         return new ServiceFieldValidationResult($normalizedValues, $errors);
     }
 
-    private static function validateField(string $type, mixed $value, string $label): array
+    private function validateField(string $type, mixed $value, string $label): array
     {
         return match ($type) {
-            'number' => self::validateNumber($value, $label),
-            'date' => self::validateDate($value, $label),
-            default => self::validateText($value, $label),
+            'number' => $this->validateNumber($value, $label),
+            'date' => $this->validateDate($value, $label),
+            default => $this->validateText($value, $label),
         };
     }
 
-    private static function validateText(mixed $value, string $label): array
+    private function validateText(mixed $value, string $label): array
     {
         if (! is_string($value)) {
             return [false, null, "{$label} possui texto invalido."];
@@ -70,7 +70,7 @@ final class ServiceFieldValidator
         return [true, $value, null];
     }
 
-    private static function validateNumber(mixed $value, string $label): array
+    private function validateNumber(mixed $value, string $label): array
     {
         if (! is_string($value) || preg_match('/^-?\d+(?:[.,]\d+)?$/', $value) !== 1) {
             return [false, null, "{$label} possui numero invalido."];
@@ -79,7 +79,7 @@ final class ServiceFieldValidator
         return [true, str_replace(',', '.', $value), null];
     }
 
-    private static function validateDate(mixed $value, string $label): array
+    private function validateDate(mixed $value, string $label): array
     {
         if (! is_string($value)) {
             return [false, null, "{$label} possui data invalida."];
