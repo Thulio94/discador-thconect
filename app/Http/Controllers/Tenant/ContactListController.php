@@ -99,7 +99,7 @@ class ContactListController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'contacts' => ['nullable', 'string'],
-            'import_file' => ['nullable', 'file'],
+            'import_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:20480'],
             'separator' => ['nullable', 'string', 'max:5'],
             'delimiter' => ['nullable', 'string', 'max:5'],
             'import_columns' => ['nullable', 'array'],

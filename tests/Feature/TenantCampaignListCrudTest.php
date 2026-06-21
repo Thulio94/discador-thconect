@@ -129,6 +129,39 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertArrayNotHasKey('Ignorar', $maria->extra);
     }
 
+    public function test_csv_import_only_deduplicates_phones_inside_the_same_lead(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        $file = UploadedFile::fake()->createWithContent(
+            'leads.csv',
+            "Nome;Tel1;Tel2\nMaria;31999990001;31999990001\nJoao;31999990001;31988880002"
+        );
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Duplicidade Por Lead',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Tel1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Tel2', 'type' => 'phone'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.lists.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '2 leads importados')
+                && str_contains($message, '3 telefones importados')
+                && str_contains($message, '1 duplicado'));
+
+        $list = ContactList::where('company_id', $admin->company_id)->where('name', 'Lista Duplicidade Por Lead')->sole();
+
+        $this->assertSame(2, $list->contacts()->count());
+        $this->assertSame(['31999990001'], $list->contacts()->where('name', 'Maria')->sole()->phones()->pluck('phone')->all());
+        $this->assertSame(['31999990001', '31988880002'], $list->contacts()->where('name', 'Joao')->sole()->phones()->pluck('phone')->all());
+    }
+
     public function test_csv_import_requires_at_least_one_phone_column(): void
     {
         [$admin] = $this->tenantAdmin();

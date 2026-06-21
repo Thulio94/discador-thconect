@@ -39,7 +39,6 @@ class CsvContactListImportService
         $blocked = 0;
         $invalid = 0;
         $duplicated = 0;
-        $seenPhones = [];
 
         $csv = new SplFileObject($file->getRealPath());
         $csv->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
@@ -55,8 +54,7 @@ class CsvContactListImportService
             &$phonesImported,
             &$blocked,
             &$invalid,
-            &$duplicated,
-            &$seenPhones
+            &$duplicated
         ): void {
             while (! $csv->eof()) {
                 $row = $csv->fgetcsv();
@@ -98,7 +96,7 @@ class CsvContactListImportService
                         continue;
                     }
 
-                    if (isset($rowPhones[$phone]) || isset($seenPhones[$phone])) {
+                    if (isset($rowPhones[$phone])) {
                         $duplicated++;
 
                         continue;
@@ -113,10 +111,6 @@ class CsvContactListImportService
 
                 if ($phones === []) {
                     continue;
-                }
-
-                foreach ($phones as $phone) {
-                    $seenPhones[$phone['phone']] = true;
                 }
 
                 $contact = $list->contacts()->create([
