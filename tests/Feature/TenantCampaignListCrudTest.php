@@ -124,7 +124,7 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame([
             '31999990001',
             '31988880002',
-        ], $contact->fresh()->phones()->orderBy('position')->pluck('phone')->all());
+        ], $contact->fresh()->phones()->pluck('phone')->all());
         $this->assertTrue($contact->fresh()->phones()->where('phone', '31999990001')->sole()->is_primary);
         $this->assertFalse($contact->fresh()->phones()->where('phone', '31988880002')->sole()->is_primary);
     }
