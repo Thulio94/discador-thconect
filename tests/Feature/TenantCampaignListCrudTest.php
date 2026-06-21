@@ -11,6 +11,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\MailingQueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class TenantCampaignListCrudTest extends TestCase
@@ -84,6 +85,68 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertTrue($list->contacts()->where('phone', '31999990003')->exists());
         $this->assertFalse($list->contacts()->where('phone', '31999990002')->exists());
         $this->assertFalse($list->contacts()->where('phone', '12345')->exists());
+    }
+
+    public function test_tenant_admin_can_import_csv_with_multiple_phones_and_selected_extra_columns(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $file = UploadedFile::fake()->createWithContent(
+            'leads.csv',
+            "Nome;Telefone 1;Telefone 2;CPF;Ignorar\nMaria;(31) 99999-0001;31 98888-0002;123;fora\nJoao;12345;31977770003;456;fora"
+        );
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista CSV',
+                'description' => 'Importada',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Telefone 1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Telefone 2', 'type' => 'phone'],
+                    ['index' => 3, 'enabled' => '1', 'name' => 'CPF', 'type' => 'extra'],
+                    ['index' => 4, 'name' => 'Ignorar', 'type' => 'extra'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.lists.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '2 leads importados')
+                && str_contains($message, '3 telefones importados')
+                && str_contains($message, '1 invalido'));
+
+        $list = ContactList::where('company_id', $admin->company_id)->where('name', 'Lista CSV')->sole();
+        $maria = $list->contacts()->where('name', 'Maria')->sole();
+        $joao = $list->contacts()->where('name', 'Joao')->sole();
+
+        $this->assertSame('31999990001', $maria->phone);
+        $this->assertSame(['Nome' => 'Maria', 'CPF' => '123'], $maria->extra);
+        $this->assertSame(['31999990001', '31988880002'], $maria->phones()->pluck('phone')->all());
+        $this->assertSame('31977770003', $joao->phone);
+        $this->assertSame(['31977770003'], $joao->phones()->pluck('phone')->all());
+        $this->assertArrayNotHasKey('Ignorar', $maria->extra);
+    }
+
+    public function test_csv_import_requires_at_least_one_phone_column(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        $file = UploadedFile::fake()->createWithContent('leads.txt', "Nome;Telefone\nMaria;31999990001");
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Sem Telefone',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Telefone', 'type' => 'extra'],
+                ],
+            ])
+            ->assertSessionHasErrors('import_columns');
     }
 
     public function test_contact_can_store_multiple_ordered_phones_for_a_lead(): void

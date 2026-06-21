@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
 use App\Models\ContactList;
+use App\Services\Lists\CsvContactListImportService;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -13,7 +14,10 @@ use Illuminate\Validation\Rule;
 
 class ContactListController extends Controller
 {
-    public function __construct(private readonly AppNotificationService $notifications) {}
+    public function __construct(
+        private readonly AppNotificationService $notifications,
+        private readonly CsvContactListImportService $csvImportService,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -41,8 +45,20 @@ class ContactListController extends Controller
             'status' => $data['status'],
         ]);
 
-        $summary = $this->syncContacts($list, $data['contacts'] ?? '');
-        $this->notifyListImport($list, $summary);
+        if ($request->hasFile('import_file')) {
+            $summary = $this->csvImportService
+                ->import(
+                    $list,
+                    $request->file('import_file'),
+                    $data['import_columns'] ?? [],
+                    $data['separator'] ?? ';',
+                    $data['delimiter'] ?? '"',
+                )
+                ->toSummaryArray();
+        } else {
+            $summary = $this->syncContacts($list, $data['contacts'] ?? '');
+            $this->notifyListImport($list, $summary);
+        }
 
         return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso. '.$this->summaryMessage($summary));
     }
@@ -83,6 +99,14 @@ class ContactListController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'contacts' => ['nullable', 'string'],
+            'import_file' => ['nullable', 'file'],
+            'separator' => ['nullable', 'string', 'max:5'],
+            'delimiter' => ['nullable', 'string', 'max:5'],
+            'import_columns' => ['nullable', 'array'],
+            'import_columns.*.index' => ['nullable', 'integer', 'min:0'],
+            'import_columns.*.enabled' => ['nullable'],
+            'import_columns.*.name' => ['nullable', 'string', 'max:255'],
+            'import_columns.*.type' => ['nullable', Rule::in(['extra', 'phone'])],
         ];
     }
 
@@ -155,6 +179,17 @@ class ContactListController extends Controller
     {
         if (! $summary) {
             return '';
+        }
+
+        if (array_key_exists('leads_imported', $summary)) {
+            return sprintf(
+                '%d leads importados, %d telefones importados, %d bloqueado, %d invalido, %d duplicado.',
+                $summary['leads_imported'],
+                $summary['phones_imported'],
+                $summary['blocked'],
+                $summary['invalid'],
+                $summary['duplicated'],
+            );
         }
 
         return sprintf(
