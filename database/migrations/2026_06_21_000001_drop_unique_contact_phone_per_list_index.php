@@ -15,8 +15,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('contacts', function (Blueprint $table): void {
-            $table->unique(['contact_list_id', 'phone']);
-        });
+        // The previous unique index is intentionally not restored because
+        // duplicate primary phones are now allowed across different leads.
     }
 };
