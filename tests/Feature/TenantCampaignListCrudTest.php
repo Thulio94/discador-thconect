@@ -245,7 +245,11 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertOk()
             ->assertSee('Lista Existente')
             ->assertSee('Nova lista')
-            ->assertSee('Blacklist aplicada automaticamente');
+            ->assertSee('Blacklist aplicada automaticamente')
+            ->assertSee('upload')
+            ->assertSee('Separador')
+            ->assertSee('Delimitador')
+            ->assertSee('Telefone');
     }
 
     public function test_campaign_form_shows_wizard_schedule_review_and_list_weights(): void
