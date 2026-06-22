@@ -249,7 +249,10 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSee('upload')
             ->assertSee('Separador')
             ->assertSee('Delimitador')
-            ->assertSee('Telefone');
+            ->assertSee('Telefone')
+            ->assertSee('x-bind:aria-label="`Usar coluna ${position + 1}: ${column.name || \'sem nome\'}`"', false)
+            ->assertSee('x-bind:aria-label="`Tipo da coluna ${position + 1}: ${column.name || \'sem nome\'}`"', false)
+            ->assertSee('x-bind:aria-label="`Nome da coluna ${position + 1}: ${column.name || \'sem nome\'}`"', false);
     }
 
     public function test_campaign_form_shows_wizard_schedule_review_and_list_weights(): void

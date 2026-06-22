@@ -82,16 +82,36 @@
                             <tr class="border-t" style="border-color: var(--border);">
                                 <td class="px-3 py-2 align-top">
                                     <input type="hidden" x-bind:name="`import_columns[${position}][index]`" x-bind:value="column.index">
-                                    <input type="checkbox" value="1" x-bind:name="`import_columns[${position}][enabled]`" x-model="column.enabled" class="rounded border" style="border-color: var(--border);">
+                                    <input
+                                        type="checkbox"
+                                        value="1"
+                                        x-bind:name="`import_columns[${position}][enabled]`"
+                                        x-bind:aria-label="`Usar coluna ${position + 1}: ${column.name || 'sem nome'}`"
+                                        x-model="column.enabled"
+                                        class="rounded border"
+                                        style="border-color: var(--border);"
+                                    >
                                 </td>
                                 <td class="px-3 py-2 align-top">
-                                    <select x-bind:name="`import_columns[${position}][type]`" x-model="column.type" class="rounded-lg border px-2 py-1" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                                    <select
+                                        x-bind:name="`import_columns[${position}][type]`"
+                                        x-bind:aria-label="`Tipo da coluna ${position + 1}: ${column.name || 'sem nome'}`"
+                                        x-model="column.type"
+                                        class="rounded-lg border px-2 py-1"
+                                        style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                    >
                                         <option value="extra">Extra</option>
                                         <option value="phone">Telefone</option>
                                     </select>
                                 </td>
                                 <td class="px-3 py-2 align-top">
-                                    <input x-bind:name="`import_columns[${position}][name]`" x-model="column.name" class="w-44 rounded-lg border px-2 py-1" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                                    <input
+                                        x-bind:name="`import_columns[${position}][name]`"
+                                        x-bind:aria-label="`Nome da coluna ${position + 1}: ${column.name || 'sem nome'}`"
+                                        x-model="column.name"
+                                        class="w-44 rounded-lg border px-2 py-1"
+                                        style="border-color: var(--border); background: var(--surface); color: var(--fg);"
+                                    >
                                 </td>
                                 <td class="px-3 py-2 align-top font-mono text-xs" style="color: var(--fg-muted);" x-text="previewRows[0]?.[column.index] || '-'"></td>
                                 <td class="px-3 py-2 align-top font-mono text-xs" style="color: var(--fg-muted);" x-text="previewRows[1]?.[column.index] || '-'"></td>

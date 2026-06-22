@@ -1,3 +1,13 @@
+export const PREVIEW_READ_BYTES = 512 * 1024;
+
+export async function readPreviewText(file) {
+    const previewSource = typeof file.slice === 'function'
+        ? file.slice(0, PREVIEW_READ_BYTES)
+        : file;
+
+    return previewSource.text();
+}
+
 export function parseDelimitedText(text, separator = ';', delimiter = '"') {
     const rows = [];
     let cell = '';
@@ -95,7 +105,7 @@ export function listImportPreview() {
                 return;
             }
 
-            const parsed = parseDelimitedText(await file.text(), this.separator || ';', this.delimiter || '"');
+            const parsed = parseDelimitedText(await readPreviewText(file), this.separator || ';', this.delimiter || '"');
             this.columns = buildColumnConfig(parsed.headers);
             this.previewRows = parsed.previewRows;
 

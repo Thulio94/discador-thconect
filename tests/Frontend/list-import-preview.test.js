@@ -50,3 +50,31 @@ test('rejects files that are not csv or txt', async () => {
     assert.equal(component.fileName, 'leads.xlsx');
     assert.deepEqual(component.columns, []);
 });
+
+test('loads preview from an initial file slice without reading the whole file', async () => {
+    const component = listImportPreview();
+    const sliceCalls = [];
+    const file = {
+        name: 'leads.csv',
+        text: async () => {
+            throw new Error('whole file should not be read for preview');
+        },
+        slice(start, end) {
+            sliceCalls.push([start, end]);
+
+            return {
+                text: async () => 'Nome;Telefone\nMaria;31999990001\nJoao;31999990002',
+            };
+        },
+    };
+
+    await component.loadFile(file);
+
+    assert.equal(component.currentFile, file);
+    assert.deepEqual(sliceCalls, [[0, 512 * 1024]]);
+    assert.deepEqual(component.columns.map((column) => column.name), ['Nome', 'Telefone']);
+    assert.deepEqual(component.previewRows, [
+        ['Maria', '31999990001'],
+        ['Joao', '31999990002'],
+    ]);
+});
