@@ -180,6 +180,11 @@ class TenantCampaignListCrudTest extends TestCase
                 ],
             ])
             ->assertSessionHasErrors('import_columns');
+
+        $this->assertDatabaseMissing('contact_lists', [
+            'company_id' => $admin->company_id,
+            'name' => 'Lista Sem Telefone',
+        ]);
     }
 
     public function test_contact_can_store_multiple_ordered_phones_for_a_lead(): void

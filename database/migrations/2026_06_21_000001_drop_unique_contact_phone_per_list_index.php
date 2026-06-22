@@ -15,7 +15,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        // The previous unique index is intentionally not restored because
-        // duplicate primary phones are now allowed across different leads.
+        // The previous unique index is intentionally not restored: after this
+        // migration, duplicate primary phones can be valid across different
+        // leads, so rolling back the index could fail or reject preserved data.
     }
 };
