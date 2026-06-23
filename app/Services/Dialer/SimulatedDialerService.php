@@ -159,12 +159,13 @@ class SimulatedDialerService
         $created = 0;
 
         for ($attempt = 0; $attempt < $batchSize; $attempt++) {
-            $contact = $this->queue->nextContactForCampaign($campaign);
+            $contactPhone = $this->queue->nextContactPhoneForCampaign($campaign);
 
-            if (! $contact) {
+            if (! $contactPhone) {
                 break;
             }
 
+            $contact = $contactPhone->contact;
             $isWinner = $created === 0;
 
             Call::create([
@@ -172,17 +173,18 @@ class SimulatedDialerService
                 'user_id' => $agent->id,
                 'campaign_id' => $campaign->id,
                 'contact_id' => $contact->id,
+                'contact_phone_id' => $contactPhone->id,
                 'direction' => 'outbound',
                 'status' => $isWinner ? 'in_progress' : 'cancelled',
                 'end_reason' => $isWinner ? null : 'answered_elsewhere',
                 'channel' => 'simulated',
-                'phone' => $contact->phone,
+                'phone' => $contactPhone->phone,
                 'started_at' => now(),
                 'answered_at' => $isWinner ? now() : null,
                 'ended_at' => $isWinner ? null : now(),
             ]);
 
-            $this->queue->markAttempt($contact, now()->addMinutes(30));
+            $this->queue->markAttempt($contact, now()->addMinutes(30), contactPhone: $contactPhone);
             $created++;
         }
 
