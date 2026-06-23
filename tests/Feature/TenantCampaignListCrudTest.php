@@ -368,6 +368,61 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame(1, (int) $campaign->contactLists()->where('contact_lists.id', $listB->id)->sole()->pivot->weight);
     }
 
+    public function test_tenant_admin_can_configure_campaign_lead_phone_strategy(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Telefones Lead']);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Estrategia de telefones do lead')
+            ->assertSee('Horizontal desativado')
+            ->assertSee('Horizontal ativado')
+            ->assertSee('desativado tenta principais primeiro; ativado tenta alternativos do mesmo lead antes de seguir.');
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Telefones Lead',
+                'dialing_mode' => 'power',
+                'lead_phone_strategy' => 'horizontal',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Telefones Lead')->sole();
+
+        $this->assertSame('horizontal', $campaign->lead_phone_strategy);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.campaigns.update', $campaign), [
+                'name' => 'Campanha Telefones Lead Atualizada',
+                'dialing_mode' => 'preview',
+                'lead_phone_strategy' => 'vertical',
+                'status' => 'active',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame('vertical', $campaign->fresh()->lead_phone_strategy);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Telefones Lead Invalida',
+                'dialing_mode' => 'power',
+                'lead_phone_strategy' => 'diagonal',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertSessionHasErrors('lead_phone_strategy');
+    }
+
     public function test_tenant_admin_can_configure_campaign_dynamic_service_fields(): void
     {
         [$admin, $team] = $this->tenantAdmin();
