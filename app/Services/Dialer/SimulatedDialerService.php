@@ -184,7 +184,12 @@ class SimulatedDialerService
                 'ended_at' => $isWinner ? null : now(),
             ]);
 
-            $this->queue->markAttempt($contact, now()->addMinutes(30), contactPhone: $contactPhone);
+            $this->queue->markAttempt(
+                $contact,
+                now()->addMinutes(30),
+                status: $isWinner ? 'dialing' : 'pending',
+                contactPhone: $contactPhone,
+            );
             $created++;
         }
 

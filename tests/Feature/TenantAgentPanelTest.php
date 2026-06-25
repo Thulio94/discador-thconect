@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -1273,6 +1274,91 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(6, $list->contacts()->where('attempts_count', 1)->count());
         $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
         $this->assertSame('in_call', $secondAgent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_simulated_dialer_cancelled_batch_phone_remains_pending_after_retry_delay(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 2,
+            'max_concurrent_calls' => 2,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'horizontal']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Cancelado Sem Atendimento',
+            'status' => 'active',
+        ]);
+        $answeredLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Atendido no Batch',
+            'phone' => '31999991101',
+            'status' => 'pending',
+        ]);
+        $answeredPrimary = $answeredLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991101',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $cancelledLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Cancelado no Batch',
+            'phone' => '31999991201',
+            'status' => 'pending',
+        ]);
+        $cancelledPrimary = $cancelledLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991201',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $cancelledAlternate = $cancelledLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991202',
+            'position' => 1,
+        ]);
+        $nextLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Seguinte',
+            'phone' => '31999991301',
+            'status' => 'pending',
+        ]);
+        $nextPrimary = $nextLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991301',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(2, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $winner = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+        $cancelled = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'cancelled')
+            ->sole();
+        $queue = app(MailingQueueService::class);
+
+        $this->assertSame($answeredLead->id, $winner->contact_id);
+        $this->assertSame($answeredPrimary->id, $winner->contact_phone_id);
+        $this->assertNotNull($winner->answered_at);
+        $this->assertSame($cancelledLead->id, $cancelled->contact_id);
+        $this->assertSame($cancelledPrimary->id, $cancelled->contact_phone_id);
+        $this->assertNull($cancelled->answered_at);
+        $this->assertSame('pending', $cancelledLead->fresh()->status);
+        $this->assertSame('pending', $cancelledPrimary->fresh()->status);
+        $this->assertSame($nextPrimary->id, $queue->nextContactPhoneForCampaign($campaign)?->id);
+
+        $this->travel(31)->minutes();
+
+        $this->assertSame($cancelledAlternate->id, $queue->nextContactPhoneForCampaign($campaign)?->id);
     }
 
     public function test_simulated_dialer_shares_global_limit_with_another_campaign(): void
