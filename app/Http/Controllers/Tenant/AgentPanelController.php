@@ -179,7 +179,7 @@ class AgentPanelController extends Controller
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)
             ->where('id', $data['call_id'])
-            ->with('campaign')
+            ->with(['campaign', 'contact'])
             ->firstOrFail();
 
         $schema = $this->serviceFieldsSchema($call);
@@ -202,7 +202,13 @@ class AgentPanelController extends Controller
         ]);
 
         if ($call->contact_id) {
-            $call->contact()->update($this->contactDispositionPayload($call, $disposition, $callbackAt));
+            $contactPayload = $this->contactDispositionPayload($call, $disposition, $callbackAt);
+
+            $call->contact()->update($contactPayload);
+
+            if ($call->contact_phone_id) {
+                $call->contactPhone()->update($this->contactPhoneDispositionPayload($contactPayload));
+            }
         }
 
         $this->closeOpenRecords($user->id, $user->company_id);
@@ -267,6 +273,13 @@ class AgentPanelController extends Controller
                 default => 'pending',
             },
         ]);
+    }
+
+    private function contactPhoneDispositionPayload(array $contactPayload): array
+    {
+        return collect($contactPayload)
+            ->only(['status', 'next_attempt_at'])
+            ->all();
     }
 
     private function serviceFieldsSchema(Call $call): array

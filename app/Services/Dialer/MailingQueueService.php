@@ -5,8 +5,9 @@ namespace App\Services\Dialer;
 use App\Models\Campaign;
 use App\Models\Contact;
 use App\Models\ContactPhone;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class MailingQueueService
 {
@@ -42,20 +43,39 @@ class MailingQueueService
             return null;
         }
 
-        $contacts = Contact::query()
-            ->select('contacts.*')
-            ->addSelect('campaign_contact_list.weight as campaign_list_weight')
+        $candidate = $this->candidatePhoneQuery($campaign, $listIds)->first();
+
+        if (! $candidate) {
+            return null;
+        }
+
+        return $this->contactPhoneFromCandidate($candidate);
+    }
+
+    private function candidatePhoneQuery(Campaign $campaign, array $listIds): Builder
+    {
+        $now = now();
+
+        $query = DB::table('contacts')
+            ->select([
+                'contacts.id as contact_id',
+                'contact_phones.id as contact_phone_id',
+            ])
             ->join('campaign_contact_list', function ($join) use ($campaign): void {
                 $join->on('campaign_contact_list.contact_list_id', '=', 'contacts.contact_list_id')
                     ->where('campaign_contact_list.campaign_id', $campaign->id)
                     ->where('campaign_contact_list.company_id', $campaign->company_id);
             })
+            ->leftJoin('contact_phones', function ($join): void {
+                $join->on('contact_phones.contact_id', '=', 'contacts.id')
+                    ->whereColumn('contact_phones.company_id', 'contacts.company_id');
+            })
             ->where('contacts.company_id', $campaign->company_id)
             ->whereIn('contacts.contact_list_id', $listIds)
             ->where('contacts.status', 'pending')
-            ->where(function ($query): void {
+            ->where(function ($query) use ($now): void {
                 $query->whereNull('contacts.next_attempt_at')
-                    ->orWhere('contacts.next_attempt_at', '<=', now());
+                    ->orWhere('contacts.next_attempt_at', '<=', $now);
             })
             ->whereNotExists(function ($query) use ($campaign): void {
                 $query->selectRaw('1')
@@ -66,12 +86,66 @@ class MailingQueueService
                     ->whereNotNull('calls.user_id')
                     ->whereNotNull('calls.answered_at');
             })
-            ->with('phones')
+            ->where(function ($query) use ($now): void {
+                $query->where(function ($query): void {
+                    $query->whereNull('contact_phones.id')
+                        ->whereNotNull('contacts.phone')
+                        ->whereRaw("TRIM(contacts.phone) <> ''");
+                })->orWhere(function ($query) use ($now): void {
+                    $query->whereNotNull('contact_phones.id')
+                        ->whereNotNull('contact_phones.phone')
+                        ->whereRaw("TRIM(contact_phones.phone) <> ''")
+                        ->whereNotIn('contact_phones.status', ['answered', 'exhausted'])
+                        ->where(function ($query) use ($now): void {
+                            $query->whereNull('contact_phones.next_attempt_at')
+                                ->orWhere('contact_phones.next_attempt_at', '<=', $now);
+                        });
+                });
+            });
+
+        $phoneAttempts = 'COALESCE(contact_phones.attempts_count, contacts.attempts_count)';
+        $phonePosition = 'COALESCE(contact_phones.position, 0)';
+        $phoneId = 'COALESCE(contact_phones.id, 0)';
+
+        if (($campaign->lead_phone_strategy ?? 'vertical') === 'horizontal') {
+            return $query
+                ->orderByDesc('campaign_contact_list.weight')
+                ->orderByRaw($phoneAttempts.' asc')
+                ->orderBy('contacts.id')
+                ->orderByRaw($phonePosition.' asc')
+                ->orderByRaw($phoneId.' asc')
+                ->limit(1);
+        }
+
+        $primaryRank = 'CASE WHEN contact_phones.id IS NULL OR contact_phones.is_primary = 1 OR contact_phones.position = 0 THEN 0 ELSE 1 END';
+
+        return $query
+            ->orderByRaw($phoneAttempts.' asc')
+            ->orderByRaw($primaryRank.' asc')
             ->orderByDesc('campaign_contact_list.weight')
             ->orderBy('contacts.id')
-            ->get();
+            ->orderByRaw($phonePosition.' asc')
+            ->orderByRaw($phoneId.' asc')
+            ->limit(1);
+    }
 
-        return $this->selectPhoneForStrategy($campaign, $contacts);
+    private function contactPhoneFromCandidate(object $candidate): ?ContactPhone
+    {
+        $contact = Contact::query()->find($candidate->contact_id);
+
+        if (! $contact) {
+            return null;
+        }
+
+        if ($candidate->contact_phone_id === null) {
+            $contactPhone = $this->ensurePrimaryPhoneForLegacyContact($contact);
+        } else {
+            $contactPhone = ContactPhone::query()
+                ->whereKey($candidate->contact_phone_id)
+                ->first();
+        }
+
+        return $contactPhone?->setRelation('contact', $contact);
     }
 
     public function markAttempt(
@@ -157,68 +231,6 @@ class MailingQueueService
         return $query->pluck('contact_lists.id')->all();
     }
 
-    private function selectPhoneForStrategy(Campaign $campaign, Collection $contacts): ?ContactPhone
-    {
-        if (($campaign->lead_phone_strategy ?? 'vertical') === 'horizontal') {
-            return $contacts
-                ->map(fn (Contact $contact): ?ContactPhone => $this->nextPhoneForContact($contact))
-                ->filter()
-                ->first();
-        }
-
-        return $contacts
-            ->flatMap(function (Contact $contact): Collection {
-                return $this->validPhonesForContact($contact)
-                    ->map(function (ContactPhone $phone) use ($contact): array {
-                        return [
-                            'contact' => $contact,
-                            'phone' => $phone,
-                            'weight' => (int) $contact->getAttribute('campaign_list_weight'),
-                        ];
-                    });
-            })
-            ->sortBy([
-                ['phone.attempts_count', 'asc'],
-                fn (array $left, array $right): int => $this->phonePrimaryRank($left['phone']) <=> $this->phonePrimaryRank($right['phone']),
-                ['weight', 'desc'],
-                ['contact.id', 'asc'],
-                ['phone.position', 'asc'],
-                ['phone.id', 'asc'],
-            ])
-            ->map(fn (array $target): ContactPhone => $target['phone']->setRelation('contact', $target['contact']))
-            ->first();
-    }
-
-    private function nextPhoneForContact(Contact $contact): ?ContactPhone
-    {
-        return $this->validPhonesForContact($contact)
-            ->sortBy([
-                ['attempts_count', 'asc'],
-                ['position', 'asc'],
-                ['id', 'asc'],
-            ])
-            ->map(fn (ContactPhone $phone): ContactPhone => $phone->setRelation('contact', $contact))
-            ->first();
-    }
-
-    private function validPhonesForContact(Contact $contact): Collection
-    {
-        $phones = $contact->phones;
-
-        if ($phones->isEmpty()) {
-            $legacyPhone = $this->ensurePrimaryPhoneForLegacyContact($contact);
-            $phones = $legacyPhone ? collect([$legacyPhone]) : collect();
-        }
-
-        return $phones->filter(function (ContactPhone $phone): bool {
-            if (blank($phone->phone) || in_array($phone->status, ['answered', 'exhausted'], true)) {
-                return false;
-            }
-
-            return $phone->next_attempt_at === null || $phone->next_attempt_at->lte(now());
-        });
-    }
-
     private function ensurePrimaryPhoneForLegacyContact(Contact $contact, bool $mirrorContactAttempts = true): ?ContactPhone
     {
         if (blank($contact->phone)) {
@@ -238,10 +250,5 @@ class MailingQueueService
                 'next_attempt_at' => $mirrorContactAttempts ? $contact->next_attempt_at : null,
             ],
         );
-    }
-
-    private function phonePrimaryRank(ContactPhone $phone): int
-    {
-        return $phone->is_primary || $phone->position === 0 ? 0 : 1;
     }
 }
