@@ -119,7 +119,11 @@ Status: MVP simulado funcional.
 
 Pendencias importantes:
 
-- [ ] Validacoes avancadas por mascara/tipo de campo.
+- [x] Validacao avancada dos campos dinamicos de atendimento.
+  - Tipos: texto, numero, data, CPF, CNPJ, telefone, e-mail e moeda.
+  - CPF/CNPJ com digitos verificadores; telefone BR/E.164; moeda em centavos.
+  - Mascaras visuais no painel e validacao autoritativa no backend.
+  - Erros exibidos no campo, sem `javascript.alert` e sem nova pagina.
 - [x] Bloquear nova chamada automatica enquanto houver chamada sem tabulacao.
 
 ### Campanhas e Listas
@@ -344,7 +348,7 @@ Status: parcialmente concluida em 2026-06-07.
 5. [x] Criar callback publico/privado.
 6. [x] Mostrar historico recente do contato.
 7. [x] Criar historico geral de chamadas recentes no painel.
-8. [ ] Criar formulario dinamico configuravel por campanha.
+8. [x] Criar formulario dinamico configuravel por campanha.
 
 Resultado esperado: agente consegue atender, registrar resultado e agendar retorno.
 
