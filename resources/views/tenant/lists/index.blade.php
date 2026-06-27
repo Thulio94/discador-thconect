@@ -73,12 +73,13 @@
     </x-ui.card>
 
     @can('tenant.lists.create')
-    <x-ui.modal name="list-create" title="Nova lista">
-        <form method="POST" action="{{ route('tenant.lists.store') }}">
+    <x-ui.modal name="list-create" title="Nova lista" max-width="4xl">
+        <form method="POST" action="{{ route('tenant.lists.store') }}" enctype="multipart/form-data" x-data="listImportPreview()">
             @csrf
-            @include('tenant.lists._form')
-            <div class="mt-5 flex justify-end">
-                <x-ui.button type="submit">Criar lista</x-ui.button>
+            @include('tenant.lists._form', ['list' => null])
+            <div class="mt-5 flex flex-wrap items-center justify-end gap-3">
+                <span class="text-xs" style="color: var(--fg-muted);" x-show="!canSubmit()">Aguardando coluna de Telefone.</span>
+                <x-ui.button type="submit" x-bind:disabled="!canSubmit()">Criar lista</x-ui.button>
             </div>
         </form>
     </x-ui.modal>

@@ -11,6 +11,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\MailingQueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class TenantCampaignListCrudTest extends TestCase
@@ -86,6 +87,210 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertFalse($list->contacts()->where('phone', '12345')->exists());
     }
 
+    public function test_tenant_admin_can_import_csv_with_multiple_phones_and_selected_extra_columns(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $file = UploadedFile::fake()->createWithContent(
+            'leads.csv',
+            "Nome;Telefone 1;Telefone 2;CPF;Ignorar\nMaria;(31) 99999-0001;31 98888-0002;123;fora\nJoao;12345;31977770003;456;fora"
+        );
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista CSV',
+                'description' => 'Importada',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Telefone 1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Telefone 2', 'type' => 'phone'],
+                    ['index' => 3, 'enabled' => '1', 'name' => 'CPF', 'type' => 'extra'],
+                    ['index' => 4, 'name' => 'Ignorar', 'type' => 'extra'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.lists.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '2 leads importados')
+                && str_contains($message, '3 telefones importados')
+                && str_contains($message, '1 invalido'));
+
+        $list = ContactList::where('company_id', $admin->company_id)->where('name', 'Lista CSV')->sole();
+        $maria = $list->contacts()->where('name', 'Maria')->sole();
+        $joao = $list->contacts()->where('name', 'Joao')->sole();
+
+        $this->assertSame('31999990001', $maria->phone);
+        $this->assertSame(['Nome' => 'Maria', 'CPF' => '123'], $maria->extra);
+        $this->assertSame(['31999990001', '31988880002'], $maria->phones()->pluck('phone')->all());
+        $this->assertSame('31977770003', $joao->phone);
+        $this->assertSame(['31977770003'], $joao->phones()->pluck('phone')->all());
+        $this->assertArrayNotHasKey('Ignorar', $maria->extra);
+    }
+
+    public function test_csv_import_only_deduplicates_phones_inside_the_same_lead(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        $file = UploadedFile::fake()->createWithContent(
+            'leads.csv',
+            "Nome;Tel1;Tel2\nMaria;31999990001;31999990001\nJoao;31999990001;31988880002"
+        );
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Duplicidade Por Lead',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Tel1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Tel2', 'type' => 'phone'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.lists.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '2 leads importados')
+                && str_contains($message, '3 telefones importados')
+                && str_contains($message, '1 duplicado'));
+
+        $list = ContactList::where('company_id', $admin->company_id)->where('name', 'Lista Duplicidade Por Lead')->sole();
+
+        $this->assertSame(2, $list->contacts()->count());
+        $this->assertSame(['31999990001'], $list->contacts()->where('name', 'Maria')->sole()->phones()->pluck('phone')->all());
+        $this->assertSame(['31999990001', '31988880002'], $list->contacts()->where('name', 'Joao')->sole()->phones()->pluck('phone')->all());
+    }
+
+    public function test_csv_import_requires_at_least_one_phone_column(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        $file = UploadedFile::fake()->createWithContent('leads.txt', "Nome;Telefone\nMaria;31999990001");
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Sem Telefone',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Telefone', 'type' => 'extra'],
+                ],
+            ])
+            ->assertSessionHasErrors('import_columns');
+
+        $this->assertDatabaseMissing('contact_lists', [
+            'company_id' => $admin->company_id,
+            'name' => 'Lista Sem Telefone',
+        ]);
+    }
+
+    public function test_csv_import_rejects_empty_file_and_file_without_header(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        foreach (['vazio.csv' => '', 'sem-cabecalho.csv' => "\n31999990001"] as $name => $content) {
+            $this->actingAs($admin)
+                ->post(route('tenant.lists.store'), [
+                    'name' => 'Lista '.$name,
+                    'status' => 'active',
+                    'import_file' => UploadedFile::fake()->createWithContent($name, $content),
+                    'separator' => ';',
+                    'delimiter' => '"',
+                    'import_columns' => [
+                        ['index' => 0, 'enabled' => '1', 'name' => 'Telefone', 'type' => 'phone'],
+                    ],
+                ])
+                ->assertSessionHasErrors('import_file');
+
+            $this->assertDatabaseMissing('contact_lists', [
+                'company_id' => $admin->company_id,
+                'name' => 'Lista '.$name,
+            ]);
+        }
+    }
+
+    public function test_csv_import_applies_blacklist_to_all_phone_columns(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        BlacklistNumber::create([
+            'company_id' => $admin->company_id,
+            'phone' => '31988880002',
+            'reason' => 'Bloqueado',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Blacklist Multiphone',
+                'status' => 'active',
+                'import_file' => UploadedFile::fake()->createWithContent(
+                    'leads.csv',
+                    "Nome;Tel1;Tel2\nMaria;31999990001;31988880002",
+                ),
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Tel1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Tel2', 'type' => 'phone'],
+                ],
+            ])
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 bloqueado'));
+
+        $list = ContactList::query()
+            ->where('company_id', $admin->company_id)
+            ->where('name', 'Lista Blacklist Multiphone')
+            ->sole();
+
+        $this->assertSame(['31999990001'], $list->contacts()->sole()->phones()->pluck('phone')->all());
+    }
+
+    public function test_contact_can_store_multiple_ordered_phones_for_a_lead(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $list = ContactList::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lista Telefones',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Maria',
+            'phone' => '31999990001',
+            'status' => 'pending',
+        ]);
+
+        $contact->phones()->createMany([
+            [
+                'company_id' => $admin->company_id,
+                'phone' => '31999990001',
+                'column_name' => 'Telefone principal',
+                'position' => 0,
+                'is_primary' => true,
+                'status' => 'pending',
+            ],
+            [
+                'company_id' => $admin->company_id,
+                'phone' => '31988880002',
+                'column_name' => 'Telefone extra',
+                'position' => 1,
+                'is_primary' => false,
+                'status' => 'pending',
+            ],
+        ]);
+
+        $this->assertSame([
+            '31999990001',
+            '31988880002',
+        ], $contact->fresh()->phones()->pluck('phone')->all());
+        $this->assertTrue($contact->fresh()->phones()->where('phone', '31999990001')->sole()->is_primary);
+        $this->assertFalse($contact->fresh()->phones()->where('phone', '31988880002')->sole()->is_primary);
+    }
+
     public function test_tenant_admin_can_view_contact_lists_index(): void
     {
         [$admin] = $this->tenantAdmin();
@@ -101,7 +306,14 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertOk()
             ->assertSee('Lista Existente')
             ->assertSee('Nova lista')
-            ->assertSee('Blacklist aplicada automaticamente');
+            ->assertSee('Blacklist aplicada automaticamente')
+            ->assertSee('upload')
+            ->assertSee('Separador')
+            ->assertSee('Delimitador')
+            ->assertSee('Telefone')
+            ->assertSee('x-bind:aria-label="`Usar coluna ${position + 1}: ${column.name || \'sem nome\'}`"', false)
+            ->assertSee('x-bind:aria-label="`Tipo da coluna ${position + 1}: ${column.name || \'sem nome\'}`"', false)
+            ->assertSee('x-bind:aria-label="`Nome da coluna ${position + 1}: ${column.name || \'sem nome\'}`"', false);
     }
 
     public function test_campaign_form_shows_wizard_schedule_review_and_list_weights(): void
@@ -215,6 +427,61 @@ class TenantCampaignListCrudTest extends TestCase
         ], $campaign->operational_schedule);
         $this->assertSame(3, (int) $campaign->contactLists()->where('contact_lists.id', $listA->id)->sole()->pivot->weight);
         $this->assertSame(1, (int) $campaign->contactLists()->where('contact_lists.id', $listB->id)->sole()->pivot->weight);
+    }
+
+    public function test_tenant_admin_can_configure_campaign_lead_phone_strategy(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Telefones Lead']);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Estrategia de telefones do lead')
+            ->assertSee('Horizontal desativado')
+            ->assertSee('Horizontal ativado')
+            ->assertSee('desativado tenta principais primeiro; ativado tenta alternativos do mesmo lead antes de seguir.');
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Telefones Lead',
+                'dialing_mode' => 'power',
+                'lead_phone_strategy' => 'horizontal',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Telefones Lead')->sole();
+
+        $this->assertSame('horizontal', $campaign->lead_phone_strategy);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.campaigns.update', $campaign), [
+                'name' => 'Campanha Telefones Lead Atualizada',
+                'dialing_mode' => 'preview',
+                'lead_phone_strategy' => 'vertical',
+                'status' => 'active',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame('vertical', $campaign->fresh()->lead_phone_strategy);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Telefones Lead Invalida',
+                'dialing_mode' => 'power',
+                'lead_phone_strategy' => 'diagonal',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertSessionHasErrors('lead_phone_strategy');
     }
 
     public function test_tenant_admin_can_configure_campaign_dynamic_service_fields(): void

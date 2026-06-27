@@ -10,6 +10,7 @@
         : collect($campaign?->contactLists ?? [])->mapWithKeys(fn ($list) => [$list->id => (int) ($list->pivot->weight ?? 1)])->all();
     $schedule = old('operational_schedule', $campaign?->operational_schedule ?? []);
     $serviceFields = old('service_fields_schema', $campaign?->service_fields_schema ?? []);
+    $leadPhoneStrategy = old('lead_phone_strategy', $campaign?->lead_phone_strategy ?? 'vertical');
     $fieldRows = collect(range(0, 4))->map(fn ($index) => $serviceFields[$index] ?? [])->all();
     $days = [
         'monday' => 'Segunda',
@@ -86,7 +87,7 @@
             </div>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-3">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Modo</span>
             <select name="dialing_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -95,6 +96,15 @@
                 <option value="power" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'power')>Power</option>
                 <option value="predictive" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'predictive')>Preditivo</option>
             </select>
+        </label>
+
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Estrategia de telefones do lead</span>
+            <select name="lead_phone_strategy" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="vertical" @selected($leadPhoneStrategy === 'vertical')>Horizontal desativado</option>
+                <option value="horizontal" @selected($leadPhoneStrategy === 'horizontal')>Horizontal ativado</option>
+            </select>
+            <span class="text-xs" style="color: var(--fg-muted);">desativado tenta principais primeiro; ativado tenta alternativos do mesmo lead antes de seguir.</span>
         </label>
 
         <label class="grid gap-1 text-sm">
@@ -174,10 +184,14 @@
 
     <div class="grid gap-3 rounded-lg border p-4" style="border-color: var(--border); background: var(--surface-alt);">
         <p class="text-sm font-semibold">Etapa 4 - Revisao da campanha</p>
-        <div class="grid gap-2 text-sm sm:grid-cols-3">
+        <div class="grid gap-2 text-sm sm:grid-cols-4">
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Modo</p>
                 <p class="mt-1 font-semibold">{{ old('dialing_mode', $campaign?->dialing_mode ?? 'preview') }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Telefones</p>
+                <p class="mt-1 font-semibold">{{ $leadPhoneStrategy === 'horizontal' ? 'Horizontal ativado' : 'Horizontal desativado' }}</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Status</p>

@@ -5,15 +5,20 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
 use App\Models\ContactList;
+use App\Services\Lists\CsvContactListImportService;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ContactListController extends Controller
 {
-    public function __construct(private readonly AppNotificationService $notifications) {}
+    public function __construct(
+        private readonly AppNotificationService $notifications,
+        private readonly CsvContactListImportService $csvImportService,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -34,15 +39,40 @@ class ContactListController extends Controller
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId));
 
-        $list = ContactList::create([
-            'company_id' => $companyId,
-            'name' => $data['name'],
-            'description' => $data['description'] ?? null,
-            'status' => $data['status'],
-        ]);
+        if ($request->hasFile('import_file')) {
+            [$list, $summary] = DB::transaction(function () use ($companyId, $data, $request): array {
+                $list = ContactList::create([
+                    'company_id' => $companyId,
+                    'name' => $data['name'],
+                    'description' => $data['description'] ?? null,
+                    'status' => $data['status'],
+                ]);
 
-        $summary = $this->syncContacts($list, $data['contacts'] ?? '');
-        $this->notifyListImport($list, $summary);
+                $summary = $this->csvImportService
+                    ->import(
+                        $list,
+                        $request->file('import_file'),
+                        $data['import_columns'] ?? [],
+                        $data['separator'] ?? ';',
+                        $data['delimiter'] ?? '"',
+                    )
+                    ->toSummaryArray();
+
+                return [$list, $summary];
+            });
+
+            $this->notifyListImport($list, $summary);
+        } else {
+            $list = ContactList::create([
+                'company_id' => $companyId,
+                'name' => $data['name'],
+                'description' => $data['description'] ?? null,
+                'status' => $data['status'],
+            ]);
+
+            $summary = $this->syncContacts($list, $data['contacts'] ?? '');
+            $this->notifyListImport($list, $summary);
+        }
 
         return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso. '.$this->summaryMessage($summary));
     }
@@ -83,6 +113,14 @@ class ContactListController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'contacts' => ['nullable', 'string'],
+            'import_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:20480'],
+            'separator' => ['nullable', 'string', 'max:5'],
+            'delimiter' => ['nullable', 'string', 'max:5'],
+            'import_columns' => ['nullable', 'array'],
+            'import_columns.*.index' => ['nullable', 'integer', 'min:0'],
+            'import_columns.*.enabled' => ['nullable'],
+            'import_columns.*.name' => ['nullable', 'string', 'max:255'],
+            'import_columns.*.type' => ['nullable', Rule::in(['extra', 'phone'])],
         ];
     }
 
@@ -157,6 +195,17 @@ class ContactListController extends Controller
             return '';
         }
 
+        if (array_key_exists('leads_imported', $summary)) {
+            return sprintf(
+                '%d leads importados, %d telefones importados, %d bloqueado, %d invalido, %d duplicado.',
+                $summary['leads_imported'],
+                $summary['phones_imported'],
+                $summary['blocked'],
+                $summary['invalid'],
+                $summary['duplicated'],
+            );
+        }
+
         return sprintf(
             '%d contatos importados, %d bloqueado, %d invalido, %d duplicado.',
             $summary['imported'],
@@ -168,9 +217,15 @@ class ContactListController extends Controller
 
     private function notifyListImport(ContactList $list, array $summary): void
     {
-        if (($summary['imported'] ?? 0) <= 0) {
+        $total = $summary['leads_imported'] ?? $summary['imported'] ?? 0;
+
+        if ($total <= 0) {
             return;
         }
+
+        $message = array_key_exists('phones_imported', $summary)
+            ? sprintf('%s recebeu %d leads e %d telefones importados.', $list->name, $summary['leads_imported'], $summary['phones_imported'])
+            : sprintf('%s recebeu %d contatos importados.', $list->name, $summary['imported']);
 
         $this->notifications->createForCompanyAudience(
             $list->company_id,
@@ -178,7 +233,7 @@ class ContactListController extends Controller
             'mailing',
             'info',
             'Lista importada',
-            sprintf('%s recebeu %d contatos importados.', $list->name, $summary['imported']),
+            $message,
             route('tenant.lists.index')
         );
     }

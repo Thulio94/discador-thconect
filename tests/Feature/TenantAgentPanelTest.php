@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -979,6 +980,544 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(1, $contact->fresh()->attempts_count);
     }
 
+    public function test_horizontal_strategy_dials_next_phone_from_same_lead_before_next_lead(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'horizontal']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Horizontal',
+            'status' => 'active',
+        ]);
+        $firstLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Horizontal 1',
+            'phone' => '31999991001',
+            'status' => 'pending',
+            'attempts_count' => 1,
+        ]);
+        $firstPrimary = $firstLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991001',
+            'position' => 0,
+            'is_primary' => true,
+            'attempts_count' => 1,
+            'last_attempt_at' => now()->subMinute(),
+        ]);
+        $firstAlternate = $firstLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991002',
+            'position' => 1,
+        ]);
+        $secondLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Horizontal 2',
+            'phone' => '31999992001',
+            'status' => 'pending',
+        ]);
+        $secondPrimary = $secondLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999992001',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        Call::create([
+            'company_id' => $company->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $firstLead->id,
+            'contact_phone_id' => $firstPrimary->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'simulated',
+            'phone' => $firstPrimary->phone,
+            'started_at' => now()->subMinute(),
+            'ended_at' => now()->subMinute(),
+        ]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->assertSame($firstLead->id, $call->contact_id);
+        $this->assertSame($firstAlternate->id, $call->contact_phone_id);
+        $this->assertSame('31999991002', $call->phone);
+        $this->assertSame(0, $secondPrimary->fresh()->attempts_count);
+    }
+
+    public function test_horizontal_strategy_prefers_lead_with_fewer_phone_attempts_before_oldest_lead_alternate(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'horizontal']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Horizontal Justo',
+            'status' => 'active',
+        ]);
+        $oldLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Antigo',
+            'phone' => '31999991401',
+            'status' => 'pending',
+            'attempts_count' => 2,
+        ]);
+        $oldLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991401',
+            'position' => 0,
+            'is_primary' => true,
+            'status' => 'exhausted',
+            'attempts_count' => 2,
+        ]);
+        $oldAlternate = $oldLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991402',
+            'position' => 1,
+            'attempts_count' => 2,
+        ]);
+        $freshLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Novo',
+            'phone' => '31999991501',
+            'status' => 'pending',
+        ]);
+        $freshPrimary = $freshLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991501',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->assertSame($freshLead->id, $call->contact_id);
+        $this->assertSame($freshPrimary->id, $call->contact_phone_id);
+        $this->assertSame(2, $oldAlternate->fresh()->attempts_count);
+    }
+
+    public function test_vertical_strategy_dials_next_lead_primary_before_first_lead_alternate(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'vertical']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Vertical',
+            'status' => 'active',
+        ]);
+        $firstLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Vertical 1',
+            'phone' => '31999993001',
+            'status' => 'pending',
+            'attempts_count' => 1,
+        ]);
+        $firstPrimary = $firstLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999993001',
+            'position' => 0,
+            'is_primary' => true,
+            'attempts_count' => 1,
+            'last_attempt_at' => now()->subMinute(),
+        ]);
+        $firstAlternate = $firstLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999993002',
+            'position' => 1,
+        ]);
+        $secondLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Vertical 2',
+            'phone' => '31999994001',
+            'status' => 'pending',
+        ]);
+        $secondPrimary = $secondLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999994001',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        Call::create([
+            'company_id' => $company->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $firstLead->id,
+            'contact_phone_id' => $firstPrimary->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'simulated',
+            'phone' => $firstPrimary->phone,
+            'started_at' => now()->subMinute(),
+            'ended_at' => now()->subMinute(),
+        ]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->assertSame($secondLead->id, $call->contact_id);
+        $this->assertSame($secondPrimary->id, $call->contact_phone_id);
+        $this->assertSame('31999994001', $call->phone);
+        $this->assertSame(0, $firstAlternate->fresh()->attempts_count);
+    }
+
+    public function test_anti_rechamada_skips_lead_after_any_phone_reached_agent_in_campaign(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$answeredAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'horizontal']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Anti Rechamada',
+            'status' => 'active',
+        ]);
+        $answeredLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Atendido',
+            'phone' => '31999995001',
+            'status' => 'pending',
+            'attempts_count' => 1,
+        ]);
+        $answeredPrimary = $answeredLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999995001',
+            'position' => 0,
+            'is_primary' => true,
+            'attempts_count' => 1,
+        ]);
+        $answeredAlternate = $answeredLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999995002',
+            'position' => 1,
+        ]);
+        $nextLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Seguro',
+            'phone' => '31999996001',
+            'status' => 'pending',
+        ]);
+        $nextPrimary = $nextLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999996001',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $answeredAgent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $answeredLead->id,
+            'contact_phone_id' => $answeredPrimary->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => $answeredPrimary->phone,
+            'started_at' => now()->subMinutes(5),
+            'answered_at' => now()->subMinutes(5),
+            'ended_at' => now()->subMinutes(4),
+        ]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->assertSame($nextLead->id, $call->contact_id);
+        $this->assertSame($nextPrimary->id, $call->contact_phone_id);
+        $this->assertSame(0, $answeredAlternate->fresh()->attempts_count);
+    }
+
+    public function test_simulated_dialer_creates_campaign_call_with_selected_contact_phone(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Telefone Selecionado',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Telefone Selecionado',
+            'phone' => '31999997001',
+            'status' => 'pending',
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999997001',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::where('campaign_id', $campaign->id)->sole();
+
+        $this->assertSame($contact->id, $call->contact_id);
+        $this->assertSame($primary->id, $call->contact_phone_id);
+        $this->assertSame('31999997001', $call->phone);
+        $this->assertSame(1, $primary->fresh()->attempts_count);
+    }
+
+    public function test_selected_contact_phone_tracks_tabulation_and_next_selection_after_retry_cooldown(): void
+    {
+        $this->travelTo(now()->setSecond(0)->setMicrosecond(0));
+
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'horizontal']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Tabulacao Telefone',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Tabulacao Telefone',
+            'phone' => '31999991601',
+            'status' => 'pending',
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991601',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $alternate = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991602',
+            'position' => 1,
+        ]);
+        $nextContact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Proximo Lead Tabulacao',
+            'phone' => '31999991603',
+            'status' => 'pending',
+        ]);
+        $nextPrimary = $nextContact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991603',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Nao atendeu telefone',
+            'code' => 'NAO_ATENDE_FONE',
+            'category' => 'negative',
+            'status' => 'active',
+            'retry_enabled' => true,
+            'retry_delay_minutes' => 45,
+            'max_attempts' => 3,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $primary->refresh();
+
+        $this->assertSame('pending', $primary->status);
+        $this->assertTrue(now()->addMinutes(45)->equalTo($primary->next_attempt_at));
+        $this->assertSame($nextPrimary->id, app(MailingQueueService::class)->nextContactPhoneForCampaign($campaign)?->id);
+        $this->assertSame(0, $alternate->fresh()->attempts_count);
+    }
+
+    public function test_retry_disposition_releases_answered_lead_after_cooldown(): void
+    {
+        $this->travelTo(now()->setSecond(0)->setMicrosecond(0));
+
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Retry Completo',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Retry Completo',
+            'phone' => '31999991611',
+            'status' => 'pending',
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991611',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Retry autorizado',
+            'code' => 'RETRY_AUTORIZADO',
+            'category' => 'negative',
+            'status' => 'active',
+            'retry_enabled' => true,
+            'retry_delay_minutes' => 15,
+            'max_attempts' => 3,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $firstCall = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $firstCall->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $this->assertSame(0, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $this->travel(16)->minutes();
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+        $this->assertSame(2, Call::query()->where('campaign_id', $campaign->id)->count());
+        $this->assertSame(
+            $primary->id,
+            Call::query()->where('campaign_id', $campaign->id)->latest('id')->value('contact_phone_id'),
+        );
+    }
+
+    public function test_recycle_campaign_reopens_contact_phones_with_exhausted_queue_state(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Reciclagem Telefones',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Reciclado',
+            'phone' => '31999991621',
+            'status' => 'exhausted',
+            'next_attempt_at' => now()->addDay(),
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991621',
+            'position' => 0,
+            'is_primary' => true,
+            'status' => 'exhausted',
+            'next_attempt_at' => now()->addDay(),
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(MailingQueueService::class)->recycleCampaign($campaign));
+
+        $this->assertSame('pending', $contact->fresh()->status);
+        $this->assertNull($contact->fresh()->next_attempt_at);
+        $this->assertSame('pending', $primary->fresh()->status);
+        $this->assertNull($primary->fresh()->next_attempt_at);
+        $this->assertSame($primary->id, app(MailingQueueService::class)->nextContactPhoneForCampaign($campaign)?->id);
+    }
+
+    public function test_selected_contact_phone_is_answered_when_tabulation_succeeds(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Sucesso Telefone',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Sucesso Telefone',
+            'phone' => '31999991701',
+            'status' => 'pending',
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991701',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda telefone',
+            'code' => 'VENDA_FONE',
+            'category' => 'success',
+            'status' => 'active',
+            'is_success' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $call = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $primary->refresh();
+
+        $this->assertSame('answered', $primary->status);
+        $this->assertNull($primary->next_attempt_at);
+        $this->assertNull(app(MailingQueueService::class)->nextContactPhoneForCampaign($campaign));
+    }
+
     public function test_simulated_dialer_creates_concurrent_batches_with_one_winner_per_agent(): void
     {
         [$agent, $company] = $this->tenantUser('agent');
@@ -1024,6 +1563,91 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(6, $list->contacts()->where('attempts_count', 1)->count());
         $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
         $this->assertSame('in_call', $secondAgent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_simulated_dialer_cancelled_batch_phone_remains_pending_after_retry_delay(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 2,
+            'max_concurrent_calls' => 2,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $campaign->update(['lead_phone_strategy' => 'horizontal']);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Cancelado Sem Atendimento',
+            'status' => 'active',
+        ]);
+        $answeredLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Atendido no Batch',
+            'phone' => '31999991101',
+            'status' => 'pending',
+        ]);
+        $answeredPrimary = $answeredLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991101',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $cancelledLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Cancelado no Batch',
+            'phone' => '31999991201',
+            'status' => 'pending',
+        ]);
+        $cancelledPrimary = $cancelledLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991201',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $cancelledAlternate = $cancelledLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991202',
+            'position' => 1,
+        ]);
+        $nextLead = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Seguinte',
+            'phone' => '31999991301',
+            'status' => 'pending',
+        ]);
+        $nextPrimary = $nextLead->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991301',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(2, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $winner = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+        $cancelled = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'cancelled')
+            ->sole();
+        $queue = app(MailingQueueService::class);
+
+        $this->assertSame($answeredLead->id, $winner->contact_id);
+        $this->assertSame($answeredPrimary->id, $winner->contact_phone_id);
+        $this->assertNotNull($winner->answered_at);
+        $this->assertSame($cancelledLead->id, $cancelled->contact_id);
+        $this->assertSame($cancelledPrimary->id, $cancelled->contact_phone_id);
+        $this->assertNull($cancelled->answered_at);
+        $this->assertSame('pending', $cancelledLead->fresh()->status);
+        $this->assertSame('pending', $cancelledPrimary->fresh()->status);
+        $this->assertSame($nextPrimary->id, $queue->nextContactPhoneForCampaign($campaign)?->id);
+
+        $this->travel(31)->minutes();
+
+        $this->assertSame($cancelledAlternate->id, $queue->nextContactPhoneForCampaign($campaign)?->id);
     }
 
     public function test_simulated_dialer_shares_global_limit_with_another_campaign(): void

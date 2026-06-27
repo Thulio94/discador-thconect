@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class NotificationTest extends TestCase
@@ -171,6 +172,42 @@ class NotificationTest extends TestCase
             'message' => 'Lista Notificada recebeu 2 contatos importados.',
         ]);
         $this->assertTrue($supervisor->appNotifications()->where('title', 'Lista importada')->exists());
+    }
+
+    public function test_csv_contact_list_import_notifies_company_admins_and_supervisors(): void
+    {
+        $company = $this->company();
+        $admin = $this->tenantUser($company, 'company_admin', '1001');
+        $supervisor = $this->tenantUser($company, 'supervisor', '1002');
+        $file = UploadedFile::fake()->createWithContent(
+            'leads.csv',
+            "Nome;Telefone 1;Telefone 2\nMaria;31999990001;31988880002\nJoao;31977770003;"
+        );
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista CSV Notificada',
+                'status' => 'active',
+                'import_file' => $file,
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Telefone 1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Telefone 2', 'type' => 'phone'],
+                ],
+            ])
+            ->assertRedirect(route('tenant.lists.index'));
+
+        $this->assertDatabaseHas('app_notifications', [
+            'company_id' => $company->id,
+            'user_id' => $admin->id,
+            'type' => 'mailing',
+            'severity' => 'info',
+            'title' => 'Lista importada',
+            'message' => 'Lista CSV Notificada recebeu 2 leads e 3 telefones importados.',
+        ]);
+        $this->assertTrue($supervisor->appNotifications()->where('message', 'Lista CSV Notificada recebeu 2 leads e 3 telefones importados.')->exists());
     }
 
     public function test_supervision_operational_alerts_create_deduplicated_notifications(): void
