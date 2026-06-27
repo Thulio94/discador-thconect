@@ -9,6 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('contacts', function (Blueprint $table): void {
+            $table->index('contact_list_id');
+        });
+
+        Schema::table('contacts', function (Blueprint $table): void {
             $table->dropUnique(['contact_list_id', 'phone']);
         });
     }
