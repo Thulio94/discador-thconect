@@ -497,9 +497,14 @@ class TenantCampaignListCrudTest extends TestCase
                 'team_ids' => [$team->id],
                 'list_ids' => [$list->id],
                 'service_fields_schema' => [
-                    ['enabled' => '1', 'key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'text', 'required' => '1'],
-                    ['enabled' => '1', 'key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'number'],
-                    ['key' => 'ignorado', 'label' => 'Ignorado', 'type' => 'text'],
+                    ['enabled' => '1', 'key' => 'observacao', 'label' => 'Observacao', 'type' => 'text'],
+                    ['enabled' => '1', 'key' => 'quantidade', 'label' => 'Quantidade', 'type' => 'number'],
+                    ['enabled' => '1', 'key' => 'data', 'label' => 'Data', 'type' => 'date'],
+                    ['enabled' => '1', 'key' => 'cpf', 'label' => 'CPF', 'type' => 'cpf', 'required' => '1'],
+                    ['enabled' => '1', 'key' => 'cnpj', 'label' => 'CNPJ', 'type' => 'cnpj'],
+                    ['enabled' => '1', 'key' => 'telefone', 'label' => 'Telefone', 'type' => 'phone'],
+                    ['enabled' => '1', 'key' => 'email', 'label' => 'E-mail', 'type' => 'email'],
+                    ['enabled' => '1', 'key' => 'valor', 'label' => 'Valor', 'type' => 'currency'],
                 ],
             ])
             ->assertRedirect(route('tenant.campaigns.index'))
@@ -507,16 +512,37 @@ class TenantCampaignListCrudTest extends TestCase
 
         $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Campos')->sole();
 
-        $this->assertSame([
-            ['key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'text', 'required' => true],
-            ['key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'number', 'required' => false],
-        ], $campaign->service_fields_schema);
+        $this->assertSame(
+            ['text', 'number', 'date', 'cpf', 'cnpj', 'phone', 'email', 'currency'],
+            collect($campaign->service_fields_schema)->pluck('type')->all(),
+        );
 
         $this->actingAs($admin)
             ->get(route('tenant.campaigns.index'))
             ->assertOk()
             ->assertSee('Campos dinamicos')
-            ->assertSee('CPF Cliente');
+            ->assertSee('CPF');
+    }
+
+    public function test_tenant_admin_cannot_configure_an_unknown_service_field_type(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Tipo Invalido']);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Tipo Invalido',
+                'dialing_mode' => 'power',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+                'service_fields_schema' => [
+                    ['enabled' => '1', 'key' => 'arquivo', 'label' => 'Arquivo', 'type' => 'file'],
+                ],
+            ])
+            ->assertSessionHasErrors('service_fields_schema.0.type');
+
+        $this->assertDatabaseMissing('campaigns', ['name' => 'Campanha Tipo Invalido']);
     }
 
     public function test_tenant_admin_can_update_and_finish_campaign(): void

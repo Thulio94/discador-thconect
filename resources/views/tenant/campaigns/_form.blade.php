@@ -76,6 +76,11 @@
                                 <option value="text" @selected(($field['type'] ?? 'text') === 'text')>Texto</option>
                                 <option value="number" @selected(($field['type'] ?? 'text') === 'number')>Numero</option>
                                 <option value="date" @selected(($field['type'] ?? 'text') === 'date')>Data</option>
+                                <option value="cpf" @selected(($field['type'] ?? 'text') === 'cpf')>CPF</option>
+                                <option value="cnpj" @selected(($field['type'] ?? 'text') === 'cnpj')>CNPJ</option>
+                                <option value="phone" @selected(($field['type'] ?? 'text') === 'phone')>Telefone</option>
+                                <option value="email" @selected(($field['type'] ?? 'text') === 'email')>E-mail</option>
+                                <option value="currency" @selected(($field['type'] ?? 'text') === 'currency')>Moeda</option>
                             </select>
                         </label>
                         <label class="flex items-center gap-2 font-semibold">

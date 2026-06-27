@@ -235,7 +235,10 @@ class CampaignController extends Controller
             'service_fields_schema.*.enabled' => ['nullable'],
             'service_fields_schema.*.key' => ['nullable', 'string', 'max:60'],
             'service_fields_schema.*.label' => ['nullable', 'string', 'max:80'],
-            'service_fields_schema.*.type' => ['nullable', Rule::in(['text', 'number', 'date'])],
+            'service_fields_schema.*.type' => [
+                'nullable',
+                Rule::in(['text', 'number', 'date', 'cpf', 'cnpj', 'phone', 'email', 'currency']),
+            ],
             'service_fields_schema.*.required' => ['nullable'],
         ];
     }
@@ -308,9 +311,10 @@ class CampaignController extends Controller
     private function serviceFieldsSchemaPayload(array $fields): ?array
     {
         $usedKeys = [];
+        $allowedTypes = ['text', 'number', 'date', 'cpf', 'cnpj', 'phone', 'email', 'currency'];
         $payload = collect($fields)
             ->filter(fn (array $field): bool => filled($field['enabled'] ?? null))
-            ->map(function (array $field) use (&$usedKeys): ?array {
+            ->map(function (array $field) use (&$usedKeys, $allowedTypes): ?array {
                 $key = $this->fieldKey((string) ($field['key'] ?? ''));
 
                 if ($key === '' || in_array($key, $usedKeys, true) || blank($field['label'] ?? null)) {
@@ -322,7 +326,7 @@ class CampaignController extends Controller
                 return [
                     'key' => $key,
                     'label' => trim((string) $field['label']),
-                    'type' => in_array($field['type'] ?? 'text', ['text', 'number', 'date'], true) ? $field['type'] : 'text',
+                    'type' => in_array($field['type'] ?? 'text', $allowedTypes, true) ? $field['type'] : 'text',
                     'required' => filled($field['required'] ?? null),
                 ];
             })
