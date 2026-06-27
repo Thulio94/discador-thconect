@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-14
+Atualizado em: 2026-06-27
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -131,6 +131,12 @@ Status: basico funcional, ainda nao completo.
 - [x] Campanha com varias listas.
 - [x] CRUD de listas.
 - [x] Importacao simples de contatos.
+- [x] Importacao CSV/TXT de listas com telefones do lead.
+  - Upload por clique ou arrastar no modal de lista.
+  - Primeira linha como cabecalho e selecao dinamica de colunas.
+  - Uma ou mais colunas de telefone por lead.
+  - Campanha controla estrategia horizontal ativada/desativada.
+  - Anti-rechamada quando qualquer telefone do lead chega ao operador/ramal, exceto retry ou callback configurado na tabulacao.
 - [x] Sanitizacao de telefones.
 - [x] Deduplicacao simples.
 - [x] Blacklist aplicada na importacao.

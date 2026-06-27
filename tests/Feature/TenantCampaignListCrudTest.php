@@ -187,6 +187,67 @@ class TenantCampaignListCrudTest extends TestCase
         ]);
     }
 
+    public function test_csv_import_rejects_empty_file_and_file_without_header(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        foreach (['vazio.csv' => '', 'sem-cabecalho.csv' => "\n31999990001"] as $name => $content) {
+            $this->actingAs($admin)
+                ->post(route('tenant.lists.store'), [
+                    'name' => 'Lista '.$name,
+                    'status' => 'active',
+                    'import_file' => UploadedFile::fake()->createWithContent($name, $content),
+                    'separator' => ';',
+                    'delimiter' => '"',
+                    'import_columns' => [
+                        ['index' => 0, 'enabled' => '1', 'name' => 'Telefone', 'type' => 'phone'],
+                    ],
+                ])
+                ->assertSessionHasErrors('import_file');
+
+            $this->assertDatabaseMissing('contact_lists', [
+                'company_id' => $admin->company_id,
+                'name' => 'Lista '.$name,
+            ]);
+        }
+    }
+
+    public function test_csv_import_applies_blacklist_to_all_phone_columns(): void
+    {
+        [$admin] = $this->tenantAdmin();
+        BlacklistNumber::create([
+            'company_id' => $admin->company_id,
+            'phone' => '31988880002',
+            'reason' => 'Bloqueado',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Blacklist Multiphone',
+                'status' => 'active',
+                'import_file' => UploadedFile::fake()->createWithContent(
+                    'leads.csv',
+                    "Nome;Tel1;Tel2\nMaria;31999990001;31988880002",
+                ),
+                'separator' => ';',
+                'delimiter' => '"',
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Tel1', 'type' => 'phone'],
+                    ['index' => 2, 'enabled' => '1', 'name' => 'Tel2', 'type' => 'phone'],
+                ],
+            ])
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 bloqueado'));
+
+        $list = ContactList::query()
+            ->where('company_id', $admin->company_id)
+            ->where('name', 'Lista Blacklist Multiphone')
+            ->sole();
+
+        $this->assertSame(['31999990001'], $list->contacts()->sole()->phones()->pluck('phone')->all());
+    }
+
     public function test_contact_can_store_multiple_ordered_phones_for_a_lead(): void
     {
         [$admin] = $this->tenantAdmin();

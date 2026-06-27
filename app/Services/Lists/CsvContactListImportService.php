@@ -41,9 +41,15 @@ class CsvContactListImportService
         $duplicated = 0;
 
         $csv = new SplFileObject($file->getRealPath());
-        $csv->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
+        $csv->setFlags(SplFileObject::READ_CSV);
         $csv->setCsvControl($separator[0] ?? ';', $delimiter[0] ?? '"');
-        $csv->fgetcsv();
+        $headers = $csv->fgetcsv();
+
+        if (! is_array($headers) || $this->isEmptyRow($headers)) {
+            throw ValidationException::withMessages([
+                'import_file' => 'O arquivo precisa ter uma linha de cabecalho.',
+            ]);
+        }
 
         DB::transaction(function () use (
             $csv,
