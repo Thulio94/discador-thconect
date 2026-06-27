@@ -8,6 +8,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Disposition;
 use App\Models\PauseReason;
+use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,10 @@ use Illuminate\Validation\Rule;
 
 class AgentPanelController extends Controller
 {
+    public function __construct(
+        private readonly ServiceFieldValidator $serviceFieldValidator,
+    ) {}
+
     public function index(Request $request, AgentCapacityService $capacity): View
     {
         $user = $request->user();
@@ -170,10 +175,6 @@ class AgentPanelController extends Controller
         }
 
         $callbackAt = filled($data['callback_at'] ?? null) ? $data['callback_at'] : null;
-        $serviceFields = collect($data['service_fields'] ?? [])
-            ->map(fn ($value) => is_string($value) ? trim($value) : $value)
-            ->filter(fn ($value) => filled($value))
-            ->all();
 
         $call = Call::query()
             ->where('company_id', $user->company_id)
@@ -183,10 +184,13 @@ class AgentPanelController extends Controller
             ->firstOrFail();
 
         $schema = $this->serviceFieldsSchema($call);
-        $serviceFieldErrors = $this->serviceFieldErrors($schema, $data['service_fields'] ?? []);
+        $serviceFieldResult = $this->serviceFieldValidator->validate(
+            $schema,
+            $data['service_fields'] ?? [],
+        );
 
-        if ($serviceFieldErrors !== []) {
-            return back()->withErrors($serviceFieldErrors)->withInput();
+        if (! $serviceFieldResult->passes()) {
+            return back()->withErrors($serviceFieldResult->errors)->withInput();
         }
 
         $call->update([
@@ -197,7 +201,7 @@ class AgentPanelController extends Controller
             'disposition_notes' => $data['disposition_notes'] ?? null,
             'callback_type' => $disposition->category === 'callback' ? $data['callback_type'] : null,
             'callback_at' => $disposition->category === 'callback' ? $callbackAt : null,
-            'service_fields' => $this->serviceFieldsPayload($schema, $serviceFields),
+            'service_fields' => $serviceFieldResult->values ?: null,
             'ended_at' => now(),
         ]);
 
@@ -289,27 +293,5 @@ class AgentPanelController extends Controller
             ['key' => 'protocolo', 'label' => 'Protocolo', 'type' => 'text', 'required' => false],
             ['key' => 'valor', 'label' => 'Valor', 'type' => 'number', 'required' => false],
         ];
-    }
-
-    private function serviceFieldErrors(array $schema, array $fields): array
-    {
-        return collect($schema)
-            ->filter(fn (array $field): bool => (bool) ($field['required'] ?? false) && blank($fields[$field['key']] ?? null))
-            ->mapWithKeys(fn (array $field): array => [
-                'service_fields.'.$field['key'] => 'Informe '.$field['label'].'.',
-            ])
-            ->all();
-    }
-
-    private function serviceFieldsPayload(array $schema, array $fields): ?array
-    {
-        $allowedKeys = collect($schema)->pluck('key')->all();
-        $payload = collect($fields)
-            ->only($allowedKeys)
-            ->map(fn ($value) => is_string($value) ? trim($value) : $value)
-            ->filter(fn ($value) => filled($value))
-            ->all();
-
-        return $payload ?: null;
     }
 }

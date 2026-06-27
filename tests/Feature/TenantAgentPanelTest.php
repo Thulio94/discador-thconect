@@ -618,8 +618,11 @@ class TenantAgentPanelTest extends TestCase
             'dialing_mode' => 'power',
             'status' => 'active',
             'service_fields_schema' => [
-                ['key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'text', 'required' => true],
-                ['key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'number', 'required' => false],
+                ['key' => 'cpf_cliente', 'label' => 'CPF Cliente', 'type' => 'cpf', 'required' => true],
+                ['key' => 'cnpj_empresa', 'label' => 'CNPJ Empresa', 'type' => 'cnpj', 'required' => false],
+                ['key' => 'telefone', 'label' => 'Telefone', 'type' => 'phone', 'required' => false],
+                ['key' => 'email', 'label' => 'E-mail', 'type' => 'email', 'required' => false],
+                ['key' => 'valor_oferta', 'label' => 'Valor Oferta', 'type' => 'currency', 'required' => false],
             ],
         ]);
         $disposition = Disposition::create([
@@ -651,6 +654,9 @@ class TenantAgentPanelTest extends TestCase
             ->get(route('tenant.agent.index'))
             ->assertOk()
             ->assertSee('CPF Cliente')
+            ->assertSee('CNPJ Empresa')
+            ->assertSee('Telefone')
+            ->assertSee('E-mail')
             ->assertSee('Valor Oferta')
             ->assertDontSee('Documento');
 
@@ -659,18 +665,34 @@ class TenantAgentPanelTest extends TestCase
                 'call_id' => $call->id,
                 'disposition_id' => $disposition->id,
                 'service_fields' => [
-                    'valor_oferta' => '199.90',
+                    'cpf_cliente' => '111.111.111-11',
+                    'cnpj_empresa' => '11.111.111/1111-11',
+                    'telefone' => '123',
+                    'email' => 'cliente@',
+                    'valor_oferta' => '-10,00',
                 ],
             ])
-            ->assertSessionHasErrors('service_fields.cpf_cliente');
+            ->assertSessionHasErrors([
+                'service_fields.cpf_cliente',
+                'service_fields.cnpj_empresa',
+                'service_fields.telefone',
+                'service_fields.email',
+                'service_fields.valor_oferta',
+            ]);
+
+        $this->assertSame('in_progress', $call->fresh()->status);
+        $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
 
         $this->actingAs($agent)
             ->patch(route('tenant.agent.calls.end'), [
                 'call_id' => $call->id,
                 'disposition_id' => $disposition->id,
                 'service_fields' => [
-                    'cpf_cliente' => '12345678900',
-                    'valor_oferta' => '199.90',
+                    'cpf_cliente' => '529.982.247-25',
+                    'cnpj_empresa' => '04.252.011/0001-10',
+                    'telefone' => '(31) 99999-0000',
+                    'email' => ' CLIENTE@EXAMPLE.COM ',
+                    'valor_oferta' => 'R$ 1.234,56',
                     'campo_fora_schema' => 'ignorado',
                 ],
             ])
@@ -678,9 +700,84 @@ class TenantAgentPanelTest extends TestCase
             ->assertSessionHas('status');
 
         $this->assertSame([
-            'cpf_cliente' => '12345678900',
-            'valor_oferta' => '199.90',
+            'cpf_cliente' => '52998224725',
+            'cnpj_empresa' => '04252011000110',
+            'telefone' => '31999990000',
+            'email' => 'cliente@example.com',
+            'valor_oferta' => 123456,
         ], $call->fresh()->service_fields);
+    }
+
+    public function test_service_field_validation_uses_only_the_current_calls_campaign_schema(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [, $otherCompany] = $this->tenantUser('agent');
+
+        Campaign::create([
+            'company_id' => $otherCompany->id,
+            'name' => 'Campanha Externa',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'service_fields_schema' => [
+                ['key' => 'documento', 'label' => 'CNPJ Externo', 'type' => 'cnpj', 'required' => true],
+            ],
+        ]);
+
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista Isolada',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Cliente Isolado',
+            'phone' => '31999990077',
+            'status' => 'dialing',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Isolada',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'service_fields_schema' => [
+                ['key' => 'documento', 'label' => 'Documento Local', 'type' => 'text', 'required' => false],
+            ],
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Venda Isolada',
+            'code' => 'VENDA_ISOLADA',
+            'category' => 'success',
+            'status' => 'active',
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => $contact->phone,
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+                'service_fields' => ['documento' => 'ABC-123'],
+            ])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame(['documento' => 'ABC-123'], $call->fresh()->service_fields);
     }
 
     public function test_disposition_retry_rule_returns_contact_to_queue_with_cooldown(): void
