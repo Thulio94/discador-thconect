@@ -1365,6 +1365,105 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(0, $alternate->fresh()->attempts_count);
     }
 
+    public function test_retry_disposition_releases_answered_lead_after_cooldown(): void
+    {
+        $this->travelTo(now()->setSecond(0)->setMicrosecond(0));
+
+        [$agent, $company] = $this->tenantUser('agent');
+        $company->licenses()->firstOrFail()->update(['max_calls_per_available_agent' => 1]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Retry Completo',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Retry Completo',
+            'phone' => '31999991611',
+            'status' => 'pending',
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991611',
+            'position' => 0,
+            'is_primary' => true,
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Retry autorizado',
+            'code' => 'RETRY_AUTORIZADO',
+            'category' => 'negative',
+            'status' => 'active',
+            'retry_enabled' => true,
+            'retry_delay_minutes' => 15,
+            'max_attempts' => 3,
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $firstCall = Call::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('status', 'in_progress')
+            ->sole();
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $firstCall->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $this->assertSame(0, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $this->travel(16)->minutes();
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+        $this->assertSame(2, Call::query()->where('campaign_id', $campaign->id)->count());
+        $this->assertSame(
+            $primary->id,
+            Call::query()->where('campaign_id', $campaign->id)->latest('id')->value('contact_phone_id'),
+        );
+    }
+
+    public function test_recycle_campaign_reopens_contact_phones_with_exhausted_queue_state(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing Reciclagem Telefones',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead Reciclado',
+            'phone' => '31999991621',
+            'status' => 'exhausted',
+            'next_attempt_at' => now()->addDay(),
+        ]);
+        $primary = $contact->phones()->create([
+            'company_id' => $company->id,
+            'phone' => '31999991621',
+            'position' => 0,
+            'is_primary' => true,
+            'status' => 'exhausted',
+            'next_attempt_at' => now()->addDay(),
+        ]);
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(1, app(MailingQueueService::class)->recycleCampaign($campaign));
+
+        $this->assertSame('pending', $contact->fresh()->status);
+        $this->assertNull($contact->fresh()->next_attempt_at);
+        $this->assertSame('pending', $primary->fresh()->status);
+        $this->assertNull($primary->fresh()->next_attempt_at);
+        $this->assertSame($primary->id, app(MailingQueueService::class)->nextContactPhoneForCampaign($campaign)?->id);
+    }
+
     public function test_selected_contact_phone_is_answered_when_tabulation_succeeds(): void
     {
         [$agent, $company] = $this->tenantUser('agent');

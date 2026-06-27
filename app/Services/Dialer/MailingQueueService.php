@@ -84,7 +84,19 @@ class MailingQueueService
                     ->where('calls.company_id', $campaign->company_id)
                     ->where('calls.campaign_id', $campaign->id)
                     ->whereNotNull('calls.user_id')
-                    ->whereNotNull('calls.answered_at');
+                    ->whereNotNull('calls.answered_at')
+                    ->where(function ($query): void {
+                        $query->whereNull('calls.disposition_id')
+                            ->orWhereNotExists(function ($query): void {
+                                $query->selectRaw('1')
+                                    ->from('dispositions')
+                                    ->whereColumn('dispositions.id', 'calls.disposition_id')
+                                    ->where(function ($query): void {
+                                        $query->where('dispositions.retry_enabled', true)
+                                            ->orWhere('dispositions.category', 'callback');
+                                    });
+                            });
+                    });
             })
             ->where(function ($query) use ($now): void {
                 $query->where(function ($query): void {
@@ -185,15 +197,32 @@ class MailingQueueService
             return 0;
         }
 
-        return Contact::query()
-            ->where('company_id', $campaign->company_id)
-            ->whereIn('contact_list_id', $listIds)
-            ->whereIn('status', ['unproductive', 'callback', 'exhausted'])
-            ->update([
+        return DB::transaction(function () use ($campaign, $listIds): int {
+            $contacts = Contact::query()
+                ->where('company_id', $campaign->company_id)
+                ->whereIn('contact_list_id', $listIds)
+                ->whereIn('status', ['unproductive', 'callback', 'exhausted']);
+            $contactIds = (clone $contacts)->pluck('id');
+
+            if ($contactIds->isEmpty()) {
+                return 0;
+            }
+
+            ContactPhone::query()
+                ->where('company_id', $campaign->company_id)
+                ->whereIn('contact_id', $contactIds)
+                ->update([
+                    'status' => 'pending',
+                    'next_attempt_at' => null,
+                    'updated_at' => now(),
+                ]);
+
+            return $contacts->update([
                 'status' => 'pending',
                 'next_attempt_at' => null,
                 'updated_at' => now(),
             ]);
+        });
     }
 
     public function summaryForCampaign(Campaign $campaign): array
