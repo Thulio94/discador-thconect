@@ -666,6 +666,7 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('autocomplete="email"', false)
             ->assertSee('name="service_fields[valor_oferta]"', false)
             ->assertSee("serviceFieldMask('currency')", false)
+            ->assertSee('data-service-fields-grid', false)
             ->assertDontSee('Documento');
 
         $this->actingAs($agent)
@@ -704,6 +705,7 @@ class TenantAgentPanelTest extends TestCase
                 ],
             ])
             ->assertOk()
+            ->assertSee('x-data="{ show: true }"', false)
             ->assertSee('CPF Cliente possui CPF invalido.')
             ->assertSee('111.111.111-11');
 

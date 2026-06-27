@@ -246,7 +246,12 @@
     </x-ui.modal>
 
     @if ($currentCall)
-        <x-ui.modal name="call-disposition" title="Tabular chamada" max-width="lg">
+        <x-ui.modal
+            name="call-disposition"
+            title="Tabular chamada"
+            max-width="lg"
+            :show="$errors->hasAny(['disposition_id', 'callback_at', 'callback_type', 'service_fields.*'])"
+        >
             @if ($dispositions->isNotEmpty())
                 <form method="POST" action="{{ route('tenant.agent.calls.end') }}" class="grid gap-4">
                     @csrf
@@ -316,7 +321,7 @@
                             <p class="text-sm font-semibold">Campos do atendimento</p>
                         </div>
 
-                        <div class="grid gap-3 sm:grid-cols-3">
+                        <div data-service-fields-grid class="grid gap-3 sm:grid-cols-2">
                             @foreach ($serviceFieldsSchema as $field)
                                 @php
                                     $fieldType = $field['type'] ?? 'text';

@@ -2,6 +2,7 @@
     'name',
     'title' => null,
     'maxWidth' => '2xl',
+    'show' => false,
 ])
 
 @php
@@ -16,7 +17,7 @@
 @endphp
 
 <div
-    x-data="{ show: false }"
+    x-data="{ show: {{ $show ? 'true' : 'false' }} }"
     x-on:open-modal.window="$event.detail === '{{ $name }}' ? show = true : null"
     x-on:close-modal.window="$event.detail === '{{ $name }}' ? show = false : null"
     x-on:keydown.escape.window="show = false"
