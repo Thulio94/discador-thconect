@@ -658,6 +658,14 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('Telefone')
             ->assertSee('E-mail')
             ->assertSee('Valor Oferta')
+            ->assertSee('name="service_fields[cpf_cliente]"', false)
+            ->assertSee('inputmode="numeric"', false)
+            ->assertSee('name="service_fields[telefone]"', false)
+            ->assertSee('type="tel"', false)
+            ->assertSee('name="service_fields[email]"', false)
+            ->assertSee('autocomplete="email"', false)
+            ->assertSee('name="service_fields[valor_oferta]"', false)
+            ->assertSee("serviceFieldMask('currency')", false)
             ->assertDontSee('Documento');
 
         $this->actingAs($agent)
@@ -682,6 +690,22 @@ class TenantAgentPanelTest extends TestCase
 
         $this->assertSame('in_progress', $call->fresh()->status);
         $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
+
+        $this->followingRedirects()
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+                'service_fields' => [
+                    'cpf_cliente' => '111.111.111-11',
+                    'cnpj_empresa' => '11.111.111/1111-11',
+                    'telefone' => '123',
+                    'email' => 'cliente@',
+                    'valor_oferta' => '-10,00',
+                ],
+            ])
+            ->assertOk()
+            ->assertSee('CPF Cliente possui CPF invalido.')
+            ->assertSee('111.111.111-11');
 
         $this->actingAs($agent)
             ->patch(route('tenant.agent.calls.end'), [

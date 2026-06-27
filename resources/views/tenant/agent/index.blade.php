@@ -318,6 +318,22 @@
 
                         <div class="grid gap-3 sm:grid-cols-3">
                             @foreach ($serviceFieldsSchema as $field)
+                                @php
+                                    $fieldType = $field['type'] ?? 'text';
+                                    $inputType = match ($fieldType) {
+                                        'date' => 'date',
+                                        'phone' => 'tel',
+                                        'email' => 'email',
+                                        default => 'text',
+                                    };
+                                    $inputMode = match ($fieldType) {
+                                        'number', 'currency' => 'decimal',
+                                        'cpf', 'cnpj' => 'numeric',
+                                        default => null,
+                                    };
+                                    $masked = in_array($fieldType, ['cpf', 'cnpj', 'phone', 'currency'], true);
+                                    $errorKey = 'service_fields.'.$field['key'];
+                                @endphp
                                 <label class="grid gap-1 text-sm">
                                     <span class="font-semibold">
                                         {{ $field['label'] }}
@@ -326,13 +342,22 @@
                                         @endif
                                     </span>
                                     <input
-                                        type="{{ ($field['type'] ?? 'text') === 'date' ? 'date' : (($field['type'] ?? 'text') === 'number' ? 'number' : 'text') }}"
+                                        type="{{ $inputType }}"
                                         name="service_fields[{{ $field['key'] }}]"
+                                        value="{{ old('service_fields.'.$field['key']) }}"
                                         class="rounded-lg border px-3 py-2"
                                         style="border-color: var(--border); background: var(--surface); color: var(--fg);"
-                                        @if (($field['type'] ?? 'text') === 'number') step="0.01" @endif
+                                        @if ($inputMode) inputmode="{{ $inputMode }}" @endif
+                                        @if ($fieldType === 'email') autocomplete="email" @endif
+                                        @if ($masked)
+                                            x-data="serviceFieldMask('{{ $fieldType }}')"
+                                            x-on:input="format($event)"
+                                        @endif
                                         @required($field['required'] ?? false)
                                     >
+                                    @error($errorKey)
+                                        <span class="text-xs" style="color: var(--status-danger);">{{ $message }}</span>
+                                    @enderror
                                 </label>
                             @endforeach
                         </div>
