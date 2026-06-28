@@ -91,6 +91,12 @@ final class AuditLogService
             return null;
         }
 
+        $newValues = $this->sanitizer->sanitize($newValues);
+
+        if ($newValues === []) {
+            return null;
+        }
+
         $oldValues = [];
 
         if ($action === 'updated') {
