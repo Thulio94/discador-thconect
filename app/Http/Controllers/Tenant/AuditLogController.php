@@ -27,6 +27,8 @@ class AuditLogController extends Controller
                 ->orderBy('event')
                 ->pluck('event'),
             'isSuperAdmin' => false,
+            'purgeSelection' => null,
+            'purgeEstimate' => null,
         ]);
     }
 }

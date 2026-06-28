@@ -1,8 +1,22 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">{{ $isSuperAdmin ? 'Super admin' : 'Governanca' }}</p>
-            <h1 class="text-2xl font-bold" style="color: var(--fg);">Auditoria</h1>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">{{ $isSuperAdmin ? 'Super admin' : 'Governanca' }}</p>
+                <h1 class="text-2xl font-bold" style="color: var(--fg);">Auditoria</h1>
+            </div>
+            @if ($isSuperAdmin)
+                <x-ui.button
+                    type="button"
+                    variant="danger"
+                    x-data
+                    x-on:click="$dispatch('open-modal', 'audit-purge')"
+                    :disabled="$purgeSelection === null"
+                    title="{{ $purgeSelection ? 'Revisar limpeza do periodo filtrado' : 'Filtre uma empresa ou eventos globais e informe o periodo' }}"
+                >
+                    Limpar historico
+                </x-ui.button>
+            @endif
         </div>
     </x-slot>
 
@@ -105,6 +119,46 @@
     @foreach ($logs as $log)
         @include('audit._details-modal', ['log' => $log])
     @endforeach
+
+    @if ($isSuperAdmin && $purgeSelection)
+        <x-ui.modal
+            name="audit-purge"
+            title="Limpar historico"
+            max-width="lg"
+            :show="$errors->has('purge') || $errors->hasAny(['scope', 'company_id', 'date_from', 'date_to', 'reason'])"
+        >
+            <form method="POST" action="{{ route('super-admin.audit-logs.purge') }}" class="grid gap-4">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="scope" value="{{ $purgeSelection['scope'] }}">
+                @if ($purgeSelection['company_id'])
+                    <input type="hidden" name="company_id" value="{{ $purgeSelection['company_id'] }}">
+                @endif
+                <input type="hidden" name="date_from" value="{{ $purgeSelection['date_from'] }}">
+                <input type="hidden" name="date_to" value="{{ $purgeSelection['date_to'] }}">
+
+                <div class="grid gap-3 rounded-lg border p-4 sm:grid-cols-2" style="border-color: var(--border); background: var(--bg-subtle);">
+                    <div><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Escopo</p><p class="mt-1 text-sm">{{ $purgeSelection['scope'] === 'global' ? 'Eventos globais' : $companies->firstWhere('id', $purgeSelection['company_id'])?->name }}</p></div>
+                    <div><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Periodo</p><p class="mt-1 text-sm">{{ \Carbon\CarbonImmutable::parse($purgeSelection['date_from'])->format('d/m/Y') }} a {{ \Carbon\CarbonImmutable::parse($purgeSelection['date_to'])->format('d/m/Y') }}</p></div>
+                    <div class="sm:col-span-2"><p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Quantidade estimada</p><p class="mt-1 text-xl font-bold">{{ $purgeEstimate }} registros</p></div>
+                </div>
+
+                <p class="text-sm" style="color: var(--fg-muted);">A limpeza afeta somente o escopo e periodo exibidos. Nao existe exclusao de todas as empresas de uma vez.</p>
+
+                <label class="grid gap-1 text-sm">
+                    <span>Motivo <span style="color: var(--status-danger);">*</span></span>
+                    <textarea name="reason" rows="4" maxlength="1000" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">{{ old('reason') }}</textarea>
+                    @error('reason')<span class="text-xs" style="color: var(--status-danger);">{{ $message }}</span>@enderror
+                    @error('purge')<span class="text-xs" style="color: var(--status-danger);">{{ $message }}</span>@enderror
+                </label>
+
+                <div class="flex justify-end gap-2">
+                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'audit-purge')">Cancelar</x-ui.button>
+                    <x-ui.button type="submit" variant="danger" :disabled="$purgeEstimate === 0">Remover registros</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endif
 
     <div class="mt-5">{{ $logs->links() }}</div>
 </x-app-layout>

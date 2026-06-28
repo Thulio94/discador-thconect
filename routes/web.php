@@ -30,6 +30,7 @@ Route::middleware(['auth', 'super.admin'])
     ->name('super-admin.')
     ->group(function (): void {
         Route::get('audit-logs', [SuperAdminAuditLogController::class, 'index'])->name('audit-logs.index');
+        Route::delete('audit-logs/purge', [SuperAdminAuditLogController::class, 'purge'])->name('audit-logs.purge');
         Route::resource('companies', CompanyController::class)->except(['create', 'show', 'edit']);
     });
 
