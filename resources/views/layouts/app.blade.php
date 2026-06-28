@@ -8,6 +8,7 @@
         ? [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
             ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'users', 'active' => request()->routeIs('super-admin.companies.*')],
+            ['label' => 'Auditoria', 'href' => route('super-admin.audit-logs.index'), 'icon' => 'view', 'active' => request()->routeIs('super-admin.audit-logs.*')],
         ]
         : [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard'), 'ability' => 'tenant.dashboard.read'],
@@ -21,6 +22,7 @@
             ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'download', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
             ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read', 'soon' => true],
             ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.settings.*'), 'ability' => 'tenant.settings.read'],
+            ['label' => 'Auditoria', 'href' => route('tenant.audit-logs.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.audit-logs.*'), 'ability' => 'tenant.audit.read'],
             ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'ability' => 'tenant.integrations.read', 'soon' => true],
         ];
     $navItems = collect($navItems)
