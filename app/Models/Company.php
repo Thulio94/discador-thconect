@@ -86,6 +86,11 @@ class Company extends Model
         return $this->hasMany(AppNotification::class);
     }
 
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class);
+    }
+
     public function reportExports(): HasMany
     {
         return $this->hasMany(ReportExport::class);
