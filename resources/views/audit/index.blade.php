@@ -79,14 +79,14 @@
 
     <section class="mt-5 overflow-hidden rounded-lg border" style="border-color: var(--border); background: var(--surface);">
         <div class="overflow-x-auto">
-            <table class="min-w-full text-left text-sm">
+            <table data-audit-table class="w-full table-fixed text-left text-sm">
                 <thead style="background: var(--bg-subtle); color: var(--fg-muted);">
                     <tr>
-                        <th class="px-4 py-3 font-semibold">Data</th>
-                        @if ($isSuperAdmin)<th class="px-4 py-3 font-semibold">Empresa</th>@endif
-                        <th class="px-4 py-3 font-semibold">Responsavel</th>
-                        <th class="px-4 py-3 font-semibold">Evento</th>
-                        <th class="px-4 py-3 font-semibold">Entidade</th>
+                        <th class="hidden w-36 px-4 py-3 font-semibold sm:table-cell">Data</th>
+                        @if ($isSuperAdmin)<th class="hidden w-40 px-4 py-3 font-semibold lg:table-cell">Empresa</th>@endif
+                        <th class="hidden w-48 px-4 py-3 font-semibold md:table-cell">Responsavel</th>
+                        <th class="w-28 px-3 py-3 font-semibold sm:w-36 sm:px-4">Evento</th>
+                        <th class="hidden w-48 px-4 py-3 font-semibold xl:table-cell">Entidade</th>
                         <th class="px-4 py-3 font-semibold">Resumo</th>
                         <th class="w-14 px-4 py-3"><span class="sr-only">Detalhes</span></th>
                     </tr>
@@ -94,15 +94,15 @@
                 <tbody class="divide-y" style="border-color: var(--border);">
                     @forelse ($logs as $log)
                         <tr>
-                            <td class="whitespace-nowrap px-4 py-3">{{ $log->created_at?->format('d/m/Y H:i:s') }}</td>
-                            @if ($isSuperAdmin)<td class="px-4 py-3">{{ $log->company?->name ?? 'Global' }}</td>@endif
-                            <td class="px-4 py-3">
+                            <td class="hidden whitespace-nowrap px-4 py-3 sm:table-cell">{{ $log->created_at?->format('d/m/Y H:i:s') }}</td>
+                            @if ($isSuperAdmin)<td class="hidden px-4 py-3 lg:table-cell">{{ $log->company?->name ?? 'Global' }}</td>@endif
+                            <td class="hidden px-4 py-3 md:table-cell">
                                 <p class="font-medium">{{ $log->actor_name ?? 'Sistema' }}</p>
                                 @if ($log->actor_email)<p class="text-xs" style="color: var(--fg-muted);">{{ $log->actor_email }}</p>@endif
                             </td>
-                            <td class="px-4 py-3"><span class="rounded px-2 py-1 text-xs" style="background: var(--bg-subtle);">{{ $log->event }}</span></td>
-                            <td class="px-4 py-3">{{ $log->subject_label ?? 'Nao informado' }}</td>
-                            <td class="min-w-64 px-4 py-3">{{ $log->description }}</td>
+                            <td class="px-3 py-3 align-top sm:px-4"><span class="break-words rounded px-2 py-1 text-xs" style="background: var(--bg-subtle);">{{ $log->event }}</span></td>
+                            <td class="hidden px-4 py-3 xl:table-cell">{{ $log->subject_label ?? 'Nao informado' }}</td>
+                            <td class="break-words px-3 py-3 align-top sm:px-4">{{ $log->description }}</td>
                             <td class="px-4 py-3">
                                 <x-ui.action icon="view" label="Detalhes" x-data x-on:click="$dispatch('open-modal', 'audit-detail-{{ $log->id }}')" />
                             </td>

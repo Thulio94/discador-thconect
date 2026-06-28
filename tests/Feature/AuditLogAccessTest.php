@@ -32,6 +32,8 @@ class AuditLogAccessTest extends TestCase
             ->assertSee('Evento exclusivo B')
             ->assertSee('Evento global de seguranca')
             ->assertSee('audit-detail-'.$logA->id, false)
+            ->assertSee('data-audit-table', false)
+            ->assertSee('table-fixed', false)
             ->assertDontSee('alert(', false)
             ->assertDontSee('window.confirm', false);
     }
