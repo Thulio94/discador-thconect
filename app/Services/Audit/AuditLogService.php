@@ -69,6 +69,10 @@ final class AuditLogService
 
     public function recordModelChange(Model $model, string $action): ?AuditLog
     {
+        if (app()->runningInConsole() && ! app()->runningUnitTests()) {
+            return null;
+        }
+
         $prefix = match ($model::class) {
             Company::class => 'company',
             CompanyLicense::class => 'license',
