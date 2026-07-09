@@ -114,6 +114,90 @@ class NotificationTest extends TestCase
             ->assertDontSee('<html', false);
     }
 
+    public function test_user_can_update_notification_preferences(): void
+    {
+        $user = $this->tenantUser();
+
+        $this->actingAs($user)
+            ->patch(route('tenant.notifications.preferences.update'), [
+                'categories' => ['campaign', 'system'],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('user_notification_preferences', [
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'category' => 'campaign',
+            'enabled' => true,
+        ]);
+        $this->assertDatabaseHas('user_notification_preferences', [
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'category' => 'mailing',
+            'enabled' => false,
+        ]);
+        $this->assertDatabaseHas('user_notification_preferences', [
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'category' => 'operation',
+            'enabled' => false,
+        ]);
+        $this->assertDatabaseHas('user_notification_preferences', [
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'category' => 'system',
+            'enabled' => true,
+        ]);
+    }
+
+    public function test_disabled_notification_category_is_not_persisted_for_user(): void
+    {
+        $user = $this->tenantUser();
+        $user->notificationPreferences()->create([
+            'company_id' => $user->company_id,
+            'category' => 'mailing',
+            'enabled' => false,
+        ]);
+
+        $notification = app(AppNotificationService::class)->createForUser(
+            $user,
+            'mailing',
+            'info',
+            'Lista importada',
+            'Mensagem'
+        );
+
+        $this->assertNull($notification);
+        $this->assertFalse($user->appNotifications()->where('title', 'Lista importada')->exists());
+    }
+
+    public function test_company_audience_respects_each_user_notification_preferences(): void
+    {
+        $company = $this->company();
+        $admin = $this->tenantUser($company, 'company_admin', '1001');
+        $supervisor = $this->tenantUser($company, 'supervisor', '1002');
+        $otherSupervisor = $this->tenantUser($this->company('Outra Empresa'), 'supervisor', '2001');
+        $supervisor->notificationPreferences()->create([
+            'company_id' => $company->id,
+            'category' => 'campaign',
+            'enabled' => false,
+        ]);
+
+        $created = app(AppNotificationService::class)->createForCompanyAudience(
+            $company->id,
+            ['company_admin', 'supervisor'],
+            'campaign',
+            'success',
+            'Campanha iniciada',
+            'Campanha teste foi iniciada.'
+        );
+
+        $this->assertCount(1, $created);
+        $this->assertTrue($admin->appNotifications()->where('title', 'Campanha iniciada')->exists());
+        $this->assertFalse($supervisor->appNotifications()->where('title', 'Campanha iniciada')->exists());
+        $this->assertFalse($otherSupervisor->appNotifications()->where('title', 'Campanha iniciada')->exists());
+    }
+
     public function test_campaign_operational_action_notifies_company_admins_and_supervisors(): void
     {
         $company = $this->company();

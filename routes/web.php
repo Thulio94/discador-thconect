@@ -103,6 +103,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
 
         Route::get('integrations', ComingSoonController::class)->middleware('can:tenant.integrations.read')->defaults('module', 'integrations')->name('integrations.index');
         Route::get('notifications/poll', [NotificationController::class, 'poll'])->middleware('can:tenant.notifications.read')->name('notifications.poll');
+        Route::patch('notifications/preferences', [NotificationController::class, 'updatePreferences'])->middleware('can:tenant.notifications.update')->name('notifications.preferences.update');
         Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->middleware('can:tenant.notifications.update')->name('notifications.read-all');
         Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->middleware('can:tenant.notifications.update')->name('notifications.read');
     });
