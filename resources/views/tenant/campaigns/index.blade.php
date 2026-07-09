@@ -17,6 +17,38 @@
             @endcan
         </div>
 
+        <form method="GET" action="{{ route('tenant.campaigns.index') }}" class="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_220px_220px_auto]">
+            <input name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Buscar campanha" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos status</option>
+                @foreach (['draft' => 'Rascunho', 'active' => 'Ativa', 'paused' => 'Pausada', 'finished' => 'Finalizada'] as $value => $label)
+                    <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <select name="dialing_mode" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos modos</option>
+                @foreach (['preview' => 'Preview', 'manual' => 'Manual', 'power' => 'Power', 'predictive' => 'Preditivo'] as $value => $label)
+                    <option value="{{ $value }}" @selected(($filters['dialing_mode'] ?? '') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <select name="team_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todas equipes</option>
+                @foreach ($teams as $team)
+                    <option value="{{ $team->id }}" @selected((int) ($filters['team_id'] ?? 0) === $team->id)>{{ $team->name }}</option>
+                @endforeach
+            </select>
+            <select name="list_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todas listas</option>
+                @foreach ($lists as $list)
+                    <option value="{{ $list->id }}" @selected((int) ($filters['list_id'] ?? 0) === $list->id)>{{ $list->name }}</option>
+                @endforeach
+            </select>
+            <div class="flex gap-2">
+                <x-ui.button type="submit">Filtrar</x-ui.button>
+                <a href="{{ route('tenant.campaigns.index') }}" class="th-focus inline-flex items-center justify-center px-4 py-2 text-sm font-semibold" style="border: 1px solid var(--border); background: var(--surface-alt); color: var(--fg); border-radius: var(--radius-md);">Limpar</a>
+            </div>
+        </form>
+
         <div class="mt-5 grid gap-3">
             @forelse ($campaigns as $campaign)
                 @php($summary = $mailingSummaries[$campaign->id] ?? [])
@@ -188,6 +220,7 @@
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma campanha cadastrada.</p>
             @endforelse
         </div>
+        <div class="mt-5">{{ $campaigns->links() }}</div>
     </x-ui.card>
 
     @can('tenant.campaigns.create')

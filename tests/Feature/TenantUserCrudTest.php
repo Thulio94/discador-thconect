@@ -92,6 +92,55 @@ class TenantUserCrudTest extends TestCase
             ->assertSessionHasErrors('extension');
     }
 
+    public function test_user_index_filters_by_search_status_type_role_and_team_with_tenant_scope(): void
+    {
+        [$admin, $role, $team] = $this->tenantAdmin();
+        [$otherAdmin, , $otherTeam] = $this->tenantAdmin();
+        $agent = User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $role->id,
+            'name' => 'Agente Busca Especial',
+            'email' => 'busca-especial@demo.test',
+            'user_type' => 'agent',
+            'extension' => '2456',
+            'status' => 'active',
+        ]);
+        $team->users()->attach($agent, ['company_id' => $admin->company_id, 'membership_type' => 'agent']);
+        User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $role->id,
+            'name' => 'Supervisor Fora Filtro',
+            'user_type' => 'supervisor',
+            'extension' => '3456',
+            'status' => 'inactive',
+        ]);
+        User::factory()->create([
+            'company_id' => $otherAdmin->company_id,
+            'role_id' => $otherAdmin->role_id,
+            'name' => 'Agente Outra Empresa',
+            'user_type' => 'agent',
+            'extension' => '4456',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.users.index', [
+                'q' => 'Busca Especial',
+                'status' => 'active',
+                'user_type' => 'agent',
+                'role_id' => $role->id,
+                'team_id' => $team->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Agente Busca Especial')
+            ->assertDontSee('Supervisor Fora Filtro')
+            ->assertDontSee('Agente Outra Empresa');
+
+        $this->actingAs($admin)
+            ->get(route('tenant.users.index', ['team_id' => $otherTeam->id]))
+            ->assertSessionHasErrors('team_id');
+    }
+
     public function test_user_creation_and_deactivation_are_audited_without_noop_events(): void
     {
         [$admin, $role, $team] = $this->tenantAdmin();

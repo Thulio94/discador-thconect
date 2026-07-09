@@ -18,11 +18,39 @@ class UserController extends Controller
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'user_type' => ['nullable', Rule::in(['agent', 'supervisor', 'company_admin'])],
+            'role_id' => ['nullable', Rule::exists('roles', 'id')->where('company_id', $companyId)],
+            'team_id' => ['nullable', Rule::exists('teams', 'id')->where('company_id', $companyId)],
+        ]);
 
         return view('tenant.users.index', [
-            'users' => User::query()->where('company_id', $companyId)->with(['role', 'teams'])->latest()->paginate(12),
+            'users' => User::query()
+                ->where('company_id', $companyId)
+                ->with('role')
+                ->when($filters['q'] ?? null, fn ($query, $search) => $query->where(function ($query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('extension', 'like', "%{$search}%");
+                }))
+                ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+                ->when($filters['user_type'] ?? null, fn ($query, $type) => $query->where('user_type', $type))
+                ->when($filters['role_id'] ?? null, fn ($query, $roleId) => $query->where('role_id', $roleId))
+                ->when($filters['team_id'] ?? null, fn ($query, $teamId) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $teamId): void {
+                    $teamQuery
+                        ->select('team_user.user_id')
+                        ->from('team_user')
+                        ->where('team_user.company_id', $companyId)
+                        ->where('team_user.team_id', $teamId);
+                }))
+                ->latest()
+                ->paginate(12)
+                ->withQueryString(),
             'roles' => Role::query()->where('company_id', $companyId)->orderBy('name')->get(),
             'teams' => Team::query()->where('company_id', $companyId)->orderBy('name')->get(),
+            'filters' => $filters,
         ]);
     }
 

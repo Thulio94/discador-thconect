@@ -17,18 +17,38 @@
             @endcan
         </div>
 
+        <form method="GET" action="{{ route('tenant.teams.index') }}" class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_260px_auto]">
+            <input name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Buscar equipe" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos status</option>
+                <option value="active" @selected(($filters['status'] ?? '') === 'active')>Ativa</option>
+                <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inativa</option>
+            </select>
+            <select name="member_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos membros</option>
+                @foreach ($members as $member)
+                    <option value="{{ $member->id }}" @selected((int) ($filters['member_id'] ?? 0) === $member->id)>{{ $member->name }}</option>
+                @endforeach
+            </select>
+            <div class="flex gap-2">
+                <x-ui.button type="submit">Filtrar</x-ui.button>
+                <a href="{{ route('tenant.teams.index') }}" class="th-focus inline-flex items-center justify-center px-4 py-2 text-sm font-semibold" style="border: 1px solid var(--border); background: var(--surface-alt); color: var(--fg); border-radius: var(--radius-md);">Limpar</a>
+            </div>
+        </form>
+
         <div class="mt-5 grid gap-3">
             @forelse ($teams as $team)
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
                     <p class="font-semibold">{{ $team->name }}</p>
                     <p class="mt-1 text-sm" style="color: var(--fg-muted);">
-                        {{ $team->agents->count() }} agentes | {{ $team->supervisors->count() }} supervisores
+                        {{ $team->agents_count }} agentes | {{ $team->supervisors_count }} supervisores
                     </p>
                 </div>
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma equipe cadastrada.</p>
             @endforelse
         </div>
+        <div class="mt-5">{{ $teams->links() }}</div>
     </x-ui.card>
 
     @can('tenant.teams.create')

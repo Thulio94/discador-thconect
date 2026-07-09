@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-30
+Atualizado em: 2026-07-01
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -94,7 +94,16 @@ Pendencias recomendadas:
 
 - [x] Matriz visual de permissoes por modulo.
 - [x] Auditoria de login/alteracoes de usuario.
-- [ ] Filtro e busca nos cadastros grandes.
+- [x] Filtro e busca nos cadastros grandes.
+
+Filtro e busca nos cadastros grandes concluidos:
+
+- usuarios com busca por nome, e-mail ou ramal e filtros por status, tipo, perfil e equipe;
+- equipes com busca por nome e filtros por status e membro;
+- campanhas com busca por nome/descricao e filtros por status, modo, equipe e lista;
+- listas com busca por nome/descricao e filtros por status e campanha;
+- paginacao preservando filtros;
+- validacao de filtros por IDs restrita a empresa atual.
 
 ### Configuracoes Operacionais
 
@@ -452,18 +461,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano funcional recomendado e:
 
 ```text
-Filtro e Busca nos Cadastros Grandes
+Preferencias por Usuario nas Notificacoes
 ```
 
-Motivo: os indicadores de uso contratado agora foram fechados no Super Admin e no tenant. O proximo ganho funcional e melhorar a navegacao em cadastros que podem crescer muito, sem trocar de pagina para operacoes CRUD.
+Motivo: filtros e buscas nos cadastros grandes ja foram concluidos. O proximo ganho funcional dentro do MVP, sem ativar telefonia real ou integracoes, e permitir que cada usuario controle quais notificacoes operacionais deseja receber.
 
 Entregaveis desse proximo plano funcional:
 
-- busca e filtros em usuarios, equipes, campanhas e listas;
-- manter acoes CRUD em modal;
-- preservar isolamento por empresa e RBAC;
-- testes de filtros, busca e ausencia de vazamento entre empresas;
-- ajustes responsivos para tabelas/listas grandes.
+- preferencias por usuario para categorias de notificacao;
+- controle de notificacoes por campanha, mailing, operacao e sistema;
+- respeitar preferencias ao criar notificacoes persistidas;
+- tela/modal de configuracao sem `javascript.alert`;
+- testes de isolamento por usuario e empresa.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 
