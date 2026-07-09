@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentStatus;
 use App\Models\AuditLog;
 use App\Models\Call;
 use App\Models\Company;
@@ -76,8 +77,35 @@ class SuperAdminCompanyCrudTest extends TestCase
             'status' => 'active',
             'starts_at' => now()->subDay()->toDateString(),
             'ends_at' => now()->addMonth()->toDateString(),
+            'max_users' => 2,
+            'max_concurrent_agents' => 1,
             'max_calls_per_available_agent' => 3,
-            'max_concurrent_calls' => 10,
+            'max_concurrent_calls' => 1,
+        ]);
+        $agent = User::factory()->create([
+            'company_id' => $company->id,
+            'user_type' => 'agent',
+            'status' => 'active',
+            'extension' => '2001',
+        ]);
+        User::factory()->create([
+            'company_id' => $company->id,
+            'user_type' => 'company_admin',
+            'status' => 'active',
+            'extension' => '2002',
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
         ]);
         Call::create([
             'company_id' => $company->id,
@@ -90,8 +118,19 @@ class SuperAdminCompanyCrudTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->get(route('super-admin.companies.index'))
             ->assertOk()
-            ->assertSee('1 ativa de 10')
-            ->assertSee('3 por operador disponivel');
+            ->assertSee('Usuarios contratados')
+            ->assertSee('Agentes contratados')
+            ->assertSee('Chamadas contratadas')
+            ->assertSee('2 ativa de 1')
+            ->assertSee('3 por operador disponivel')
+            ->assertSee('capacidade efetiva 1')
+            ->assertSee('Limite excedido')
+            ->assertSee('Usuarios ativos')
+            ->assertSee('2 / 2')
+            ->assertSee('Agentes disponiveis')
+            ->assertSee('1 / 1')
+            ->assertSee('Chamadas simultaneas')
+            ->assertSee('2 / 1');
     }
 
     public function test_company_and_license_creation_are_audited_with_super_admin_actor(): void

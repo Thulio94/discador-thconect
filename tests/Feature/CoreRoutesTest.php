@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Company;
 use App\Models\Role;
@@ -33,8 +34,23 @@ class CoreRoutesTest extends TestCase
     {
         $user = $this->tenantUser();
         $user->company->licenses()->firstOrFail()->update([
+            'max_users' => 5,
+            'max_concurrent_agents' => 2,
             'max_calls_per_available_agent' => 3,
             'max_concurrent_calls' => 10,
+        ]);
+        $agent = User::factory()->create([
+            'company_id' => $user->company_id,
+            'role_id' => $user->role_id,
+            'user_type' => 'agent',
+            'status' => 'active',
+            'extension' => '1002',
+        ]);
+        AgentStatus::create([
+            'company_id' => $user->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
         ]);
 
         foreach (range(1, 2) as $index) {
@@ -53,7 +69,16 @@ class CoreRoutesTest extends TestCase
             ->assertOk()
             ->assertSee('2 chamadas ativas')
             ->assertSee('Limite por operador: 3')
-            ->assertSee('Teto da empresa: 10');
+            ->assertSee('Teto da empresa: 10')
+            ->assertSee('Uso atual da empresa')
+            ->assertSee('Usuarios ativos')
+            ->assertSee('2 / 5')
+            ->assertSee('Agentes disponiveis')
+            ->assertSee('1 / 2')
+            ->assertSee('Chamadas simultaneas')
+            ->assertSee('2 / 10')
+            ->assertSee('Capacidade efetiva agora')
+            ->assertSee('3');
     }
 
     public function test_super_admin_companies_route_loads(): void

@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-29
+Atualizado em: 2026-06-30
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -55,7 +55,15 @@ Pendencias recomendadas:
 
 - [x] Tela de historico de alteracoes da licenca.
 - [x] Auditoria de alteracoes feitas pelo super admin.
-- [ ] Indicadores de uso contratado vs uso atual.
+- [x] Indicadores de uso contratado vs uso atual.
+
+Indicadores de uso contratado concluidos:
+
+- resumo geral no Super Admin para usuarios, agentes disponiveis e chamadas ativas;
+- detalhamento por empresa na tela de contratos SaaS;
+- dashboard do tenant com uso atual contra limites contratados;
+- calculo de capacidade por agentes disponiveis e capacidade efetiva;
+- estados visuais `Normal`, `Atencao` e `Limite excedido`.
 
 Auditoria central concluida:
 
@@ -444,18 +452,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano funcional recomendado e:
 
 ```text
-Indicadores de Uso Contratado vs Uso Atual
+Filtro e Busca nos Cadastros Grandes
 ```
 
-Motivo: limites de pausa e parametros operacionais ja ficaram configuraveis por empresa e auditaveis. O proximo passo funcional recomendado e fechar os indicadores visuais de uso contratado contra uso atual no Super Admin e no tenant.
+Motivo: os indicadores de uso contratado agora foram fechados no Super Admin e no tenant. O proximo ganho funcional e melhorar a navegacao em cadastros que podem crescer muito, sem trocar de pagina para operacoes CRUD.
 
 Entregaveis desse proximo plano funcional:
 
-- consolidar agentes ativos, chamadas simultaneas e limites contratados;
-- exibir uso atual versus licenca no Super Admin;
-- exibir resumo operacional do plano para administrador da empresa;
-- destacar riscos de limite proximo ou excedido;
-- manter isolamento por empresa e auditoria de ajustes administrativos.
+- busca e filtros em usuarios, equipes, campanhas e listas;
+- manter acoes CRUD em modal;
+- preservar isolamento por empresa e RBAC;
+- testes de filtros, busca e ausencia de vazamento entre empresas;
+- ajustes responsivos para tabelas/listas grandes.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 

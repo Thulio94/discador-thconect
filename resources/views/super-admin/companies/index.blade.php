@@ -6,31 +6,57 @@
         </div>
     </x-slot>
 
-    <x-ui.card>
+    <div class="grid gap-4 md:grid-cols-3">
+        <x-ui.card title="Usuarios contratados">
+            @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $licenseOverview['users']])
+        </x-ui.card>
+        <x-ui.card title="Agentes contratados">
+            @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $licenseOverview['available_agents']])
+        </x-ui.card>
+        <x-ui.card title="Chamadas contratadas">
+            @include('partials.license-usage-meter', ['label' => 'Chamadas ativas', 'metric' => $licenseOverview['active_calls']])
+        </x-ui.card>
+    </div>
+
+    <x-ui.card class="mt-4">
         <div class="flex items-center justify-between gap-4">
             <div>
                 <h2 class="text-lg font-semibold">Contratos SaaS</h2>
-                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Gestao de empresas e licencas sera operada em modal.</p>
+                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Uso contratado versus uso atual por empresa.</p>
             </div>
             <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'company-create')">Nova empresa</x-ui.button>
         </div>
 
         <div class="mt-5 grid gap-3">
             @forelse ($companies as $company)
+                @php($usage = $company->license_usage)
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
-                    <div class="flex items-start justify-between gap-4">
+                    <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div>
-                            <p class="font-semibold">{{ $company->name }}</p>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="font-semibold">{{ $company->name }}</p>
+                                <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: {{ $usage['status'] === 'exceeded' ? 'color-mix(in srgb, var(--status-danger) 12%, var(--surface))' : ($usage['status'] === 'warning' ? 'color-mix(in srgb, var(--status-warning) 14%, var(--surface))' : 'var(--primary-soft)') }}; color: var(--fg);">
+                                    {{ $usage['status'] === 'exceeded' ? 'Limite excedido' : ($usage['status'] === 'warning' ? 'Atencao' : 'Normal') }}
+                                </span>
+                            </div>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">
-                                {{ $company->active_calls_count }} ativa de {{ $company->license?->max_concurrent_calls ?? 'sem teto' }}
+                                {{ $usage['active_calls']['current'] }} ativa de {{ $usage['active_calls']['limit'] ?? 'sem teto' }}
                                 <span aria-hidden="true"> · </span>
-                                {{ $company->license?->max_calls_per_available_agent ?? '-' }} por operador disponivel
+                                {{ $usage['calls_per_available_agent'] }} por operador disponivel
+                                <span aria-hidden="true"> · </span>
+                                capacidade efetiva {{ $usage['effective_call_limit'] }}
                             </p>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'company-edit-{{ $company->id }}')" />
                             <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'company-delete-{{ $company->id }}')" />
                         </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-4 lg:grid-cols-3">
+                        @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $usage['users']])
+                        @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $usage['available_agents']])
+                        @include('partials.license-usage-meter', ['label' => 'Chamadas simultaneas', 'metric' => $usage['active_calls']])
                     </div>
 
                     <x-ui.modal name="company-edit-{{ $company->id }}" title="Editar empresa">
