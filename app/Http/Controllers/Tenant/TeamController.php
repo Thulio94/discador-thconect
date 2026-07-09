@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -16,11 +17,43 @@ class TeamController extends Controller
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'member_id' => ['nullable', Rule::exists('users', 'id')->where('company_id', $companyId)],
+        ]);
 
         return view('tenant.teams.index', [
-            'teams' => Team::query()->where('company_id', $companyId)->with(['agents', 'supervisors'])->latest()->paginate(12),
+            'teams' => Team::query()
+                ->where('company_id', $companyId)
+                ->addSelect([
+                    'agents_count' => DB::table('team_user')
+                        ->selectRaw('count(*)')
+                        ->whereColumn('team_user.team_id', 'teams.id')
+                        ->where('team_user.company_id', $companyId)
+                        ->where('team_user.membership_type', 'agent'),
+                    'supervisors_count' => DB::table('team_user')
+                        ->selectRaw('count(*)')
+                        ->whereColumn('team_user.team_id', 'teams.id')
+                        ->where('team_user.company_id', $companyId)
+                        ->where('team_user.membership_type', 'supervisor'),
+                ])
+                ->when($filters['q'] ?? null, fn ($query, $search) => $query->where('name', 'like', "%{$search}%"))
+                ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+                ->when($filters['member_id'] ?? null, fn ($query, $memberId) => $query->whereIn('teams.id', function ($memberQuery) use ($companyId, $memberId): void {
+                    $memberQuery
+                        ->select('team_user.team_id')
+                        ->from('team_user')
+                        ->where('team_user.company_id', $companyId)
+                        ->where('team_user.user_id', $memberId);
+                }))
+                ->latest()
+                ->paginate(12)
+                ->withQueryString(),
             'agents' => User::query()->where('company_id', $companyId)->where('user_type', 'agent')->orderBy('name')->get(),
             'supervisors' => User::query()->where('company_id', $companyId)->where('user_type', 'supervisor')->orderBy('name')->get(),
+            'members' => User::query()->where('company_id', $companyId)->whereIn('user_type', ['agent', 'supervisor'])->orderBy('name')->get(),
+            'filters' => $filters,
         ]);
     }
 

@@ -21,12 +21,28 @@ class CampaignController extends Controller
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', Rule::in(['draft', 'active', 'paused', 'finished'])],
+            'dialing_mode' => ['nullable', Rule::in(['preview', 'manual', 'power', 'predictive'])],
+            'team_id' => ['nullable', Rule::exists('teams', 'id')->where('company_id', $companyId)],
+            'list_id' => ['nullable', Rule::exists('contact_lists', 'id')->where('company_id', $companyId)],
+        ]);
 
         $campaigns = Campaign::query()
             ->where('company_id', $companyId)
             ->with(['teams', 'contactLists'])
+            ->when($filters['q'] ?? null, fn ($query, $search) => $query->where(function ($query) use ($search): void {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            }))
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['dialing_mode'] ?? null, fn ($query, $mode) => $query->where('dialing_mode', $mode))
+            ->when($filters['team_id'] ?? null, fn ($query, $teamId) => $query->whereHas('teams', fn ($teamQuery) => $teamQuery->where('teams.id', $teamId)))
+            ->when($filters['list_id'] ?? null, fn ($query, $listId) => $query->whereHas('contactLists', fn ($listQuery) => $listQuery->where('contact_lists.id', $listId)))
             ->latest()
-            ->paginate(12);
+            ->paginate(12)
+            ->withQueryString();
         $queue = app(MailingQueueService::class);
         $dialer = app(SimulatedDialerService::class);
 
@@ -40,6 +56,7 @@ class CampaignController extends Controller
                 ->all(),
             'teams' => Team::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
+            'filters' => $filters,
         ]);
     }
 

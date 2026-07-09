@@ -17,6 +17,37 @@
             @endcan
         </div>
 
+        <form method="GET" action="{{ route('tenant.users.index') }}" class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_180px_180px_220px_220px_auto]">
+            <input name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Buscar nome, e-mail ou ramal" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos status</option>
+                <option value="active" @selected(($filters['status'] ?? '') === 'active')>Ativo</option>
+                <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inativo</option>
+            </select>
+            <select name="user_type" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos tipos</option>
+                @foreach (['agent' => 'Agente', 'supervisor' => 'Supervisor', 'company_admin' => 'Administrador'] as $value => $label)
+                    <option value="{{ $value }}" @selected(($filters['user_type'] ?? '') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <select name="role_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos perfis</option>
+                @foreach ($roles as $role)
+                    <option value="{{ $role->id }}" @selected((int) ($filters['role_id'] ?? 0) === $role->id)>{{ $role->name }}</option>
+                @endforeach
+            </select>
+            <select name="team_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todas equipes</option>
+                @foreach ($teams as $team)
+                    <option value="{{ $team->id }}" @selected((int) ($filters['team_id'] ?? 0) === $team->id)>{{ $team->name }}</option>
+                @endforeach
+            </select>
+            <div class="flex gap-2">
+                <x-ui.button type="submit">Filtrar</x-ui.button>
+                <a href="{{ route('tenant.users.index') }}" class="th-focus inline-flex items-center justify-center px-4 py-2 text-sm font-semibold" style="border: 1px solid var(--border); background: var(--surface-alt); color: var(--fg); border-radius: var(--radius-md);">Limpar</a>
+            </div>
+        </form>
+
         <div class="mt-5 grid gap-3">
             @forelse ($users as $user)
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
@@ -32,6 +63,7 @@
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhum usuario cadastrado.</p>
             @endforelse
         </div>
+        <div class="mt-5">{{ $users->links() }}</div>
     </x-ui.card>
 
     @can('tenant.users.create')

@@ -860,6 +860,92 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSee('Fora da agenda');
     }
 
+    public function test_campaign_index_filters_by_search_status_mode_team_and_list_with_tenant_scope(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        [, $otherTeam] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Segmentada', 'status' => 'active']);
+        $otherList = ContactList::create(['company_id' => $otherTeam->company_id, 'name' => 'Lista Outra Empresa', 'status' => 'active']);
+        $matching = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Retencao Especial',
+            'description' => 'Operacao filtravel',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $matching->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $matching->contactLists()->sync([$list->id => ['company_id' => $admin->company_id]]);
+        Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Pausada Fora',
+            'dialing_mode' => 'preview',
+            'status' => 'paused',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index', [
+                'q' => 'Retencao',
+                'status' => 'active',
+                'dialing_mode' => 'power',
+                'team_id' => $team->id,
+                'list_id' => $list->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Campanha Retencao Especial')
+            ->assertDontSee('Campanha Pausada Fora')
+            ->assertDontSee('Lista Outra Empresa');
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index', ['team_id' => $otherTeam->id, 'list_id' => $otherList->id]))
+            ->assertSessionHasErrors(['team_id', 'list_id']);
+    }
+
+    public function test_contact_list_index_filters_by_search_status_and_campaign_with_tenant_scope(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        [, $otherTeam] = $this->tenantAdmin();
+        $matching = ContactList::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lista Grandes Contas',
+            'description' => 'Base filtravel',
+            'status' => 'active',
+        ]);
+        $hidden = ContactList::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lista Inativa',
+            'status' => 'inactive',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha Vinculada',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $campaign->teams()->sync([$team->id => ['company_id' => $admin->company_id]]);
+        $campaign->contactLists()->sync([$matching->id => ['company_id' => $admin->company_id]]);
+        $otherCampaign = Campaign::create([
+            'company_id' => $otherTeam->company_id,
+            'name' => 'Campanha Outra Empresa',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.lists.index', [
+                'q' => 'Grandes',
+                'status' => 'active',
+                'campaign_id' => $campaign->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Lista Grandes Contas')
+            ->assertDontSee('Lista Inativa')
+            ->assertDontSee('Campanha Outra Empresa');
+
+        $this->actingAs($admin)
+            ->get(route('tenant.lists.index', ['campaign_id' => $otherCampaign->id]))
+            ->assertSessionHasErrors('campaign_id');
+    }
+
     public function test_tenant_admin_cannot_trigger_simulated_dialer_outside_campaign_schedule(): void
     {
         $this->travelTo(now()->next('Monday')->setTime(20, 0));

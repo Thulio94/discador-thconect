@@ -17,6 +17,25 @@
             @endcan
         </div>
 
+        <form method="GET" action="{{ route('tenant.lists.index') }}" class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_260px_auto]">
+            <input name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Buscar lista" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todos status</option>
+                <option value="active" @selected(($filters['status'] ?? '') === 'active')>Ativa</option>
+                <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inativa</option>
+            </select>
+            <select name="campaign_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="">Todas campanhas</option>
+                @foreach ($campaigns as $campaign)
+                    <option value="{{ $campaign->id }}" @selected((int) ($filters['campaign_id'] ?? 0) === $campaign->id)>{{ $campaign->name }}</option>
+                @endforeach
+            </select>
+            <div class="flex gap-2">
+                <x-ui.button type="submit">Filtrar</x-ui.button>
+                <a href="{{ route('tenant.lists.index') }}" class="th-focus inline-flex items-center justify-center px-4 py-2 text-sm font-semibold" style="border: 1px solid var(--border); background: var(--surface-alt); color: var(--fg); border-radius: var(--radius-md);">Limpar</a>
+            </div>
+        </form>
+
         <div class="mt-5 grid gap-3">
             @forelse ($lists as $list)
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
@@ -70,6 +89,7 @@
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma lista cadastrada.</p>
             @endforelse
         </div>
+        <div class="mt-5">{{ $lists->links() }}</div>
     </x-ui.card>
 
     @can('tenant.lists.create')

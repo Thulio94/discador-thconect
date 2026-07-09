@@ -54,6 +54,45 @@ class TenantTeamRoleCrudTest extends TestCase
         $this->assertTrue($role->permissions->contains(fn (Permission $permission): bool => $permission->key === 'teams.read'));
     }
 
+    public function test_team_index_filters_by_search_status_and_member_with_tenant_scope(): void
+    {
+        [$admin, $agent, $supervisor] = $this->tenantUsers();
+        [, $otherAgent] = $this->tenantUsers();
+        $matching = Team::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Equipe Retencao Premium',
+            'slug' => 'equipe-retencao-premium',
+            'status' => 'active',
+        ]);
+        $matching->users()->attach($agent, [
+            'company_id' => $admin->company_id,
+            'membership_type' => 'agent',
+        ]);
+        Team::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Equipe Inativa',
+            'slug' => 'equipe-inativa',
+            'status' => 'inactive',
+        ])->users()->attach($supervisor, [
+            'company_id' => $admin->company_id,
+            'membership_type' => 'supervisor',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.teams.index', [
+                'q' => 'Retencao',
+                'status' => 'active',
+                'member_id' => $agent->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Equipe Retencao Premium')
+            ->assertDontSee('Equipe Inativa');
+
+        $this->actingAs($admin)
+            ->get(route('tenant.teams.index', ['member_id' => $otherAgent->id]))
+            ->assertSessionHasErrors('member_id');
+    }
+
     private function tenantUsers(): array
     {
         $company = Company::create(['name' => 'Tenant A']);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
+use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Services\Lists\CsvContactListImportService;
 use App\Support\Notifications\AppNotificationService;
@@ -23,14 +24,28 @@ class ContactListController extends Controller
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'campaign_id' => ['nullable', Rule::exists('campaigns', 'id')->where('company_id', $companyId)],
+        ]);
 
         return view('tenant.lists.index', [
             'lists' => ContactList::query()
                 ->where('company_id', $companyId)
                 ->with('contacts')
                 ->withCount(['contacts', 'campaigns'])
+                ->when($filters['q'] ?? null, fn ($query, $search) => $query->where(function ($query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                }))
+                ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+                ->when($filters['campaign_id'] ?? null, fn ($query, $campaignId) => $query->whereHas('campaigns', fn ($campaignQuery) => $campaignQuery->where('campaigns.id', $campaignId)))
                 ->latest()
-                ->paginate(12),
+                ->paginate(12)
+                ->withQueryString(),
+            'campaigns' => Campaign::query()->where('company_id', $companyId)->orderBy('name')->get(),
+            'filters' => $filters,
         ]);
     }
 
