@@ -5,6 +5,7 @@ namespace App\Services\Audit;
 use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\CompanyLicense;
+use App\Models\OperationalParameter;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -76,6 +77,7 @@ final class AuditLogService
         $prefix = match ($model::class) {
             Company::class => 'company',
             CompanyLicense::class => 'license',
+            OperationalParameter::class => 'operational_parameter',
             User::class => 'user',
             default => null,
         };
@@ -134,6 +136,7 @@ final class AuditLogService
         return match (true) {
             $subject instanceof Company => $subject->name,
             $subject instanceof CompanyLicense => 'Licenca #'.$subject->getKey(),
+            $subject instanceof OperationalParameter => 'Parametros operacionais #'.$subject->getKey(),
             $subject instanceof User => $subject->name.' | '.$subject->email,
             default => $subject ? class_basename($subject).' #'.$subject->getKey() : null,
         };
@@ -141,9 +144,20 @@ final class AuditLogService
 
     private function description(string $prefix, string $action): string
     {
+        if ($prefix === 'operational_parameter') {
+            $verb = match ($action) {
+                'created' => 'criados',
+                'deactivated' => 'inativados',
+                default => 'atualizados',
+            };
+
+            return "Parametros operacionais {$verb}.";
+        }
+
         $subject = match ($prefix) {
             'company' => 'Empresa',
             'license' => 'Licenca',
+            'operational_parameter' => 'Parametros operacionais',
             'user' => 'Usuario',
         };
 

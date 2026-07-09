@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
 use App\Models\Disposition;
+use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -31,7 +32,17 @@ class SettingController extends Controller
                 ->where('company_id', $companyId)
                 ->latest()
                 ->get(),
+            'operationalParameter' => OperationalParameter::forCompany($companyId),
         ]);
+    }
+
+    public function updateOperationalParameters(Request $request): RedirectResponse
+    {
+        $parameter = OperationalParameter::forCompany($request->user()->company_id);
+        $parameter->fill($this->validateOperationalParameters($request));
+        $parameter->save();
+
+        return redirect()->route('tenant.settings.index')->with('status', 'Parametros operacionais atualizados.');
     }
 
     public function storePauseReason(Request $request): RedirectResponse
@@ -183,6 +194,18 @@ class SettingController extends Controller
             ],
             'reason' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
+        ]);
+    }
+
+    private function validateOperationalParameters(Request $request): array
+    {
+        return $request->validate([
+            'min_pause_minutes' => ['required', 'integer', 'min:0', 'max:480'],
+            'max_pause_minutes' => ['required', 'integer', 'min:1', 'max:1440', 'gte:min_pause_minutes'],
+            'pause_alert_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'call_alert_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'auto_available_after_call' => ['sometimes', 'boolean'],
+            'allow_manual_calls_while_paused' => ['sometimes', 'boolean'],
         ]);
     }
 

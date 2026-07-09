@@ -6,6 +6,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\OperationalParameter;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
@@ -153,6 +154,49 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Campanha atual')
             ->assertSee('Campanha Monitorada')
             ->assertSee('31999990033');
+    }
+
+    public function test_supervision_uses_company_operational_parameter_thresholds(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        [$paused] = $this->tenantUser('agent', $company, 'Agente Limite Pausa');
+        [$inCall] = $this->tenantUser('agent', $company, 'Agente Limite Chamada');
+
+        OperationalParameter::create([
+            'company_id' => $company->id,
+            'min_pause_minutes' => 0,
+            'max_pause_minutes' => 20,
+            'pause_alert_minutes' => 30,
+            'call_alert_minutes' => 10,
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $paused->id,
+            'status' => 'paused',
+            'started_at' => now()->subMinutes(25),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $inCall->id,
+            'status' => 'in_call',
+            'started_at' => now()->subMinutes(12),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $inCall->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990044',
+            'started_at' => now()->subMinutes(12),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.index'))
+            ->assertOk()
+            ->assertSee('Pausa excedida')
+            ->assertSee('Chamada longa')
+            ->assertDontSee('Pausa longa');
     }
 
     public function test_supervision_poll_returns_filtered_tenant_fragments_with_no_store_headers(): void

@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-06-27
+Atualizado em: 2026-06-29
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -101,8 +101,18 @@ Status: MVP operacional.
 
 Pendencias recomendadas:
 
-- [ ] Tempo minimo/maximo de pausa.
-- [ ] Parametros gerais da operacao.
+- [x] Tempo minimo/maximo de pausa.
+- [x] Parametros gerais da operacao.
+
+Parametros operacionais por empresa concluidos:
+
+- pausa minima bloqueando retorno para disponivel antes do tempo configurado;
+- pausa maxima exibindo `Pausa excedida` na supervisao;
+- limites configuraveis de alerta para pausa longa e chamada longa;
+- opcao para agente voltar automaticamente para disponivel apos tabular;
+- opcao para permitir ou bloquear chamada manual durante pausa;
+- edicao em modal na tela de Configuracoes Operacionais;
+- alteracoes registradas pela auditoria central.
 
 ### Painel Operacional
 
@@ -434,18 +444,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano funcional recomendado e:
 
 ```text
-Limites de Pausa e Parametros Gerais da Operacao
+Indicadores de Uso Contratado vs Uso Atual
 ```
 
-Motivo: a auditoria central agora registra as mudancas administrativas. O proximo passo funcional e tornar limites de pausa e parametros operacionais configuraveis por empresa, fazendo com que essas alteracoes tambem entrem no historico.
+Motivo: limites de pausa e parametros operacionais ja ficaram configuraveis por empresa e auditaveis. O proximo passo funcional recomendado e fechar os indicadores visuais de uso contratado contra uso atual no Super Admin e no tenant.
 
 Entregaveis desse proximo plano funcional:
 
-- tempo minimo e maximo de pausa por empresa;
-- limites de alerta de pausa e chamada longa;
-- parametros gerais da operacao simulada;
-- validacao no painel do agente e na supervisao;
-- alteracoes registradas pela auditoria.
+- consolidar agentes ativos, chamadas simultaneas e limites contratados;
+- exibir uso atual versus licenca no Super Admin;
+- exibir resumo operacional do plano para administrador da empresa;
+- destacar riscos de limite proximo ou excedido;
+- manter isolamento por empresa e auditoria de ajustes administrativos.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 

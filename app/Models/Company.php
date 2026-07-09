@@ -91,6 +91,11 @@ class Company extends Model
         return $this->hasMany(AuditLog::class);
     }
 
+    public function operationalParameter(): HasOne
+    {
+        return $this->hasOne(OperationalParameter::class);
+    }
+
     public function reportExports(): HasMany
     {
         return $this->hasMany(ReportExport::class);

@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
 
         Route::get('telephony', ComingSoonController::class)->middleware('can:tenant.telephony.read')->defaults('module', 'telephony')->name('telephony.index');
         Route::get('settings', [SettingController::class, 'index'])->middleware('can:tenant.settings.read')->name('settings.index');
+        Route::put('settings/operational-parameters', [SettingController::class, 'updateOperationalParameters'])->middleware('can:tenant.settings.update')->name('settings.operational-parameters.update');
         Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->middleware('can:tenant.settings.create')->name('settings.pause-reasons.store');
         Route::put('settings/pause-reasons/{pauseReason}', [SettingController::class, 'updatePauseReason'])->middleware('can:tenant.settings.update')->name('settings.pause-reasons.update');
         Route::delete('settings/pause-reasons/{pauseReason}', [SettingController::class, 'destroyPauseReason'])->middleware('can:tenant.settings.delete')->name('settings.pause-reasons.destroy');

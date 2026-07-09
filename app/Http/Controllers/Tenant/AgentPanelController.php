@@ -7,6 +7,7 @@ use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Disposition;
+use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
@@ -73,6 +74,11 @@ class AgentPanelController extends Controller
         ]);
 
         $user = $request->user();
+        $parameters = OperationalParameter::forCompany($user->company_id);
+
+        if ($data['status'] === 'available' && $message = $this->pauseMinimumMessage($user->id, $user->company_id, $parameters)) {
+            return back()->withErrors(['status' => $message]);
+        }
 
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->agentStatuses()->create([
@@ -118,6 +124,11 @@ class AgentPanelController extends Controller
         $user = $request->user();
         $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? ''));
         $channel = $data['channel'] ?? 'simulated';
+        $parameters = OperationalParameter::forCompany($user->company_id);
+
+        if ($this->isPaused($user->id, $user->company_id) && ! $parameters->allow_manual_calls_while_paused) {
+            return back()->withErrors(['phone' => 'Finalize a pausa antes de iniciar chamada manual.']);
+        }
 
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->calls()->where('status', 'in_progress')->update([
@@ -160,6 +171,7 @@ class AgentPanelController extends Controller
         ]);
 
         $user = $request->user();
+        $parameters = OperationalParameter::forCompany($user->company_id);
         $disposition = Disposition::query()
             ->where('company_id', $user->company_id)
             ->where('status', 'active')
@@ -218,7 +230,7 @@ class AgentPanelController extends Controller
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
-            'status' => $user->user_type === 'agent' ? 'available' : 'offline',
+            'status' => $user->user_type === 'agent' && $parameters->auto_available_after_call ? 'available' : 'offline',
             'started_at' => now(),
         ]);
 
@@ -238,6 +250,39 @@ class AgentPanelController extends Controller
             ->where('user_id', $userId)
             ->whereNull('ended_at')
             ->update(['ended_at' => now()]);
+    }
+
+    private function isPaused(int $userId, int $companyId): bool
+    {
+        return AgentStatus::query()
+            ->where('company_id', $companyId)
+            ->where('user_id', $userId)
+            ->where('status', 'paused')
+            ->whereNull('ended_at')
+            ->exists();
+    }
+
+    private function pauseMinimumMessage(int $userId, int $companyId, OperationalParameter $parameters): ?string
+    {
+        if ($parameters->min_pause_minutes <= 0) {
+            return null;
+        }
+
+        $pause = AgentPause::query()
+            ->where('company_id', $companyId)
+            ->where('user_id', $userId)
+            ->whereNull('ended_at')
+            ->latest('started_at')
+            ->first();
+
+        if (! $pause || $pause->started_at->diffInMinutes(now()) >= $parameters->min_pause_minutes) {
+            return null;
+        }
+
+        return sprintf(
+            'A pausa minima configurada e de %d minutos.',
+            $parameters->min_pause_minutes
+        );
     }
 
     private function contactDispositionPayload(Call $call, Disposition $disposition, mixed $callbackAt): array
