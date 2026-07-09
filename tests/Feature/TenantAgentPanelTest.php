@@ -9,6 +9,7 @@ use App\Models\Campaign;
 use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Disposition;
+use App\Models\OperationalParameter;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
@@ -514,6 +515,100 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('Cliente comprou', $call->disposition_name);
         $this->assertSame('Venda validada no simulador', $call->disposition_notes);
         $this->assertTrue($call->disposition->is($disposition));
+    }
+
+    public function test_pause_minimum_blocks_agent_from_returning_available_too_early(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        OperationalParameter::create([
+            'company_id' => $agent->company_id,
+            'min_pause_minutes' => 10,
+            'max_pause_minutes' => 120,
+            'pause_alert_minutes' => 20,
+            'call_alert_minutes' => 15,
+        ]);
+        AgentPause::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'reason' => 'Almoco',
+            'started_at' => now()->subMinutes(4),
+        ]);
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'paused',
+            'reason' => 'Almoco',
+            'started_at' => now()->subMinutes(4),
+        ]);
+
+        $this->actingAs($agent)
+            ->from(route('tenant.agent.index'))
+            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame('paused', $agent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_operational_parameters_control_manual_call_while_paused_and_post_call_status(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        $disposition = Disposition::create([
+            'company_id' => $agent->company_id,
+            'name' => 'Atendido',
+            'code' => 'ATENDIDO',
+            'category' => 'success',
+            'status' => 'active',
+            'ends_call' => true,
+            'is_success' => true,
+        ]);
+        OperationalParameter::create([
+            'company_id' => $agent->company_id,
+            'min_pause_minutes' => 0,
+            'max_pause_minutes' => 120,
+            'pause_alert_minutes' => 20,
+            'call_alert_minutes' => 15,
+            'auto_available_after_call' => false,
+            'allow_manual_calls_while_paused' => false,
+        ]);
+        AgentPause::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'reason' => 'Almoco',
+            'started_at' => now()->subMinutes(12),
+        ]);
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'paused',
+            'reason' => 'Almoco',
+            'started_at' => now()->subMinutes(12),
+        ]);
+
+        $this->actingAs($agent)
+            ->from(route('tenant.agent.index'))
+            ->post(route('tenant.agent.calls.store'), ['phone' => '31999990001', 'channel' => 'manual'])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHasErrors('phone');
+
+        OperationalParameter::where('company_id', $agent->company_id)->update(['allow_manual_calls_while_paused' => true]);
+
+        $this->actingAs($agent)
+            ->post(route('tenant.agent.calls.store'), ['phone' => '31999990001', 'channel' => 'manual'])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $call = $agent->fresh()->calls()->where('status', 'in_progress')->sole();
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
     }
 
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void

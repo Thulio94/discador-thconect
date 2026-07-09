@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\BlacklistNumber;
 use App\Models\Company;
 use App\Models\Disposition;
+use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use App\Models\Permission;
 use App\Models\Role;
@@ -46,6 +48,7 @@ class TenantSettingsTest extends TestCase
             ->assertSee('Motivos de pausa')
             ->assertSee('Tabulacoes')
             ->assertSee('Blacklist')
+            ->assertSee('Parametros gerais')
             ->assertSee('Almoco')
             ->assertSee('Venda concluida')
             ->assertSee('31999990001')
@@ -55,6 +58,58 @@ class TenantSettingsTest extends TestCase
             ->assertDontSee('Modulo em breve')
             ->assertDontSee('javascript.alert')
             ->assertDontSee('confirm(');
+
+        $this->assertFalse(OperationalParameter::query()->where('company_id', $admin->company_id)->exists());
+    }
+
+    public function test_tenant_admin_can_update_operational_parameters_with_audit(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->put(route('tenant.settings.operational-parameters.update'), [
+                'min_pause_minutes' => '5',
+                'max_pause_minutes' => '60',
+                'pause_alert_minutes' => '12',
+                'call_alert_minutes' => '8',
+                'auto_available_after_call' => '0',
+                'allow_manual_calls_while_paused' => '1',
+            ])
+            ->assertRedirect(route('tenant.settings.index'))
+            ->assertSessionHas('status');
+
+        $parameters = OperationalParameter::where('company_id', $admin->company_id)->sole();
+
+        $this->assertSame(5, $parameters->min_pause_minutes);
+        $this->assertSame(60, $parameters->max_pause_minutes);
+        $this->assertSame(12, $parameters->pause_alert_minutes);
+        $this->assertSame(8, $parameters->call_alert_minutes);
+        $this->assertFalse($parameters->auto_available_after_call);
+        $this->assertTrue($parameters->allow_manual_calls_while_paused);
+
+        $this->assertTrue(AuditLog::query()
+            ->where('company_id', $admin->company_id)
+            ->where('event', 'operational_parameter.created')
+            ->where('actor_user_id', $admin->id)
+            ->exists());
+    }
+
+    public function test_operational_parameters_validate_pause_range(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->from(route('tenant.settings.index'))
+            ->put(route('tenant.settings.operational-parameters.update'), [
+                'min_pause_minutes' => '30',
+                'max_pause_minutes' => '10',
+                'pause_alert_minutes' => '12',
+                'call_alert_minutes' => '8',
+                'auto_available_after_call' => '1',
+                'allow_manual_calls_while_paused' => '0',
+            ])
+            ->assertRedirect(route('tenant.settings.index'))
+            ->assertSessionHasErrors('max_pause_minutes');
     }
 
     public function test_tenant_admin_can_manage_pause_reasons(): void

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Company;
 use App\Models\CompanyLicense;
+use App\Models\OperationalParameter;
 use App\Models\User;
 use App\Observers\AuditableModelObserver;
 use App\Support\Tenant\PermissionMatrix;
@@ -36,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
 
         Company::observe(AuditableModelObserver::class);
         CompanyLicense::observe(AuditableModelObserver::class);
+        OperationalParameter::observe(AuditableModelObserver::class);
         User::observe(AuditableModelObserver::class);
     }
 }

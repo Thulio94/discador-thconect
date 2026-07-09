@@ -25,6 +25,41 @@
         <x-ui.card>
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
+                    <h2 class="text-lg font-semibold">Parametros gerais</h2>
+                    <p class="text-sm" style="color: var(--fg-muted);">Limites da operacao simulada aplicados ao painel do agente e supervisao.</p>
+                </div>
+                @can('tenant.settings.update')
+                    <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'edit-operational-parameters')">Editar parametros</x-ui.button>
+                @endcan
+            </div>
+
+            <div class="mt-4 grid gap-3 md:grid-cols-4">
+                <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Pausa minima</p>
+                    <p class="mt-1 text-xl font-bold">{{ $operationalParameter->min_pause_minutes }} min</p>
+                </div>
+                <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Pausa maxima</p>
+                    <p class="mt-1 text-xl font-bold">{{ $operationalParameter->max_pause_minutes }} min</p>
+                </div>
+                <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Alerta pausa</p>
+                    <p class="mt-1 text-xl font-bold">{{ $operationalParameter->pause_alert_minutes }} min</p>
+                </div>
+                <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border);">
+                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Alerta chamada</p>
+                    <p class="mt-1 text-xl font-bold">{{ $operationalParameter->call_alert_minutes }} min</p>
+                </div>
+            </div>
+            <div class="mt-3 grid gap-2 text-sm md:grid-cols-2" style="color: var(--fg-muted);">
+                <p>{{ $operationalParameter->auto_available_after_call ? 'Agente volta para disponivel apos tabular.' : 'Agente fica offline apos tabular.' }}</p>
+                <p>{{ $operationalParameter->allow_manual_calls_while_paused ? 'Chamada manual permitida durante pausa.' : 'Chamada manual bloqueada durante pausa.' }}</p>
+            </div>
+        </x-ui.card>
+
+        <x-ui.card>
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
                     <h2 class="text-lg font-semibold">Motivos de pausa</h2>
                     <p class="text-sm" style="color: var(--fg-muted);">Opcoes usadas no painel do agente.</p>
                 </div>
@@ -151,6 +186,12 @@
     @can('tenant.settings.create')
     <x-ui.modal name="create-pause-reason" title="Novo motivo de pausa" max-width="lg">
         @include('tenant.settings.partials.pause-reason-form', ['action' => route('tenant.settings.pause-reasons.store'), 'reason' => null])
+    </x-ui.modal>
+    @endcan
+
+    @can('tenant.settings.update')
+    <x-ui.modal name="edit-operational-parameters" title="Parametros gerais da operacao" max-width="lg">
+        @include('tenant.settings.partials.operational-parameters-form')
     </x-ui.modal>
     @endcan
 

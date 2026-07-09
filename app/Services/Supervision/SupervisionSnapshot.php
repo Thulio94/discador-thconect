@@ -3,6 +3,7 @@
 namespace App\Services\Supervision;
 
 use App\Models\Call;
+use App\Models\OperationalParameter;
 use App\Models\Team;
 use App\Models\User;
 use App\Support\Notifications\AppNotificationService;
@@ -16,6 +17,8 @@ final class SupervisionSnapshot
 
     public function forCompany(int $companyId, string $status = '', ?int $teamId = null): array
     {
+        $parameters = OperationalParameter::forCompany($companyId);
+
         if ($teamId !== null) {
             Team::query()
                 ->where('company_id', $companyId)
@@ -49,7 +52,7 @@ final class SupervisionSnapshot
             ))
             ->orderBy('name')
             ->get()
-            ->map(function (User $user) use ($companyId): User {
+            ->map(function (User $user) use ($companyId, $parameters): User {
                 $activeCall = $user->calls->first();
                 $statusStartedAt = $user->currentAgentStatus?->started_at;
                 $statusMinutes = $statusStartedAt
@@ -77,8 +80,10 @@ final class SupervisionSnapshot
                 );
                 $user->setAttribute('operational_alerts', collect([
                     $user->currentAgentStatus?->status === 'paused'
-                        && $statusMinutes >= 20 ? 'Pausa longa' : null,
-                    $activeCall && $callMinutes >= 15
+                        && $statusMinutes >= $parameters->pause_alert_minutes ? 'Pausa longa' : null,
+                    $user->currentAgentStatus?->status === 'paused'
+                        && $statusMinutes >= $parameters->max_pause_minutes ? 'Pausa excedida' : null,
+                    $activeCall && $callMinutes >= $parameters->call_alert_minutes
                         ? 'Chamada longa' : null,
                 ])->filter()->values()->all());
 
@@ -86,7 +91,8 @@ final class SupervisionSnapshot
                     $user,
                     $statusMinutes,
                     $callMinutes,
-                    $activeCall
+                    $activeCall,
+                    $parameters
                 );
 
                 $user->setAttribute('team_names', DB::table('team_user')
@@ -163,9 +169,10 @@ final class SupervisionSnapshot
         User $user,
         int $statusMinutes,
         int $callMinutes,
-        ?Call $activeCall
+        ?Call $activeCall,
+        OperationalParameter $parameters
     ): void {
-        if ($user->currentAgentStatus?->status === 'paused' && $statusMinutes >= 20) {
+        if ($user->currentAgentStatus?->status === 'paused' && $statusMinutes >= $parameters->pause_alert_minutes) {
             $this->notifications->createForCompanyAudience(
                 $user->company_id,
                 ['company_admin', 'supervisor'],
@@ -182,7 +189,24 @@ final class SupervisionSnapshot
             );
         }
 
-        if ($activeCall && $callMinutes >= 15) {
+        if ($user->currentAgentStatus?->status === 'paused' && $statusMinutes >= $parameters->max_pause_minutes) {
+            $this->notifications->createForCompanyAudience(
+                $user->company_id,
+                ['company_admin', 'supervisor'],
+                'operation',
+                'warning',
+                'Pausa excedida',
+                sprintf(
+                    '%s ultrapassou o limite de pausa de %s.',
+                    $user->name,
+                    $this->durationLabel($parameters->max_pause_minutes)
+                ),
+                route('tenant.supervision.index'),
+                dedupe: true
+            );
+        }
+
+        if ($activeCall && $callMinutes >= $parameters->call_alert_minutes) {
             $this->notifications->createForCompanyAudience(
                 $user->company_id,
                 ['company_admin', 'supervisor'],
