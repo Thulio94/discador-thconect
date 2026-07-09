@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\Role;
 use App\Models\Team;
@@ -89,6 +90,52 @@ class TenantUserCrudTest extends TestCase
                 'status' => 'active',
             ])
             ->assertSessionHasErrors('extension');
+    }
+
+    public function test_user_creation_and_deactivation_are_audited_without_noop_events(): void
+    {
+        [$admin, $role, $team] = $this->tenantAdmin();
+        AuditLog::query()->delete();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.users.store'), [
+                'name' => 'Agente Auditado',
+                'email' => 'auditado@demo.test',
+                'user_type' => 'agent',
+                'extension' => '2099',
+                'role_id' => $role->id,
+                'status' => 'active',
+                'team_ids' => [$team->id],
+            ])
+            ->assertRedirect(route('tenant.users.index'));
+
+        $agent = User::where('email', 'auditado@demo.test')->sole();
+        $created = AuditLog::where('event', 'user.created')->where('subject_id', $agent->id)->sole();
+
+        $this->assertSame($admin->id, $created->actor_user_id);
+        $this->assertArrayNotHasKey('password', $created->new_values);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.users.update', $agent), [
+                'name' => $agent->name,
+                'email' => $agent->email,
+                'user_type' => $agent->user_type,
+                'extension' => $agent->extension,
+                'role_id' => $role->id,
+                'status' => 'inactive',
+                'team_ids' => [$team->id],
+            ])
+            ->assertRedirect(route('tenant.users.index'));
+
+        $deactivated = AuditLog::where('event', 'user.deactivated')->where('subject_id', $agent->id)->sole();
+
+        $this->assertSame(['status' => 'active'], $deactivated->old_values);
+        $this->assertSame(['status' => 'inactive'], $deactivated->new_values);
+
+        $count = AuditLog::count();
+        $agent->fresh()->save();
+
+        $this->assertSame($count, AuditLog::count());
     }
 
     private function tenantAdmin(int $maxUsers = 10): array

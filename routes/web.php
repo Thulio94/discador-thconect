@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\Tenant\AgentPanelController;
+use App\Http\Controllers\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Tenant\CampaignController;
 use App\Http\Controllers\Tenant\ComingSoonController;
 use App\Http\Controllers\Tenant\ContactListController;
@@ -27,6 +29,8 @@ Route::middleware(['auth', 'super.admin'])
     ->prefix('super-admin')
     ->name('super-admin.')
     ->group(function (): void {
+        Route::get('audit-logs', [SuperAdminAuditLogController::class, 'index'])->name('audit-logs.index');
+        Route::delete('audit-logs/purge', [SuperAdminAuditLogController::class, 'purge'])->name('audit-logs.purge');
         Route::resource('companies', CompanyController::class)->except(['create', 'show', 'edit']);
     });
 
@@ -34,6 +38,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
     ->prefix('tenant')
     ->name('tenant.')
     ->group(function (): void {
+        Route::get('audit-logs', [TenantAuditLogController::class, 'index'])->middleware('can:tenant.audit.read')->name('audit-logs.index');
         Route::get('users', [UserController::class, 'index'])->middleware('can:tenant.users.read')->name('users.index');
         Route::post('users', [UserController::class, 'store'])->middleware('can:tenant.users.create')->name('users.store');
         Route::put('users/{user}', [UserController::class, 'update'])->middleware('can:tenant.users.update')->name('users.update');

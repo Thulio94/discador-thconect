@@ -61,6 +61,11 @@ class User extends Authenticatable
         return $this->hasMany(AppNotification::class);
     }
 
+    public function authoredAuditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class, 'actor_user_id');
+    }
+
     public function agentStatuses(): HasMany
     {
         return $this->hasMany(AgentStatus::class);

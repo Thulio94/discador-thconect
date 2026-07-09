@@ -53,9 +53,18 @@ Status: MVP operacional.
 
 Pendencias recomendadas:
 
-- [ ] Tela de historico de alteracoes da licenca.
-- [ ] Auditoria de alteracoes feitas pelo super admin.
+- [x] Tela de historico de alteracoes da licenca.
+- [x] Auditoria de alteracoes feitas pelo super admin.
 - [ ] Indicadores de uso contratado vs uso atual.
+
+Auditoria central concluida:
+
+- historico multiempresa com isolamento no backend;
+- login, logout e falha de autenticacao;
+- alteracoes de empresa, licenca e usuario com valores anterior/novo;
+- remocao recursiva de senhas, tokens e segredos;
+- filtros, paginacao e detalhes em modal;
+- limpeza por empresa ou eventos globais, periodo e motivo, exclusiva do Super Admin.
 
 ### Usuarios, Ramais, Equipes e Perfis
 
@@ -76,7 +85,7 @@ Status: MVP operacional.
 Pendencias recomendadas:
 
 - [x] Matriz visual de permissoes por modulo.
-- [ ] Auditoria de login/alteracoes de usuario.
+- [x] Auditoria de login/alteracoes de usuario.
 - [ ] Filtro e busca nos cadastros grandes.
 
 ### Configuracoes Operacionais
@@ -422,22 +431,23 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 
 ## Proximo Plano Sugerido
 
-O proximo plano de implementacao recomendado e:
+O proximo plano funcional recomendado e:
 
 ```text
-Preparacao para Producao
+Limites de Pausa e Parametros Gerais da Operacao
 ```
 
-Motivo: o MVP simulado ja possui os fluxos operacionais essenciais e atualizacao leve das telas criticas. O proximo passo e tornar a entrega reproduzivel, segura, observavel e recuperavel antes de publicar o sistema.
+Motivo: a auditoria central agora registra as mudancas administrativas. O proximo passo funcional e tornar limites de pausa e parametros operacionais configuraveis por empresa, fazendo com que essas alteracoes tambem entrem no historico.
 
-Entregaveis desse proximo plano:
+Entregaveis desse proximo plano funcional:
 
-- imagem Docker imutavel;
-- compose de producao sem bind mounts;
-- segredos e cookies seguros;
-- HTTPS, health checks e restart policies;
-- backup e restore do MariaDB;
-- logs, monitoramento e runbook de deploy.
+- tempo minimo e maximo de pausa por empresa;
+- limites de alerta de pausa e chamada longa;
+- parametros gerais da operacao simulada;
+- validacao no painel do agente e na supervisao;
+- alteracoes registradas pela auditoria.
+
+Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 
 ## Referencias de Planejamento Existentes
 

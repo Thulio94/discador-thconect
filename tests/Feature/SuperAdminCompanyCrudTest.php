@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Call;
 use App\Models\Company;
 use App\Models\User;
@@ -91,6 +92,33 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->assertOk()
             ->assertSee('1 ativa de 10')
             ->assertSee('3 por operador disponivel');
+    }
+
+    public function test_company_and_license_creation_are_audited_with_super_admin_actor(): void
+    {
+        $admin = $this->superAdmin();
+        AuditLog::query()->delete();
+
+        $this->actingAs($admin)
+            ->post(route('super-admin.companies.store'), $this->payload([
+                'name' => 'Empresa Auditada',
+            ]))
+            ->assertRedirect(route('super-admin.companies.index'));
+
+        $company = Company::where('name', 'Empresa Auditada')->sole();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'company_id' => $company->id,
+            'actor_user_id' => $admin->id,
+            'event' => 'company.created',
+            'action' => 'created',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'company_id' => $company->id,
+            'actor_user_id' => $admin->id,
+            'event' => 'license.created',
+            'action' => 'created',
+        ]);
     }
 
     private function superAdmin(): User
