@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Services\Licensing\LicenseUsageService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,16 +13,25 @@ use Illuminate\Validation\Rule;
 
 class CompanyController extends Controller
 {
-    public function index(): View
+    public function index(LicenseUsageService $usage): View
     {
+        $companies = Company::query()
+            ->with('license')
+            ->withCount([
+                'calls as active_calls_count' => fn ($query) => $query->where('status', 'in_progress'),
+            ])
+            ->latest()
+            ->paginate(12);
+
+        $companies->getCollection()->transform(function (Company $company) use ($usage): Company {
+            $company->setAttribute('license_usage', $usage->forCompany($company));
+
+            return $company;
+        });
+
         return view('super-admin.companies.index', [
-            'companies' => Company::query()
-                ->with('license')
-                ->withCount([
-                    'calls as active_calls_count' => fn ($query) => $query->where('status', 'in_progress'),
-                ])
-                ->latest()
-                ->paginate(12),
+            'companies' => $companies,
+            'licenseOverview' => $usage->overview(),
         ]);
     }
 
