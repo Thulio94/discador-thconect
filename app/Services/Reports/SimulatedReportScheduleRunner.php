@@ -6,9 +6,39 @@ use App\Models\Call;
 use App\Models\ReportExport;
 use App\Models\ReportSchedule;
 use App\Models\User;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 final class SimulatedReportScheduleRunner
 {
+    public function runDue(?CarbonInterface $moment = null): int
+    {
+        $moment ??= now();
+        $scheduleIds = ReportSchedule::query()
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->pluck('id');
+
+        return $scheduleIds
+            ->filter(function (int $scheduleId) use ($moment): bool {
+                return DB::transaction(function () use ($scheduleId, $moment): bool {
+                    $schedule = ReportSchedule::query()
+                        ->with('user')
+                        ->lockForUpdate()
+                        ->find($scheduleId);
+
+                    if (! $schedule || ! $schedule->user || ! $this->isDue($schedule, $moment)) {
+                        return false;
+                    }
+
+                    $this->run($schedule, $schedule->user);
+
+                    return true;
+                }, 3);
+            })
+            ->count();
+    }
+
     public function run(ReportSchedule $schedule, User $actor): int
     {
         $filters = $schedule->filters ?? [];
@@ -72,5 +102,19 @@ final class SimulatedReportScheduleRunner
             ->from('contacts')
             ->whereColumn('contacts.id', 'calls.contact_id')
             ->where('contacts.contact_list_id', $listId));
+    }
+
+    private function isDue(ReportSchedule $schedule, CarbonInterface $moment): bool
+    {
+        if ($schedule->status !== 'active' || $moment->format('H:i') < $schedule->run_time) {
+            return false;
+        }
+
+        if ($schedule->last_run_at?->isSameDay($moment)) {
+            return false;
+        }
+
+        return $schedule->frequency === 'daily'
+            || ($schedule->frequency === 'weekly' && $schedule->weekday === $moment->dayOfWeek);
     }
 }

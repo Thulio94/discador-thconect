@@ -257,10 +257,10 @@ Status: MVP funcional.
 - [x] Agendamento de relatorios.
 - [x] Frequencia diaria e semanal.
 - [x] Execucao simulada manual com ultima execucao.
+- [x] Execucao automatica local pelo Laravel Scheduler.
 
 Evolucoes futuras:
 
-- [ ] Execucao automatica pelo Laravel Scheduler.
 - [ ] Envio e armazenamento dos arquivos gerados.
 
 ### Notificacoes
@@ -479,17 +479,17 @@ Resultado entregue: `SimulatedDialerGateway` permanece como adaptador ativo, enq
 O proximo plano funcional recomendado e:
 
 ```text
-Relatorios agendados: execucao automatica local
+Preparacao para producao em ambiente local
 ```
 
-Motivo: a preparacao de telefonia foi concluida sem ativar componentes reais. O proximo ganho funcional seguro para o ambiente local e tornar os agendamentos de relatorio automaticos pelo Laravel Scheduler, sem envio externo de arquivos.
+Motivo: os fluxos funcionais do MVP simulado, incluindo a execucao local de relatorios agendados, estao implementados. O proximo passo e revisar operacao, backup, health checks e configuracoes imutaveis ainda no Docker Desktop, sem publicar o sistema.
 
 Entregaveis desse proximo plano funcional:
 
-- registro de comando agendado para executar os relatorios vencidos;
-- preservacao da execucao manual ja existente;
-- isolamento por empresa, frequencias diaria/semanal e testes do scheduler;
-- sem envio por e-mail ou integracao externa nesta etapa.
+- health checks e verificacao de inicializacao dos servicos Docker;
+- backup e restore testados localmente para MariaDB;
+- revisao de variaveis obrigatorias, segredos e configuracoes de producao;
+- runbook de deploy futuro, sem executar publicacao.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 
@@ -528,3 +528,4 @@ Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Pr
 - `docs/superpowers/specs/2026-07-01-notification-preferences-design.md`
 - `docs/superpowers/specs/2026-07-10-campaign-advanced-steps-design.md`
 - `docs/superpowers/specs/2026-07-10-dialer-gateway-contract-design.md`
+- `docs/superpowers/specs/2026-07-10-scheduled-reports-automation-design.md`
