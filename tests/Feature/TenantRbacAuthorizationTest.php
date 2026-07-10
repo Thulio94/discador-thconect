@@ -153,6 +153,7 @@ class TenantRbacAuthorizationTest extends TestCase
             'tenant.reports.schedules.status' => 'reports.schedules',
             'tenant.reports.schedules.run' => 'reports.schedules',
             'tenant.telephony.index' => 'telephony.read',
+            'tenant.telephony.update' => 'telephony.update',
             'tenant.settings.index' => 'settings.read',
             'tenant.settings.operational-parameters.update' => 'settings.update',
             'tenant.settings.pause-reasons.store' => 'settings.create',

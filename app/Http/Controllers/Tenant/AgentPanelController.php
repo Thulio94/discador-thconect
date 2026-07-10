@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Tenant;
 
+use App\Contracts\Dialer\DialerGateway;
 use App\Http\Controllers\Controller;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
@@ -11,6 +12,7 @@ use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\DialerCallRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -114,7 +116,7 @@ class AgentPanelController extends Controller
         return redirect()->route('tenant.agent.index')->with('status', 'Pausa iniciada.');
     }
 
-    public function storeCall(Request $request): RedirectResponse
+    public function storeCall(Request $request, DialerGateway $gateway): RedirectResponse
     {
         $data = $request->validate([
             'phone' => ['nullable', 'string', 'max:32'],
@@ -135,15 +137,15 @@ class AgentPanelController extends Controller
             'status' => 'ended',
             'ended_at' => now(),
         ]);
-        $user->calls()->create([
-            'company_id' => $user->company_id,
-            'direction' => 'outbound',
-            'status' => 'in_progress',
-            'channel' => $channel,
-            'phone' => $phone ?: null,
-            'started_at' => now(),
-            'answered_at' => now(),
-        ]);
+        $gateway->originate(new DialerCallRequest(
+            companyId: $user->company_id,
+            userId: $user->id,
+            campaignId: null,
+            contactId: null,
+            contactPhoneId: null,
+            phone: $phone,
+            channel: $channel,
+        ));
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
             'status' => 'in_call',
@@ -153,7 +155,7 @@ class AgentPanelController extends Controller
         return redirect()->route('tenant.agent.index')->with('status', 'Chamada simulada iniciada.');
     }
 
-    public function endCall(Request $request): RedirectResponse
+    public function endCall(Request $request, DialerGateway $gateway): RedirectResponse
     {
         $data = $request->validate([
             'call_id' => ['required', Rule::exists('calls', 'id')->where('company_id', $request->user()->company_id)],
@@ -205,8 +207,9 @@ class AgentPanelController extends Controller
             return back()->withErrors($serviceFieldResult->errors)->withInput();
         }
 
+        $gateway->hangup($call);
+
         $call->update([
-            'status' => 'ended',
             'disposition_id' => $disposition->id,
             'disposition_code' => $disposition->code,
             'disposition_name' => $disposition->name,

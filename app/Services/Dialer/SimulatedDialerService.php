@@ -2,9 +2,9 @@
 
 namespace App\Services\Dialer;
 
+use App\Contracts\Dialer\DialerGateway;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
-use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\CompanyLicense;
 use App\Models\User;
@@ -26,6 +26,7 @@ class SimulatedDialerService
     public function __construct(
         private readonly AgentCapacityService $capacity,
         private readonly MailingQueueService $queue,
+        private readonly DialerGateway $gateway,
     ) {}
 
     public function runCampaign(Campaign $campaign): int
@@ -168,21 +169,18 @@ class SimulatedDialerService
             $contact = $contactPhone->contact;
             $isWinner = $created === 0;
 
-            Call::create([
-                'company_id' => $campaign->company_id,
-                'user_id' => $agent->id,
-                'campaign_id' => $campaign->id,
-                'contact_id' => $contact->id,
-                'contact_phone_id' => $contactPhone->id,
-                'direction' => 'outbound',
-                'status' => $isWinner ? 'in_progress' : 'cancelled',
-                'end_reason' => $isWinner ? null : 'answered_elsewhere',
-                'channel' => 'simulated',
-                'phone' => $contactPhone->phone,
-                'started_at' => now(),
-                'answered_at' => $isWinner ? now() : null,
-                'ended_at' => $isWinner ? null : now(),
-            ]);
+            $request = new DialerCallRequest(
+                companyId: $campaign->company_id,
+                userId: $agent->id,
+                campaignId: $campaign->id,
+                contactId: $contact->id,
+                contactPhoneId: $contactPhone->id,
+                phone: $contactPhone->phone,
+            );
+
+            $isWinner
+                ? $this->gateway->originate($request)
+                : $this->gateway->cancel($request, 'answered_elsewhere');
 
             $this->queue->markAttempt(
                 $contact,

@@ -22,7 +22,7 @@
             ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access'],
             ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*'), 'ability' => 'tenant.supervision.read'],
             ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'download', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
-            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read', 'soon' => true],
+            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read'],
             ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.settings.*'), 'ability' => 'tenant.settings.read'],
             ['label' => 'Auditoria', 'href' => route('tenant.audit-logs.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.audit-logs.*'), 'ability' => 'tenant.audit.read'],
             ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'ability' => 'tenant.integrations.read', 'soon' => true],

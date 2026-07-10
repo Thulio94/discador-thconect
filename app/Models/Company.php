@@ -96,6 +96,11 @@ class Company extends Model
         return $this->hasOne(OperationalParameter::class);
     }
 
+    public function telephonyConfiguration(): HasOne
+    {
+        return $this->hasOne(CompanyTelephonyConfiguration::class);
+    }
+
     public function reportExports(): HasMany
     {
         return $this->hasMany(ReportExport::class);
