@@ -94,22 +94,26 @@ class CoreRoutesTest extends TestCase
             ->assertSee('Empresas');
     }
 
-    public function test_tenant_reserved_modules_are_coming_soon(): void
+    public function test_tenant_integrations_module_is_coming_soon(): void
     {
         $user = $this->tenantUser();
 
-        $routes = [
-            'tenant.telephony.index' => 'Telefonia',
-            'tenant.integrations.index' => 'Integracoes',
-        ];
+        $this->actingAs($user)
+            ->get(route('tenant.integrations.index'))
+            ->assertOk()
+            ->assertSee('Integracoes')
+            ->assertSee('Modulo em breve');
+    }
 
-        foreach ($routes as $route => $title) {
-            $this->actingAs($user)
-                ->get(route($route))
-                ->assertOk()
-                ->assertSee($title)
-                ->assertSee('Modulo em breve');
-        }
+    public function test_tenant_telephony_route_loads_preparation_module(): void
+    {
+        $user = $this->tenantUser();
+
+        $this->actingAs($user)
+            ->get(route('tenant.telephony.index'))
+            ->assertOk()
+            ->assertSee('Preparacao de telefonia')
+            ->assertDontSee('Modulo em breve');
     }
 
     public function test_tenant_settings_route_loads_real_module(): void

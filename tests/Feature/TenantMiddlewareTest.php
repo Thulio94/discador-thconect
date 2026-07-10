@@ -70,13 +70,15 @@ class TenantMiddlewareTest extends TestCase
 
     public function test_security_headers_are_applied(): void
     {
-        Route::get('/_test/security-headers', fn () => 'ok')->middleware('security.headers');
+        Route::get('/_test/security-headers', fn () => 'ok');
 
         $this->get('/_test/security-headers')
             ->assertOk()
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
-            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+            ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin');
     }
 
     private function tenantUserWithLicense(): User

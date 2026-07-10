@@ -9,8 +9,17 @@ services:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$socket = @fsockopen(\"127.0.0.1\", 9000, $$errno, $$error, 2); exit($$socket ? 0 : 1);'"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   nginx:
     image: nginx:1.27-alpine
@@ -22,7 +31,15 @@ services:
       - discador_vendor:/var/www/html/vendor
       - ./.docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/up"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   mysql:
     image: mariadb:11.4
@@ -36,6 +53,12 @@ services:
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-root_secret}"
     volumes:
       - discador_mysql:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -44,6 +67,12 @@ services:
       - "${REDIS_FORWARD_PORT:-6387}:6379"
     volumes:
       - discador_redis:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
   queue:
     build:
@@ -56,8 +85,11 @@ services:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
     depends_on:
-      - app
-      - redis
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   scheduler:
     image: discadorthconect-app
@@ -68,8 +100,11 @@ services:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
     depends_on:
-      - app
-      - mysql
+      app:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
 
   reverb:
     build:
@@ -84,8 +119,11 @@ services:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
     depends_on:
-      - app
-      - redis
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   discador_vendor:
