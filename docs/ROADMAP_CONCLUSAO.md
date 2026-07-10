@@ -1,6 +1,6 @@
 # Roadmap de Conclusao - Discador THCONECT
 
-Atualizado em: 2026-07-01
+Atualizado em: 2026-07-10
 
 Este documento consolida o que falta para concluir o Discador THCONECT conforme o planejamento aprovado. Ele separa o MVP simulado, que permite operar e validar o fluxo sem Asterisk, das fases futuras de telefonia real, Go Bridge e integracoes.
 
@@ -203,7 +203,14 @@ Status: basico funcional, ainda nao completo.
 
 Pendencias criticas:
 
-- [ ] Etapas avancadas: AMD/tentativas, rotas e limites.
+- [x] Etapas avancadas: AMD/tentativas, rotas e limites.
+
+Etapas avancadas de campanha concluidas:
+
+- limite adicional de tentativas e intervalo minimo por campanha, combinados de forma restritiva com as regras da tabulacao;
+- teto simultaneo proprio por campanha, validado contra o contrato e aplicado pelo simulador junto ao teto compartilhado da empresa;
+- AMD apenas simulado e rota apenas referencial no wizard, ambos sem conexao com Asterisk;
+- testes de persistencia, contrato, capacidade e regras de retry.
 
 ### Supervisao
 
@@ -470,18 +477,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano funcional recomendado e:
 
 ```text
-Etapas avancadas de campanha: AMD/tentativas, rotas e limites
+Preparacao da telefonia: contrato DialerGateway e configuracoes sem conexao
 ```
 
-Motivo: preferencias por usuario nas notificacoes ja foram concluidas. O proximo ganho funcional dentro do MVP, sem ativar telefonia real ou integracoes, e completar as etapas avancadas de configuracao de campanha que ainda aparecem como pendencia critica.
+Motivo: o fluxo simulado de campanhas agora inclui tentativas, limites e preparacao visual de AMD/rota. O proximo passo pode definir o contrato interno de telefonia sem ativar AMI, Asterisk ou integracoes reais.
 
 Entregaveis desse proximo plano funcional:
 
-- etapa visual de AMD marcada como simulada/em breve quando depender de telefonia real;
-- refinamento de tentativas por campanha sem quebrar regras por tabulacao ja existentes;
-- limites por campanha respeitando contrato da empresa;
-- preparacao visual de rotas como "Em breve", sem conectar Asterisk;
-- testes de validacao e isolamento por empresa.
+- contrato `DialerGateway` para chamadas simuladas e futuras chamadas reais;
+- adaptacao gradual da chamada manual e do simulador ao contrato;
+- nenhuma conexao com Asterisk neste plano;
+- testes de contrato e de continuidade da simulacao.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 
@@ -518,3 +524,4 @@ Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Pr
 - `docs/superpowers/plans/2026-06-13-report-scheduling.md`
 - `docs/superpowers/specs/2026-07-01-large-crud-filters-design.md`
 - `docs/superpowers/specs/2026-07-01-notification-preferences-design.md`
+- `docs/superpowers/specs/2026-07-10-campaign-advanced-steps-design.md`

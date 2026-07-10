@@ -306,13 +306,20 @@ class AgentPanelController extends Controller
         if ($disposition->retry_enabled) {
             $contact = $call->contact;
 
-            if ($disposition->max_attempts && $contact && $contact->attempts_count >= $disposition->max_attempts) {
+            $campaignLimit = $call->campaign?->max_attempts_per_contact;
+            $attemptLimit = collect([$disposition->max_attempts, $campaignLimit])
+                ->filter(fn ($limit): bool => $limit !== null)
+                ->min();
+
+            if ($attemptLimit && $contact && $contact->attempts_count >= $attemptLimit) {
                 return array_merge($payload, ['status' => 'exhausted']);
             }
 
+            $campaignDelay = $call->campaign?->retry_delay_minutes ?? 0;
+
             return array_merge($payload, [
                 'status' => 'pending',
-                'next_attempt_at' => now()->addMinutes($disposition->retry_delay_minutes ?? 0),
+                'next_attempt_at' => now()->addMinutes(max($disposition->retry_delay_minutes ?? 0, $campaignDelay)),
             ]);
         }
 

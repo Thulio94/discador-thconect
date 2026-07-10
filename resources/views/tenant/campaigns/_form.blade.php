@@ -11,6 +11,7 @@
     $schedule = old('operational_schedule', $campaign?->operational_schedule ?? []);
     $serviceFields = old('service_fields_schema', $campaign?->service_fields_schema ?? []);
     $leadPhoneStrategy = old('lead_phone_strategy', $campaign?->lead_phone_strategy ?? 'vertical');
+    $amdMode = old('amd_mode', $campaign?->amd_mode ?? 'disabled');
     $fieldRows = collect(range(0, 4))->map(fn ($index) => $serviceFields[$index] ?? [])->all();
     $days = [
         'monday' => 'Segunda',
@@ -128,6 +129,40 @@
         </label>
         </div>
 
+        <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-3" style="border-color: var(--border); background: var(--surface-alt);">
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Maximo de tentativas por lead</span>
+                <input name="max_attempts_per_contact" type="number" min="1" max="50" value="{{ old('max_attempts_per_contact', $campaign?->max_attempts_per_contact) }}" placeholder="Usar regra da tabulacao" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <span class="text-xs" style="color: var(--fg-muted);">Aplica o menor limite entre campanha e tabulacao.</span>
+            </label>
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Intervalo minimo entre tentativas</span>
+                <input name="retry_delay_minutes" type="number" min="0" max="10080" value="{{ old('retry_delay_minutes', $campaign?->retry_delay_minutes) }}" placeholder="Usar regra da tabulacao" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <span class="text-xs" style="color: var(--fg-muted);">Em minutos; usa o maior intervalo entre campanha e tabulacao.</span>
+            </label>
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Teto simultaneo da campanha</span>
+                <input name="max_concurrent_calls" type="number" min="1" max="100000" value="{{ old('max_concurrent_calls', $campaign?->max_concurrent_calls) }}" placeholder="Usar limite do contrato" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <span class="text-xs" style="color: var(--fg-muted);">Nunca ultrapassa o limite contratado da empresa.</span>
+            </label>
+        </div>
+
+        <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-2" style="border-color: var(--border);">
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">AMD</span>
+                <select name="amd_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                    <option value="disabled" @selected($amdMode === 'disabled')>Desativado</option>
+                    <option value="simulated" @selected($amdMode === 'simulated')>Simulado</option>
+                </select>
+                <span class="text-xs" style="color: var(--fg-muted);">A deteccao real de secretaria eletronica permanece em breve.</span>
+            </label>
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Rota de discagem</span>
+                <input name="dialing_route" value="{{ old('dialing_route', $campaign?->dialing_route) }}" placeholder="Ex.: Saida principal" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <span class="text-xs" style="color: var(--fg-muted);">Preparacao visual. O envio para tronco/Asterisk permanece em breve.</span>
+            </label>
+        </div>
+
         <div>
             <p class="mb-2 text-sm font-semibold">Agenda operacional</p>
             <div class="grid gap-2">
@@ -205,6 +240,18 @@
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Prioridade</p>
                 <p class="mt-1 font-semibold">{{ old('priority', $campaign?->priority ?? 1) }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tentativas</p>
+                <p class="mt-1 font-semibold">{{ old('max_attempts_per_contact', $campaign?->max_attempts_per_contact) ?: 'Pela tabulacao' }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">AMD</p>
+                <p class="mt-1 font-semibold">{{ $amdMode === 'simulated' ? 'Simulado' : 'Desativado' }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Rota</p>
+                <p class="mt-1 font-semibold">{{ old('dialing_route', $campaign?->dialing_route) ?: 'Em breve' }}</p>
             </div>
         </div>
     </div>

@@ -1015,6 +1015,54 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSessionHasErrors(['team_ids.0', 'list_ids.0']);
     }
 
+    public function test_tenant_admin_can_configure_advanced_campaign_dialing_settings(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $admin->company->licenses()->firstOrFail()->update(['max_concurrent_calls' => 8]);
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Avancada']);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Avancada',
+                'dialing_mode' => 'power',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+                'max_attempts_per_contact' => 3,
+                'retry_delay_minutes' => 20,
+                'max_concurrent_calls' => 4,
+                'amd_mode' => 'simulated',
+                'dialing_route' => 'Saida principal',
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'));
+
+        $campaign = Campaign::query()->where('company_id', $admin->company_id)->where('name', 'Campanha Avancada')->sole();
+
+        $this->assertSame(3, $campaign->max_attempts_per_contact);
+        $this->assertSame(20, $campaign->retry_delay_minutes);
+        $this->assertSame(4, $campaign->max_concurrent_calls);
+        $this->assertSame('simulated', $campaign->amd_mode);
+        $this->assertSame('Saida principal', $campaign->dialing_route);
+    }
+
+    public function test_campaign_concurrent_limit_cannot_exceed_company_contract(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $admin->company->licenses()->firstOrFail()->update(['max_concurrent_calls' => 2]);
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Contrato']);
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Acima Contrato',
+                'dialing_mode' => 'power',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+                'max_concurrent_calls' => 3,
+            ])
+            ->assertSessionHasErrors('max_concurrent_calls');
+    }
+
     private function tenantAdmin(): array
     {
         $company = Company::create(['name' => 'Tenant A']);
