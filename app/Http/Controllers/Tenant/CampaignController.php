@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
+use App\Models\CompanyLicense;
 use App\Models\ContactList;
 use App\Models\Team;
 use App\Services\Dialer\MailingQueueService;
@@ -74,6 +75,7 @@ class CampaignController extends Controller
             'service_fields_schema' => $this->serviceFieldsSchemaPayload($data['service_fields_schema'] ?? []),
             'dialing_mode' => $data['dialing_mode'],
             'lead_phone_strategy' => $data['lead_phone_strategy'] ?? 'vertical',
+            ...$this->advancedDialingPayload($data),
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
             'operational_schedule' => $this->schedulePayload($data['operational_schedule'] ?? []),
@@ -98,6 +100,7 @@ class CampaignController extends Controller
             'service_fields_schema' => $this->serviceFieldsSchemaPayload($data['service_fields_schema'] ?? []),
             'dialing_mode' => $data['dialing_mode'],
             'lead_phone_strategy' => $data['lead_phone_strategy'] ?? 'vertical',
+            ...$this->advancedDialingPayload($data),
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
             'operational_schedule' => $this->schedulePayload($data['operational_schedule'] ?? []),
@@ -171,6 +174,11 @@ class CampaignController extends Controller
             'service_fields_schema' => $campaign->service_fields_schema,
             'dialing_mode' => $campaign->dialing_mode,
             'lead_phone_strategy' => $campaign->lead_phone_strategy ?? 'vertical',
+            'max_attempts_per_contact' => $campaign->max_attempts_per_contact,
+            'retry_delay_minutes' => $campaign->retry_delay_minutes,
+            'max_concurrent_calls' => $campaign->max_concurrent_calls,
+            'amd_mode' => $campaign->amd_mode ?? 'disabled',
+            'dialing_route' => $campaign->dialing_route,
             'status' => 'draft',
             'priority' => $campaign->priority,
             'operational_schedule' => $campaign->operational_schedule,
@@ -223,6 +231,29 @@ class CampaignController extends Controller
             'service_script' => ['nullable', 'string', 'max:5000'],
             'dialing_mode' => ['required', Rule::in(['preview', 'manual', 'power', 'predictive'])],
             'lead_phone_strategy' => ['nullable', Rule::in(['vertical', 'horizontal'])],
+            'max_attempts_per_contact' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'retry_delay_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
+            'max_concurrent_calls' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:100000',
+                function (string $attribute, mixed $value, \Closure $fail) use ($companyId): void {
+                    $licenseLimit = CompanyLicense::query()
+                        ->where('company_id', $companyId)
+                        ->where('status', 'active')
+                        ->where('starts_at', '<=', today())
+                        ->where('ends_at', '>=', today())
+                        ->latest('starts_at')
+                        ->value('max_concurrent_calls');
+
+                    if ($licenseLimit !== null && (int) $value > (int) $licenseLimit) {
+                        $fail('O limite da campanha nao pode ser maior que o limite contratado da empresa.');
+                    }
+                },
+            ],
+            'amd_mode' => ['nullable', Rule::in(['disabled', 'simulated'])],
+            'dialing_route' => ['nullable', 'string', 'max:80'],
             'status' => ['required', Rule::in(['draft', 'active', 'paused', 'finished'])],
             'priority' => ['nullable', 'integer', 'min:1', 'max:10'],
             'team_ids' => ['required', 'array', 'min:1'],
@@ -323,6 +354,17 @@ class CampaignController extends Controller
             ->all();
 
         return $payload ?: null;
+    }
+
+    private function advancedDialingPayload(array $data): array
+    {
+        return [
+            'max_attempts_per_contact' => $data['max_attempts_per_contact'] ?? null,
+            'retry_delay_minutes' => $data['retry_delay_minutes'] ?? null,
+            'max_concurrent_calls' => $data['max_concurrent_calls'] ?? null,
+            'amd_mode' => $data['amd_mode'] ?? 'disabled',
+            'dialing_route' => filled($data['dialing_route'] ?? null) ? trim($data['dialing_route']) : null,
+        ];
     }
 
     private function serviceFieldsSchemaPayload(array $fields): ?array

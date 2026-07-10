@@ -73,6 +73,17 @@ class AgentCapacityService
 
         $capacity = $this->allowedCallsForCampaign($campaign);
         $globalLimit = $campaign->company?->license?->max_concurrent_calls;
+        $campaignLimit = $campaign->max_concurrent_calls;
+
+        if ($campaignLimit !== null) {
+            $activeCampaignCalls = Call::query()
+                ->where('company_id', $campaign->company_id)
+                ->where('campaign_id', $campaign->id)
+                ->where('status', 'in_progress')
+                ->count();
+
+            $capacity = min($capacity, max(0, $campaignLimit - $activeCampaignCalls));
+        }
 
         if ($globalLimit === null) {
             return $capacity;

@@ -68,6 +68,9 @@
                                     | {{ ($scheduleStates[$campaign->id] ?? true) ? 'Dentro da agenda' : 'Fora da agenda' }}
                                 @endif
                             </p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                Tentativas {{ $campaign->max_attempts_per_contact ?: 'pela tabulacao' }} | Teto {{ $campaign->max_concurrent_calls ?: 'do contrato' }} | AMD {{ $campaign->amd_mode === 'simulated' ? 'simulado' : 'desativado' }} | Rota {{ $campaign->dialing_route ?: 'em breve' }}
+                            </p>
                             @if (count($campaign->service_fields_schema ?? []) > 0)
                                 <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                     Campos dinamicos: {{ collect($campaign->service_fields_schema)->pluck('label')->join(', ') }}

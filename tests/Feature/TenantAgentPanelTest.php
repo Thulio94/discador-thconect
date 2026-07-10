@@ -141,6 +141,31 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(3, $service->remainingConcurrentCallsForCampaign($campaign));
     }
 
+    public function test_remaining_campaign_capacity_respects_its_own_concurrent_limit(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 10,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+        $campaign->update(['max_concurrent_calls' => 3]);
+        Call::create([
+            'company_id' => $company->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'started_at' => now(),
+        ]);
+
+        $this->assertSame(
+            2,
+            app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
+        );
+    }
+
     public function test_active_call_from_another_company_does_not_reduce_campaign_limit(): void
     {
         [$agent, $company] = $this->tenantUser('agent');
@@ -1030,6 +1055,92 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('exhausted', $contact->status);
         $this->assertSame('NAO_ATENDE_FINAL', $contact->last_result);
         $this->assertNull($contact->next_attempt_at);
+    }
+
+    public function test_campaign_retry_settings_cap_attempts_and_extend_disposition_cooldown(): void
+    {
+        $this->travelTo(now()->setSecond(0)->setMicrosecond(0));
+
+        [$agent, $company] = $this->tenantUser('agent');
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista Regra Campanha',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Cliente Regra Campanha',
+            'phone' => '31999990058',
+            'status' => 'dialing',
+            'attempts_count' => 1,
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Regra Retry',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'max_attempts_per_contact' => 2,
+            'retry_delay_minutes' => 60,
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Retry pela campanha',
+            'code' => 'RETRY_CAMPANHA',
+            'category' => 'negative',
+            'status' => 'active',
+            'retry_enabled' => true,
+            'retry_delay_minutes' => 15,
+            'max_attempts' => 4,
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'contact_id' => $contact->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => $contact->phone,
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $contact->refresh();
+
+        $this->assertSame('pending', $contact->status);
+        $this->assertTrue(now()->addMinutes(60)->equalTo($contact->next_attempt_at));
+
+        $contact->update(['status' => 'dialing', 'attempts_count' => 2]);
+        $secondCall = $call->replicate(['status', 'ended_at', 'disposition_id']);
+        $secondCall->status = 'in_progress';
+        $secondCall->started_at = now();
+        $secondCall->save();
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $secondCall->id,
+                'disposition_id' => $disposition->id,
+            ]);
+
+        $this->assertSame('exhausted', $contact->fresh()->status);
     }
 
     public function test_callback_disposition_requires_callback_schedule(): void
