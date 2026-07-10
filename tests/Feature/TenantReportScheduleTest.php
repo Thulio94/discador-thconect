@@ -233,6 +233,35 @@ class TenantReportScheduleTest extends TestCase
         $this->assertDatabaseCount('report_exports', 0);
     }
 
+    public function test_scheduled_reports_command_runs_only_due_active_schedules_once(): void
+    {
+        Carbon::setTestNow('2026-06-14 10:00:00');
+        [$admin, $company] = $this->tenantUser();
+        $daily = $this->schedule($company, $admin, 'Diario automatico');
+        $weekly = $this->schedule($company, $admin, 'Semanal automatico');
+        $weekly->update(['frequency' => 'weekly', 'weekday' => now()->dayOfWeek, 'run_time' => '09:00']);
+        $future = $this->schedule($company, $admin, 'Horario futuro');
+        $future->update(['run_time' => '11:00']);
+        $inactive = $this->schedule($company, $admin, 'Inativo automatico');
+        $inactive->update(['status' => 'inactive']);
+
+        $this->artisan('reports:run-scheduled')
+            ->expectsOutput('2 agendamento(s) de relatorio executado(s).')
+            ->assertExitCode(0);
+
+        $this->assertTrue($daily->fresh()->last_run_at->equalTo(now()));
+        $this->assertTrue($weekly->fresh()->last_run_at->equalTo(now()));
+        $this->assertNull($future->fresh()->last_run_at);
+        $this->assertNull($inactive->fresh()->last_run_at);
+        $this->assertDatabaseCount('report_exports', 2);
+
+        $this->artisan('reports:run-scheduled')
+            ->expectsOutput('0 agendamento(s) de relatorio executado(s).')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseCount('report_exports', 2);
+    }
+
     public function test_reports_panel_shows_only_company_schedules_and_modal_controls(): void
     {
         [$admin, $company] = $this->tenantUser();

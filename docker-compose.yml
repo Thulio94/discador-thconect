@@ -59,6 +59,18 @@ services:
       - app
       - redis
 
+  scheduler:
+    image: discadorthconect-app
+    container_name: discador_thconect_scheduler
+    command: php artisan schedule:work
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - discador_vendor:/var/www/html/vendor
+    depends_on:
+      - app
+      - mysql
+
   reverb:
     build:
       context: .
