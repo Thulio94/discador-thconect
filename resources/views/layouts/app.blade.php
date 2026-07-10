@@ -4,6 +4,8 @@
     $canReadNotifications = ! $user?->is_super_admin && Gate::allows('tenant.notifications.read');
     $notifications = $canReadNotifications ? $user->appNotifications()->latest()->limit(8)->get() : collect();
     $unreadCount = $canReadNotifications ? $user->appNotifications()->whereNull('read_at')->count() : 0;
+    $notificationCategories = $canReadNotifications ? \App\Support\Notifications\AppNotificationService::preferenceCategories() : [];
+    $notificationPreferences = $canReadNotifications ? $user->notificationPreferences()->pluck('enabled', 'category')->all() : [];
     $navItems = $user?->is_super_admin
         ? [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
@@ -88,7 +90,12 @@
             </main>
 
             @if ($canReadNotifications)
-                <x-ui.notification-panel :notifications="$notifications" :unread-count="$unreadCount" />
+                <x-ui.notification-panel
+                    :notifications="$notifications"
+                    :unread-count="$unreadCount"
+                    :categories="$notificationCategories"
+                    :preferences="$notificationPreferences"
+                />
             @endif
         </div>
 

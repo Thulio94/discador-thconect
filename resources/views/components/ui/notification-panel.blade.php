@@ -1,4 +1,9 @@
-@props(['notifications' => collect(), 'unreadCount' => 0])
+@props([
+    'notifications' => collect(),
+    'unreadCount' => 0,
+    'categories' => [],
+    'preferences' => [],
+])
 
 <aside
     id="notification-panel"
@@ -18,9 +23,23 @@
             <p class="text-[11px] font-semibold uppercase" style="color: var(--fg-muted);">Central</p>
             <h2 class="text-sm font-semibold" style="color: var(--fg);">Notificacoes</h2>
         </div>
-        <span class="rounded-full px-2 py-1 text-xs" style="background: var(--primary-soft); color: var(--fg);">
-            {{ $unreadCount }}
-        </span>
+        <div class="flex items-center gap-2">
+            @can('tenant.notifications.update')
+                <button
+                    type="button"
+                    class="th-focus inline-flex h-9 w-9 items-center justify-center rounded-lg border"
+                    style="border-color: var(--border); color: var(--fg-muted);"
+                    x-on:click="$dispatch('open-modal', 'notification-preferences')"
+                    aria-label="Preferencias de notificacao"
+                    title="Preferencias de notificacao"
+                >
+                    <x-ui.icon name="lock" />
+                </button>
+            @endcan
+            <span class="rounded-full px-2 py-1 text-xs" style="background: var(--primary-soft); color: var(--fg);">
+                {{ $unreadCount }}
+            </span>
+        </div>
     </div>
 
     <div class="mt-4 grid content-start gap-2">
@@ -40,4 +59,42 @@
             </p>
         @endforelse
     </div>
+
+    @can('tenant.notifications.update')
+        <x-ui.modal name="notification-preferences" title="Preferencias de notificacao" max-width="lg">
+            <form method="POST" action="{{ route('tenant.notifications.preferences.update') }}" class="grid gap-4">
+                @csrf
+                @method('PATCH')
+
+                <div class="grid gap-3">
+                    @foreach ($categories as $category => $label)
+                        @php
+                            $enabled = $preferences[$category] ?? true;
+                        @endphp
+                        <label class="flex items-start gap-3 rounded-lg border p-3 text-sm" style="border-color: var(--border); background: var(--bg-subtle);">
+                            <input
+                                type="checkbox"
+                                name="categories[]"
+                                value="{{ $category }}"
+                                @checked($enabled)
+                                class="mt-1 h-4 w-4 rounded border"
+                                style="accent-color: var(--primary);"
+                            >
+                            <span>
+                                <span class="block font-semibold" style="color: var(--fg);">{{ $label }}</span>
+                                <span class="mt-1 block text-xs" style="color: var(--fg-muted);">
+                                    Receber notificacoes desta categoria no painel lateral.
+                                </span>
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'notification-preferences')">Cancelar</x-ui.button>
+                    <x-ui.button type="submit">Salvar preferencias</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endcan
 </aside>

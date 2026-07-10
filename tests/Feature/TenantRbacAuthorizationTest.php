@@ -166,6 +166,7 @@ class TenantRbacAuthorizationTest extends TestCase
             'tenant.settings.blacklist.destroy' => 'settings.delete',
             'tenant.integrations.index' => 'integrations.read',
             'tenant.notifications.poll' => 'notifications.read',
+            'tenant.notifications.preferences.update' => 'notifications.update',
             'tenant.notifications.read-all' => 'notifications.update',
             'tenant.notifications.read' => 'notifications.update',
         ];

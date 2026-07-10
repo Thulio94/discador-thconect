@@ -275,7 +275,16 @@ Pendencias importantes:
 
 - [ ] Reverb/Echo para tempo real.
 - [x] Fallback por polling para notificacoes.
-- [ ] Preferencias por usuario.
+- [x] Preferencias por usuario.
+
+Preferencias por usuario concluidas:
+
+- categorias de notificacao por usuario: campanhas, mailing/listas, operacao e sistema;
+- preferencia individual e isolada por empresa;
+- categoria desativada deixa de gerar notificacao persistida nova;
+- painel lateral com configuracao em modal, sem `javascript.alert`;
+- fallback por polling continua renderizando painel e configuracoes;
+- testes de persistencia, isolamento por usuario e RBAC.
 
 ## Modulos Mantidos Como "Em Breve"
 
@@ -461,18 +470,18 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano funcional recomendado e:
 
 ```text
-Preferencias por Usuario nas Notificacoes
+Etapas avancadas de campanha: AMD/tentativas, rotas e limites
 ```
 
-Motivo: filtros e buscas nos cadastros grandes ja foram concluidos. O proximo ganho funcional dentro do MVP, sem ativar telefonia real ou integracoes, e permitir que cada usuario controle quais notificacoes operacionais deseja receber.
+Motivo: preferencias por usuario nas notificacoes ja foram concluidas. O proximo ganho funcional dentro do MVP, sem ativar telefonia real ou integracoes, e completar as etapas avancadas de configuracao de campanha que ainda aparecem como pendencia critica.
 
 Entregaveis desse proximo plano funcional:
 
-- preferencias por usuario para categorias de notificacao;
-- controle de notificacoes por campanha, mailing, operacao e sistema;
-- respeitar preferencias ao criar notificacoes persistidas;
-- tela/modal de configuracao sem `javascript.alert`;
-- testes de isolamento por usuario e empresa.
+- etapa visual de AMD marcada como simulada/em breve quando depender de telefonia real;
+- refinamento de tentativas por campanha sem quebrar regras por tabulacao ja existentes;
+- limites por campanha respeitando contrato da empresa;
+- preparacao visual de rotas como "Em breve", sem conectar Asterisk;
+- testes de validacao e isolamento por empresa.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 
@@ -507,3 +516,5 @@ Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Pr
 - `docs/superpowers/specs/2026-06-08-report-export-history-design.md`
 - `docs/superpowers/specs/2026-06-13-report-scheduling-design.md`
 - `docs/superpowers/plans/2026-06-13-report-scheduling.md`
+- `docs/superpowers/specs/2026-07-01-large-crud-filters-design.md`
+- `docs/superpowers/specs/2026-07-01-notification-preferences-design.md`

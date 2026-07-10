@@ -61,6 +61,11 @@ class User extends Authenticatable
         return $this->hasMany(AppNotification::class);
     }
 
+    public function notificationPreferences(): HasMany
+    {
+        return $this->hasMany(UserNotificationPreference::class);
+    }
+
     public function authoredAuditLogs(): HasMany
     {
         return $this->hasMany(AuditLog::class, 'actor_user_id');
