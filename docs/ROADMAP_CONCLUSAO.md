@@ -479,19 +479,37 @@ Resultado entregue: `SimulatedDialerGateway` permanece como adaptador ativo, enq
 O proximo plano funcional recomendado e:
 
 ```text
-Preparacao para producao em ambiente local
+Imagem Docker imutavel e compose de producao
 ```
 
-Motivo: os fluxos funcionais do MVP simulado, incluindo a execucao local de relatorios agendados, estao implementados. O proximo passo e revisar operacao, backup, health checks e configuracoes imutaveis ainda no Docker Desktop, sem publicar o sistema.
+Motivo: a prontidao local, health checks e backup/restore foram validados. O proximo passo e montar os artefatos imutaveis de producao, ainda sem executar publicacao.
 
 Entregaveis desse proximo plano funcional:
 
-- health checks e verificacao de inicializacao dos servicos Docker;
-- backup e restore testados localmente para MariaDB;
-- revisao de variaveis obrigatorias, segredos e configuracoes de producao;
-- runbook de deploy futuro, sem executar publicacao.
+- Dockerfile de producao multiestagio com dependencias sem desenvolvimento;
+- compose de producao sem bind mounts e com volumes persistentes necessarios;
+- validacao de configuracao sem aplicar deploy;
+- documentacao dos requisitos de HTTPS e segredos externos.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
+
+## Preparacao Local para Producao
+
+Status: concluida em 2026-07-10, sem publicacao.
+
+- [x] Health checks Docker para aplicacao, Nginx, MariaDB e Redis.
+- [x] Reinicio automatico e dependencias ordenadas entre servicos.
+- [x] Endpoint HTTP `/up` validado localmente.
+- [x] Backup/restore MariaDB testado em base temporaria.
+- [x] Modelo de variaveis de producao sem segredos reais.
+- [x] Cabecalhos globais e configuracao condicional de CSP/HSTS para producao.
+- [x] Runbook de operacao local.
+
+Pendente antes de uma publicacao real:
+
+- [ ] Imagem Docker imutavel e compose sem bind mounts.
+- [ ] Gestao externa de segredos e HTTPS publico.
+- [ ] Monitoramento, alertas e rotina de backup externa.
 
 ## Referencias de Planejamento Existentes
 
@@ -529,3 +547,4 @@ Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Pr
 - `docs/superpowers/specs/2026-07-10-campaign-advanced-steps-design.md`
 - `docs/superpowers/specs/2026-07-10-dialer-gateway-contract-design.md`
 - `docs/superpowers/specs/2026-07-10-scheduled-reports-automation-design.md`
+- `docs/superpowers/specs/2026-07-10-local-production-readiness-design.md`
