@@ -445,10 +445,12 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 
 ### Etapa 8 - Preparacao da Telefonia
 
-1. Definir contrato `DialerGateway`.
-2. Adaptar chamada manual/simulada para passar pelo gateway.
-3. Criar configuracoes de tronco e rota ainda sem conectar no Asterisk.
-4. Criar testes de contrato.
+1. [x] Definir contrato `DialerGateway`.
+2. [x] Adaptar chamada manual/simulada para passar pelo gateway.
+3. [x] Criar configuracoes de tronco e rota ainda sem conectar no Asterisk.
+4. [x] Criar testes de contrato.
+
+Resultado entregue: `SimulatedDialerGateway` permanece como adaptador ativo, enquanto chamadas manuais e campanhas usam o mesmo contrato interno. A preparacao por empresa armazena somente referencias de tronco, rota e caller ID, sem host, credencial ou conexao externa.
 
 ### Etapa 9 - Asterisk/AMI
 
@@ -477,17 +479,17 @@ Resultado esperado: sistema avisa eventos importantes sem alertas nativos.
 O proximo plano funcional recomendado e:
 
 ```text
-Preparacao da telefonia: contrato DialerGateway e configuracoes sem conexao
+Relatorios agendados: execucao automatica local
 ```
 
-Motivo: o fluxo simulado de campanhas agora inclui tentativas, limites e preparacao visual de AMD/rota. O proximo passo pode definir o contrato interno de telefonia sem ativar AMI, Asterisk ou integracoes reais.
+Motivo: a preparacao de telefonia foi concluida sem ativar componentes reais. O proximo ganho funcional seguro para o ambiente local e tornar os agendamentos de relatorio automaticos pelo Laravel Scheduler, sem envio externo de arquivos.
 
 Entregaveis desse proximo plano funcional:
 
-- contrato `DialerGateway` para chamadas simuladas e futuras chamadas reais;
-- adaptacao gradual da chamada manual e do simulador ao contrato;
-- nenhuma conexao com Asterisk neste plano;
-- testes de contrato e de continuidade da simulacao.
+- registro de comando agendado para executar os relatorios vencidos;
+- preservacao da execucao manual ja existente;
+- isolamento por empresa, frequencias diaria/semanal e testes do scheduler;
+- sem envio por e-mail ou integracao externa nesta etapa.
 
 Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Producao`, com imagem Docker imutavel, compose sem bind mounts, segredos, HTTPS, health checks, backup/restore, monitoramento e runbook.
 
@@ -525,3 +527,4 @@ Depois da conclusao funcional, permanece recomendado o plano `Preparacao para Pr
 - `docs/superpowers/specs/2026-07-01-large-crud-filters-design.md`
 - `docs/superpowers/specs/2026-07-01-notification-preferences-design.md`
 - `docs/superpowers/specs/2026-07-10-campaign-advanced-steps-design.md`
+- `docs/superpowers/specs/2026-07-10-dialer-gateway-contract-design.md`

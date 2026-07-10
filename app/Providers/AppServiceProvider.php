@@ -2,11 +2,14 @@
 
 namespace App\Providers;
 
+use App\Contracts\Dialer\DialerGateway;
 use App\Models\Company;
 use App\Models\CompanyLicense;
+use App\Models\CompanyTelephonyConfiguration;
 use App\Models\OperationalParameter;
 use App\Models\User;
 use App\Observers\AuditableModelObserver;
+use App\Services\Dialer\SimulatedDialerGateway;
 use App\Support\Tenant\PermissionMatrix;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -18,7 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(DialerGateway::class, SimulatedDialerGateway::class);
     }
 
     /**
@@ -37,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
 
         Company::observe(AuditableModelObserver::class);
         CompanyLicense::observe(AuditableModelObserver::class);
+        CompanyTelephonyConfiguration::observe(AuditableModelObserver::class);
         OperationalParameter::observe(AuditableModelObserver::class);
         User::observe(AuditableModelObserver::class);
     }

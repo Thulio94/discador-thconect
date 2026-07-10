@@ -16,6 +16,7 @@ use App\Http\Controllers\Tenant\RoleController;
 use App\Http\Controllers\Tenant\SettingController;
 use App\Http\Controllers\Tenant\SupervisionController;
 use App\Http\Controllers\Tenant\TeamController;
+use App\Http\Controllers\Tenant\TelephonyController;
 use App\Http\Controllers\Tenant\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -88,7 +89,8 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::patch('reports/schedules/{reportSchedule}/status', [ReportScheduleController::class, 'toggleStatus'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.status');
         Route::post('reports/schedules/{reportSchedule}/run', [ReportScheduleController::class, 'run'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.run');
 
-        Route::get('telephony', ComingSoonController::class)->middleware('can:tenant.telephony.read')->defaults('module', 'telephony')->name('telephony.index');
+        Route::get('telephony', [TelephonyController::class, 'index'])->middleware('can:tenant.telephony.read')->name('telephony.index');
+        Route::put('telephony', [TelephonyController::class, 'update'])->middleware('can:tenant.telephony.update')->name('telephony.update');
         Route::get('settings', [SettingController::class, 'index'])->middleware('can:tenant.settings.read')->name('settings.index');
         Route::put('settings/operational-parameters', [SettingController::class, 'updateOperationalParameters'])->middleware('can:tenant.settings.update')->name('settings.operational-parameters.update');
         Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->middleware('can:tenant.settings.create')->name('settings.pause-reasons.store');

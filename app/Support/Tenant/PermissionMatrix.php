@@ -28,7 +28,10 @@ class PermissionMatrix
                 'export' => 'Exportar',
                 'schedules' => 'Agendar',
             ])],
-            'telephony' => ['label' => 'Telefonia', 'permissions' => self::onlyRead('telephony')],
+            'telephony' => ['label' => 'Telefonia', 'permissions' => self::actions('telephony', [
+                'read' => 'Ler',
+                'update' => 'Preparar rota',
+            ])],
             'settings' => ['label' => 'Configuracoes', 'permissions' => self::crud('settings')],
             'licenses' => ['label' => 'Licencas', 'permissions' => self::crud('licenses')],
             'notifications' => ['label' => 'Notificacoes', 'permissions' => self::actions('notifications', [
