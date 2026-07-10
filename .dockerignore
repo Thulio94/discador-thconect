@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.production.example
+vendor
+node_modules
+public/build
+public/hot
+storage/backups
+storage/logs
+bootstrap/cache/*.php
+tests
+docs
+*.log

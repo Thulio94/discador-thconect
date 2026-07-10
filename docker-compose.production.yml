@@ -1,0 +1,101 @@
+services:
+  app:
+    image: discador-thconect-app:latest
+    build:
+      context: .
+      dockerfile: .docker/app/Dockerfile.production
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$socket = @fsockopen(\"127.0.0.1\", 9000, $$errno, $$error, 2); exit($$socket ? 0 : 1);'"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  nginx:
+    image: discador-thconect-nginx:latest
+    build:
+      context: .
+      dockerfile: .docker/nginx/Dockerfile.production
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/up"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  mysql:
+    image: mariadb:11.4
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    command: sh -c 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  queue:
+    image: discador-thconect-app:latest
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    command: php artisan queue:work --tries=3 --timeout=90
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    image: discador-thconect-app:latest
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    command: php artisan schedule:work
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  app_storage:
+  mysql_data:
+  redis_data:

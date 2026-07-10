@@ -507,7 +507,7 @@ Status: concluida em 2026-07-10, sem publicacao.
 
 Pendente antes de uma publicacao real:
 
-- [ ] Imagem Docker imutavel e compose sem bind mounts.
+- [~] Imagem Docker imutavel e compose sem bind mounts criados; build PHP final pendente de validacao no Docker Desktop.
 - [ ] Gestao externa de segredos e HTTPS publico.
 - [ ] Monitoramento, alertas e rotina de backup externa.
 
@@ -548,3 +548,4 @@ Pendente antes de uma publicacao real:
 - `docs/superpowers/specs/2026-07-10-dialer-gateway-contract-design.md`
 - `docs/superpowers/specs/2026-07-10-scheduled-reports-automation-design.md`
 - `docs/superpowers/specs/2026-07-10-local-production-readiness-design.md`
+- `docs/superpowers/specs/2026-07-10-production-container-artifacts-design.md`
