@@ -5,6 +5,7 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
+use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\Tenant\AgentPanelController;
 use App\Http\Controllers\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Tenant\CampaignController;
@@ -31,6 +32,8 @@ Route::middleware(['auth', 'super.admin'])
     ->prefix('super-admin')
     ->name('super-admin.')
     ->group(function (): void {
+        Route::get('system-status/poll', [SystemStatusController::class, 'poll'])->name('system-status.poll');
+        Route::get('system-status', [SystemStatusController::class, 'index'])->name('system-status.index');
         Route::get('audit-logs', [SuperAdminAuditLogController::class, 'index'])->name('audit-logs.index');
         Route::delete('audit-logs/purge', [SuperAdminAuditLogController::class, 'purge'])->name('audit-logs.purge');
         Route::resource('companies', CompanyController::class)->except(['create', 'show', 'edit']);

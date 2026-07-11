@@ -10,6 +10,7 @@
         ? [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
             ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'users', 'active' => request()->routeIs('super-admin.companies.*')],
+            ['label' => 'Status do sistema', 'href' => route('super-admin.system-status.index'), 'icon' => 'status', 'active' => request()->routeIs('super-admin.system-status.*')],
             ['label' => 'Auditoria', 'href' => route('super-admin.audit-logs.index'), 'icon' => 'view', 'active' => request()->routeIs('super-admin.audit-logs.*')],
         ]
         : [

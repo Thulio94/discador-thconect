@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class CoreRoutesTest extends TestCase
@@ -92,6 +93,22 @@ class CoreRoutesTest extends TestCase
             ->get(route('super-admin.companies.index'))
             ->assertOk()
             ->assertSee('Empresas');
+    }
+
+    public function test_super_admin_can_view_system_status(): void
+    {
+        Http::fake(['*' => Http::response('', 404)]);
+        $superAdmin = User::factory()->create([
+            'is_super_admin' => true,
+            'user_type' => 'super_admin',
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('super-admin.system-status.index'))
+            ->assertOk()
+            ->assertSee('Status do sistema')
+            ->assertSee('Banco de dados')
+            ->assertSee('Fila de processamento');
     }
 
     public function test_tenant_integrations_module_is_coming_soon(): void
