@@ -17,7 +17,7 @@
             @endcan
         </div>
 
-        <form method="GET" action="{{ route('tenant.campaigns.index') }}" class="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_160px_160px_220px_220px_auto]">
+        <form method="GET" action="{{ route('tenant.campaigns.index') }}" class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1.2fr)_160px_160px_220px_220px_auto]">
             <input name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Buscar campanha" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
             <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                 <option value="">Todos status</option>

@@ -31,16 +31,16 @@ class PollingMarkupTest extends TestCase
             );
     }
 
-    public function test_authenticated_layout_configures_notification_polling(): void
+    public function test_authenticated_layout_uses_only_the_navigation_sidebar(): void
     {
         $admin = $this->tenantUser('company_admin');
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('id="notification-panel"', false)
-            ->assertSee(route('tenant.notifications.poll'), false)
-            ->assertSee("'#notification-panel'", false);
+            ->assertSee('data-layout-sidebar', false)
+            ->assertDontSee('id="notification-panel"', false)
+            ->assertDontSee(route('tenant.notifications.poll'), false);
     }
 
     public function test_polling_source_uses_abort_and_visibility_without_blocking_browser_apis(): void

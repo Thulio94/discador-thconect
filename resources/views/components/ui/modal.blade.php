@@ -36,7 +36,7 @@
     <div
         x-show="show"
         x-transition
-        class="relative mx-auto mb-6 w-full transform overflow-hidden rounded-xl border shadow-xl {{ $maxWidthClass }}"
+        class="relative mx-auto mb-6 w-full transform overflow-hidden rounded-lg border shadow-xl {{ $maxWidthClass }}"
         style="background: var(--surface); border-color: var(--border); color: var(--fg);"
     >
         @if ($title)

@@ -14,7 +14,8 @@
 
 <button
     type="{{ $type }}"
-    {{ $attributes->merge(['class' => 'th-focus inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40']) }}
+    data-variant="{{ $variant }}"
+    {{ $attributes->merge(['class' => 'th-button th-focus inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40']) }}
     style="{{ $classes }} border-radius: var(--radius-md);"
 >
     {{ $slot }}

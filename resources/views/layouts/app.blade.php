@@ -1,31 +1,26 @@
 @php
     $user = Auth::user();
     $theme = $user?->theme_preference ?: 'thconectclaro';
-    $canReadNotifications = ! $user?->is_super_admin && Gate::allows('tenant.notifications.read');
-    $notifications = $canReadNotifications ? $user->appNotifications()->latest()->limit(8)->get() : collect();
-    $unreadCount = $canReadNotifications ? $user->appNotifications()->whereNull('read_at')->count() : 0;
-    $notificationCategories = $canReadNotifications ? \App\Support\Notifications\AppNotificationService::preferenceCategories() : [];
-    $notificationPreferences = $canReadNotifications ? $user->notificationPreferences()->pluck('enabled', 'category')->all() : [];
     $navItems = $user?->is_super_admin
         ? [
-            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard')],
-            ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'users', 'active' => request()->routeIs('super-admin.companies.*')],
+            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'pulse', 'active' => request()->routeIs('dashboard')],
+            ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'building', 'active' => request()->routeIs('super-admin.companies.*')],
             ['label' => 'Status do sistema', 'href' => route('super-admin.system-status.index'), 'icon' => 'status', 'active' => request()->routeIs('super-admin.system-status.*')],
-            ['label' => 'Auditoria', 'href' => route('super-admin.audit-logs.index'), 'icon' => 'view', 'active' => request()->routeIs('super-admin.audit-logs.*')],
+            ['label' => 'Auditoria', 'href' => route('super-admin.audit-logs.index'), 'icon' => 'history', 'active' => request()->routeIs('super-admin.audit-logs.*')],
         ]
         : [
-            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'status', 'active' => request()->routeIs('dashboard'), 'ability' => 'tenant.dashboard.read'],
+            ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'pulse', 'active' => request()->routeIs('dashboard'), 'ability' => 'tenant.dashboard.read'],
             ['label' => 'Usuarios', 'href' => route('tenant.users.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.users.*'), 'ability' => 'tenant.users.read'],
-            ['label' => 'Equipes', 'href' => route('tenant.teams.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.teams.*'), 'ability' => 'tenant.teams.read'],
+            ['label' => 'Equipes', 'href' => route('tenant.teams.index'), 'icon' => 'team', 'active' => request()->routeIs('tenant.teams.*'), 'ability' => 'tenant.teams.read'],
             ['label' => 'Perfis', 'href' => route('tenant.roles.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.roles.*'), 'ability' => 'tenant.roles.read'],
-            ['label' => 'Listas', 'href' => route('tenant.lists.index'), 'icon' => 'add', 'active' => request()->routeIs('tenant.lists.*'), 'ability' => 'tenant.lists.read'],
-            ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.campaigns.*'), 'ability' => 'tenant.campaigns.read'],
-            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'users', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access'],
+            ['label' => 'Listas', 'href' => route('tenant.lists.index'), 'icon' => 'list', 'active' => request()->routeIs('tenant.lists.*'), 'ability' => 'tenant.lists.read'],
+            ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'campaign', 'active' => request()->routeIs('tenant.campaigns.*'), 'ability' => 'tenant.campaigns.read'],
+            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access'],
             ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*'), 'ability' => 'tenant.supervision.read'],
-            ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'download', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
-            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'chat', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read'],
-            ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.settings.*'), 'ability' => 'tenant.settings.read'],
-            ['label' => 'Auditoria', 'href' => route('tenant.audit-logs.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.audit-logs.*'), 'ability' => 'tenant.audit.read'],
+            ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'report', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
+            ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read'],
+            ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'settings', 'active' => request()->routeIs('tenant.settings.*'), 'ability' => 'tenant.settings.read'],
+            ['label' => 'Auditoria', 'href' => route('tenant.audit-logs.index'), 'icon' => 'history', 'active' => request()->routeIs('tenant.audit-logs.*'), 'ability' => 'tenant.audit.read'],
             ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'ability' => 'tenant.integrations.read', 'soon' => true],
         ];
     $navItems = collect($navItems)
@@ -47,57 +42,85 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased" style="background: var(--bg); color: var(--fg);">
-        <div class="min-h-screen lg:grid {{ $canReadNotifications ? 'lg:grid-cols-[272px_minmax(0,1fr)_320px]' : 'lg:grid-cols-[272px_minmax(0,1fr)]' }}">
-            <aside class="border-r px-4 py-5" style="background: var(--surface); border-color: var(--border);">
-                <div class="flex items-center gap-3 px-2">
-                    <div class="grid h-10 w-10 place-items-center rounded-lg font-bold" style="background: var(--primary); color: #fff;">
-                        TH
+        <div x-data="{ navOpen: false }" class="min-h-screen lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
+            <div x-show="navOpen" x-cloak class="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" x-on:click="navOpen = false"></div>
+
+            <aside
+                data-layout-sidebar
+                class="th-sidebar fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col border-r px-3 py-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
+                x-bind:class="navOpen ? 'translate-x-0' : '-translate-x-full'"
+            >
+                <div class="flex items-center justify-between gap-3 px-2 pb-4">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white p-1.5 shadow-sm">
+                            <x-application-logo class="h-full w-full" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="truncate text-xs font-bold text-white">Discador THCONECT</p>
+                            <p class="text-[11px] font-medium uppercase" style="color: var(--sidebar-muted);">Central de operacao</p>
+                        </div>
                     </div>
-                    <div>
-                        <p class="text-sm font-bold">Discador THCONECT</p>
-                        <p class="text-xs" style="color: var(--fg-muted);">Painel SaaS</p>
-                    </div>
+                    <button type="button" class="th-focus grid h-9 w-9 place-items-center rounded-lg lg:hidden" style="color: var(--sidebar-muted);" x-on:click="navOpen = false" aria-label="Fechar menu">
+                        <x-ui.icon name="cancel" />
+                    </button>
                 </div>
 
-                <nav class="mt-8 grid gap-1">
+                <div class="mx-2 border-t" style="border-color: var(--sidebar-border);"></div>
+
+                <nav class="mt-4 grid flex-1 content-start gap-1 overflow-y-auto pr-1">
                     @foreach ($navItems as $item)
                         <a
                             href="{{ $item['href'] }}"
-                            class="th-focus flex min-h-11 items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold transition"
-                            style="{{ $item['active'] ? 'background: var(--primary-soft); color: var(--fg);' : 'color: var(--fg-muted);' }}"
+                            data-active="{{ $item['active'] ? 'true' : 'false' }}"
+                            class="th-nav-link th-focus flex min-h-10 items-center justify-between rounded-lg px-3 py-2 text-[13px] font-semibold transition"
                         >
                             <span class="flex items-center gap-3">
                                 <x-ui.icon :name="$item['icon']" />
                                 {{ $item['label'] }}
                             </span>
                             @if ($item['soon'] ?? false)
-                                <span class="rounded-full px-2 py-0.5 text-[10px] uppercase" style="background: var(--bg-subtle); color: var(--fg-muted);">
+                                <span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style="background: var(--sidebar-bg-hover); color: var(--sidebar-muted);">
                                     Em breve
                                 </span>
                             @endif
                         </a>
                     @endforeach
                 </nav>
+
+                <div class="mt-4 border-t pt-4" style="border-color: var(--sidebar-border);">
+                    <a href="{{ route('profile.edit') }}" class="th-nav-link th-focus flex items-center gap-3 rounded-lg px-3 py-2 transition">
+                        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-white" style="background: var(--primary);">{{ strtoupper(substr($user?->name ?? 'U', 0, 2)) }}</span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-xs font-semibold text-white">{{ $user?->name }}</span>
+                            <span class="block truncate text-[10px]" style="color: var(--sidebar-muted);">Ramal {{ $user?->extension ?? '-' }}</span>
+                        </span>
+                    </a>
+                    <form method="POST" action="{{ route('logout') }}" class="mt-1">
+                        @csrf
+                        <button type="submit" class="th-nav-link th-focus flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold transition">
+                            <x-ui.icon name="logout" />
+                            Sair do sistema
+                        </button>
+                    </form>
+                </div>
             </aside>
 
-            <main class="min-w-0 px-4 py-5 sm:px-6 lg:px-8">
+            <main class="th-main min-w-0 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+                <div class="mb-5 flex items-center justify-between border-b pb-3 lg:hidden" style="border-color: var(--border);">
+                    <button type="button" class="th-focus grid h-10 w-10 place-items-center rounded-lg border" style="border-color: var(--border); background: var(--surface); color: var(--fg);" x-on:click="navOpen = true" aria-label="Abrir menu">
+                        <x-ui.icon name="list" />
+                    </button>
+                    <span class="text-sm font-bold">Discador THCONECT</span>
+                </div>
+
                 @isset($header)
-                    <header class="mb-6">
+                    <header class="th-page-header mb-6">
                         {{ $header }}
                     </header>
                 @endisset
 
                 {{ $slot }}
             </main>
-
-            @if ($canReadNotifications)
-                <x-ui.notification-panel
-                    :notifications="$notifications"
-                    :unread-count="$unreadCount"
-                    :categories="$notificationCategories"
-                    :preferences="$notificationPreferences"
-                />
-            @endif
         </div>
 
         <x-ui.toast-stack />

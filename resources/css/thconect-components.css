@@ -3,6 +3,36 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
+    transition: border-color var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard), transform var(--duration-normal) var(--ease-standard);
+}
+
+.th-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-lg);
+}
+
+.th-card[data-tone] {
+    border-top: 3px solid var(--card-accent, var(--primary));
+}
+
+.th-card[data-tone='cyan'] {
+    --card-accent: var(--accent-cyan);
+}
+
+.th-card[data-tone='emerald'] {
+    --card-accent: var(--accent-emerald);
+}
+
+.th-card[data-tone='violet'] {
+    --card-accent: var(--accent-violet);
+}
+
+.th-card[data-tone='amber'] {
+    --card-accent: var(--accent);
+}
+
+.th-card[data-tone='rose'] {
+    --card-accent: var(--accent-rose);
 }
 
 .th-focus {
@@ -16,4 +46,107 @@
 
 .th-muted {
     color: var(--fg-muted);
+}
+
+.th-sidebar {
+    background: var(--sidebar-bg);
+    border-color: var(--sidebar-border);
+    color: var(--sidebar-fg);
+    box-shadow: 10px 0 30px rgba(13, 23, 48, 0.08);
+}
+
+.th-nav-link {
+    color: var(--sidebar-muted);
+}
+
+.th-nav-link:hover {
+    background: var(--sidebar-bg-hover);
+    color: var(--sidebar-fg);
+}
+
+.th-nav-link[data-active='true'] {
+    background: color-mix(in srgb, var(--primary) 30%, var(--sidebar-bg));
+    color: #ffffff;
+    box-shadow: inset 3px 0 0 var(--accent-cyan);
+}
+
+.th-nav-link[data-active='true'] svg {
+    color: #7edcff;
+}
+
+.th-main {
+    background: var(--bg);
+}
+
+.th-page-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+}
+
+.th-button {
+    box-shadow: 0 5px 12px rgba(49, 87, 232, 0.16);
+}
+
+.th-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(49, 87, 232, 0.22);
+}
+
+.th-button[data-variant='secondary'],
+.th-button[data-variant='ghost'] {
+    box-shadow: none;
+}
+
+.th-button[data-variant='secondary']:hover:not(:disabled) {
+    background: var(--surface-hover) !important;
+    border-color: var(--border-strong) !important;
+}
+
+.th-action:hover {
+    border-color: var(--border-strong) !important;
+    background: var(--surface-hover) !important;
+    transform: translateY(-1px);
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+    border-color: var(--border-strong) !important;
+    background-color: var(--input-bg) !important;
+    color: var(--fg) !important;
+    box-shadow: var(--shadow-sm);
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+select:focus,
+textarea:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+    color: var(--primary);
+}
+
+table thead {
+    background: var(--surface-alt);
+    color: var(--fg-muted);
+}
+
+table tbody tr {
+    transition: background var(--duration-fast) var(--ease-standard);
+}
+
+table tbody tr:hover {
+    background: color-mix(in srgb, var(--primary-soft) 45%, var(--surface));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .th-card,
+    .th-button,
+    .th-action,
+    table tbody tr {
+        transition: none;
+    }
 }

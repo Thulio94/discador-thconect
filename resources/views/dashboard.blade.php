@@ -7,17 +7,17 @@
     </x-slot>
 
     <div class="grid gap-4 md:grid-cols-3">
-        <x-ui.card title="Empresas">
+        <x-ui.card title="Empresas" tone="violet">
             <p class="text-3xl font-bold">{{ $companiesCount ?? '-' }}</p>
             <p class="mt-2 text-sm" style="color: var(--fg-muted);">Contratos SaaS ativos.</p>
         </x-ui.card>
 
-        <x-ui.card title="Operadores">
+        <x-ui.card title="Operadores" tone="cyan">
             <p class="text-3xl font-bold">{{ $usersCount }}</p>
             <p class="mt-2 text-sm" style="color: var(--fg-muted);">Usuarios disponiveis para operacao.</p>
         </x-ui.card>
 
-        <x-ui.card title="Chamadas">
+        <x-ui.card title="Chamadas" tone="emerald">
             <p class="text-3xl font-bold">{{ $activeCallsCount }} chamadas ativas</p>
             <p class="mt-2 text-sm" style="color: var(--fg-muted);">
                 Limite por operador: {{ $license?->max_calls_per_available_agent ?? '-' }}
@@ -29,7 +29,7 @@
 
     @if ($licenseUsage)
         <div class="mt-4 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-            <x-ui.card>
+            <x-ui.card tone="violet">
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Plano contratado</p>
@@ -47,7 +47,7 @@
                 </div>
             </x-ui.card>
 
-            <x-ui.card>
+            <x-ui.card tone="amber">
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Capacidade operacional</p>
                 <div class="mt-4 grid gap-3 text-sm">
                     <div class="flex items-center justify-between gap-3">
@@ -67,13 +67,13 @@
         </div>
     @elseif ($licenseOverview)
         <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <x-ui.card title="Uso de usuarios">
+            <x-ui.card title="Uso de usuarios" tone="violet">
                 @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $licenseOverview['users']])
             </x-ui.card>
-            <x-ui.card title="Uso de agentes">
+            <x-ui.card title="Uso de agentes" tone="cyan">
                 @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $licenseOverview['available_agents']])
             </x-ui.card>
-            <x-ui.card title="Uso de chamadas">
+            <x-ui.card title="Uso de chamadas" tone="emerald">
                 @include('partials.license-usage-meter', ['label' => 'Chamadas ativas', 'metric' => $licenseOverview['active_calls']])
             </x-ui.card>
         </div>

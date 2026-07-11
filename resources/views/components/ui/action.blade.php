@@ -25,7 +25,7 @@
     data-ui-action
     aria-label="{{ $label }}"
     title="{{ $label }}"
-    {{ $attributes->merge(['class' => 'th-focus inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition hover:opacity-90 '.$sizeClass]) }}
+    {{ $attributes->merge(['class' => 'th-action th-focus inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition '.$sizeClass]) }}
     style="{{ $variantStyle }}"
 >
     <x-ui.icon :name="$icon" />
