@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
@@ -20,7 +21,7 @@ use App\Http\Controllers\Tenant\TelephonyController;
 use App\Http\Controllers\Tenant\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => auth()->check() ? redirect()->route('dashboard') : redirect()->route('login'));
+Route::get('/', LandingController::class);
 
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'tenant.active'])

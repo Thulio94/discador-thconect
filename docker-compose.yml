@@ -8,6 +8,7 @@ services:
     volumes:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
+      - ./.docker/app/php.ini:/usr/local/etc/php/conf.d/zz-discador.ini:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -84,6 +85,7 @@ services:
     volumes:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
+      - ./.docker/app/php.ini:/usr/local/etc/php/conf.d/zz-discador.ini:ro
     depends_on:
       app:
         condition: service_healthy
@@ -94,11 +96,12 @@ services:
   scheduler:
     image: discadorthconect-app
     container_name: discador_thconect_scheduler
-    command: php artisan schedule:work
+    command: php artisan schedule:work --no-interaction --quiet
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
+      - ./.docker/app/php.ini:/usr/local/etc/php/conf.d/zz-discador.ini:ro
     depends_on:
       app:
         condition: service_healthy
@@ -118,6 +121,7 @@ services:
     volumes:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
+      - ./.docker/app/php.ini:/usr/local/etc/php/conf.d/zz-discador.ini:ro
     depends_on:
       app:
         condition: service_healthy
