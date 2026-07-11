@@ -27,8 +27,9 @@ O Compose recebe variaveis por um arquivo externo definido em `ENV_FILE`, que po
 
 - `docker compose --env-file .env.production.example -f docker-compose.production.yml config` passou;
 - a imagem Nginx foi construida com sucesso;
-- a build completa da imagem PHP foi iniciada, mas o Docker Desktop local permaneceu sem progresso mensuravel durante a compilacao de extensoes/dependencias e foi encerrado sem iniciar containers de producao.
+- a build inicial ficou bloqueada no canal PECL para a extensao Redis; como o projeto usa `predis`, a imagem foi ajustada para nao depender dessa extensao nativa;
+- o Dockerfile permite uma base PHP local somente para validar o pipeline no Windows sem recompilar extensoes; o padrao de producao continua `php:8.3-fpm` com compilacao completa.
 
 ## Proximo passo tecnico
 
-Reexecutar a build da imagem `app` quando o Docker Desktop estiver responsivo, e entao validar o Compose de producao em uma rede/porta isolada antes de qualquer deploy.
+Reexecutar a build da imagem `app` e entao validar o Compose de producao em uma rede/porta isolada antes de qualquer deploy.
