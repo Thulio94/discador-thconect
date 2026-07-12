@@ -26,6 +26,7 @@ class TeamController extends Controller
         return view('tenant.teams.index', [
             'teams' => Team::query()
                 ->where('company_id', $companyId)
+                ->with('members')
                 ->addSelect([
                     'agents_count' => DB::table('team_user')
                         ->selectRaw('count(*)')

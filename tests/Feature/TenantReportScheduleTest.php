@@ -159,6 +159,26 @@ class TenantReportScheduleTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_admin_can_delete_own_schedule_but_not_another_company_schedule(): void
+    {
+        [$admin, $company] = $this->tenantUser();
+        [$otherAdmin, $otherCompany] = $this->tenantUser();
+        $schedule = $this->schedule($company, $admin);
+        $otherSchedule = $this->schedule($otherCompany, $otherAdmin, 'Rotina outra empresa');
+
+        $this->actingAs($admin)
+            ->delete(route('tenant.reports.schedules.destroy', $otherSchedule))
+            ->assertNotFound();
+
+        $this->actingAs($admin)
+            ->delete(route('tenant.reports.schedules.destroy', $schedule))
+            ->assertRedirect(route('tenant.reports.index'))
+            ->assertSessionHas('status', 'Agendamento excluido com sucesso.');
+
+        $this->assertDatabaseMissing('report_schedules', ['id' => $schedule->id]);
+        $this->assertDatabaseHas('report_schedules', ['id' => $otherSchedule->id]);
+    }
+
     public function test_active_schedule_run_counts_filtered_calls_and_registers_export_history(): void
     {
         Carbon::setTestNow('2026-06-13 10:00:00');
@@ -277,6 +297,8 @@ class TenantReportScheduleTest extends TestCase
             ->assertSee('Resumo diario')
             ->assertSee('Executar agora')
             ->assertSee('Editar')
+            ->assertSee('Visualizar')
+            ->assertSee('Excluir')
             ->assertSee('Inativar')
             ->assertSee('name="period_days"', false)
             ->assertSee('name="format"', false)

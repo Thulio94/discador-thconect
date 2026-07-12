@@ -29,7 +29,7 @@ class UserController extends Controller
         return view('tenant.users.index', [
             'users' => User::query()
                 ->where('company_id', $companyId)
-                ->with('role')
+                ->with(['role', 'assignedTeams'])
                 ->when($filters['q'] ?? null, fn ($query, $search) => $query->where(function ($query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
@@ -111,6 +111,12 @@ class UserController extends Controller
     public function destroy(Request $request, User $user): RedirectResponse
     {
         abort_unless($user->company_id === $request->user()->company_id, 403);
+
+        if ($user->is($request->user())) {
+            throw ValidationException::withMessages([
+                'user' => 'Voce nao pode inativar o proprio usuario.',
+            ]);
+        }
 
         $user->update(['status' => 'inactive']);
 

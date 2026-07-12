@@ -228,14 +228,9 @@
                                 <x-ui.button type="button" disabled>Executar agora</x-ui.button>
                             @endif
 
-                            <x-ui.button
-                                type="button"
-                                variant="secondary"
-                                x-data
-                                x-on:click="$dispatch('open-modal', 'report-schedule-edit-{{ $schedule->id }}')"
-                            >
-                                Editar
-                            </x-ui.button>
+                            <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'report-schedule-view-{{ $schedule->id }}')" />
+                            <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'report-schedule-edit-{{ $schedule->id }}')" />
+                            <x-ui.action icon="delete" label="Excluir" variant="danger" x-data x-on:click="$dispatch('open-modal', 'report-schedule-delete-{{ $schedule->id }}')" />
 
                             <form method="POST" action="{{ route('tenant.reports.schedules.status', $schedule) }}">
                                 @csrf
@@ -362,6 +357,18 @@
     </x-ui.modal>
 
     @foreach ($reportSchedules as $schedule)
+        <x-ui.modal name="report-schedule-view-{{ $schedule->id }}" title="Detalhes do agendamento" max-width="lg">
+            <dl class="grid gap-4 text-sm sm:grid-cols-2">
+                <div><dt class="font-semibold">Nome</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $schedule->name }}</dd></div>
+                <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $schedule->status_label }}</dd></div>
+                <div><dt class="font-semibold">Formato</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ strtoupper($schedule->format) }}</dd></div>
+                <div><dt class="font-semibold">Frequencia</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $schedule->frequency_label }} as {{ substr($schedule->run_time, 0, 5) }}</dd></div>
+                <div class="sm:col-span-2"><dt class="font-semibold">Filtros</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $schedule->filter_label }}</dd></div>
+                <div><dt class="font-semibold">Criado por</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $schedule->user?->name ?? 'Usuario removido' }}</dd></div>
+                <div><dt class="font-semibold">Ultima execucao</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $schedule->last_run_label }}</dd></div>
+            </dl>
+        </x-ui.modal>
+
         <x-ui.modal name="report-schedule-edit-{{ $schedule->id }}" title="Editar agendamento" max-width="4xl">
             <form method="POST" action="{{ route('tenant.reports.schedules.update', $schedule) }}">
                 @csrf
@@ -369,6 +376,18 @@
                 @include('tenant.reports._schedule-form', ['schedule' => $schedule])
                 <div class="mt-5 flex justify-end">
                     <x-ui.button type="submit">Salvar alteracoes</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+
+        <x-ui.modal name="report-schedule-delete-{{ $schedule->id }}" title="Excluir agendamento" max-width="md">
+            <form method="POST" action="{{ route('tenant.reports.schedules.destroy', $schedule) }}">
+                @csrf
+                @method('DELETE')
+                <p class="text-sm" style="color: var(--fg-muted);">O agendamento {{ $schedule->name }} deixara de executar e sera removido permanentemente.</p>
+                <div class="mt-5 flex justify-end gap-2">
+                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'report-schedule-delete-{{ $schedule->id }}')">Cancelar</x-ui.button>
+                    <x-ui.button type="submit" variant="danger">Excluir agendamento</x-ui.button>
                 </div>
             </form>
         </x-ui.modal>

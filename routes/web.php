@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::get('reports/export/pdf', [ReportController::class, 'exportPdf'])->middleware('can:tenant.reports.export')->name('reports.export-pdf');
         Route::post('reports/schedules', [ReportScheduleController::class, 'store'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.store');
         Route::put('reports/schedules/{reportSchedule}', [ReportScheduleController::class, 'update'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.update');
+        Route::delete('reports/schedules/{reportSchedule}', [ReportScheduleController::class, 'destroy'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.destroy');
         Route::patch('reports/schedules/{reportSchedule}/status', [ReportScheduleController::class, 'toggleStatus'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.status');
         Route::post('reports/schedules/{reportSchedule}/run', [ReportScheduleController::class, 'run'])->middleware('can:tenant.reports.schedules')->name('reports.schedules.run');
 

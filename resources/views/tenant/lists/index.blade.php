@@ -49,14 +49,28 @@
                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $list->status }}</span>
                     </div>
                     <div class="mt-4 flex flex-wrap justify-end gap-2">
+                        <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'list-view-{{ $list->id }}')" />
                         @can('tenant.lists.update')
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'list-edit-{{ $list->id }}')">Editar</x-ui.button>
+                            <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'list-edit-{{ $list->id }}')" />
                         @endcan
                         @can('tenant.lists.delete')
-                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'list-delete-{{ $list->id }}')">Inativar</x-ui.button>
+                            @if ($list->status === 'active')
+                                <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'list-delete-{{ $list->id }}')" />
+                            @endif
                         @endcan
                     </div>
                 </div>
+
+                <x-ui.modal name="list-view-{{ $list->id }}" title="Detalhes da lista" max-width="lg">
+                    <dl class="grid gap-4 text-sm sm:grid-cols-2">
+                        <div><dt class="font-semibold">Nome</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->name }}</dd></div>
+                        <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->status === 'active' ? 'Ativa' : 'Inativa' }}</dd></div>
+                        <div><dt class="font-semibold">Contatos</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->contacts_count }}</dd></div>
+                        <div><dt class="font-semibold">Campanhas vinculadas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->campaigns_count }}</dd></div>
+                        <div><dt class="font-semibold">Criada em</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->created_at?->format('d/m/Y H:i') }}</dd></div>
+                        <div><dt class="font-semibold">Atualizada em</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->updated_at?->format('d/m/Y H:i') }}</dd></div>
+                    </dl>
+                </x-ui.modal>
 
                 @can('tenant.lists.update')
                 <x-ui.modal name="list-edit-{{ $list->id }}" title="Editar lista">
@@ -73,6 +87,7 @@
                 @endcan
 
                 @can('tenant.lists.delete')
+                @if ($list->status === 'active')
                 <x-ui.modal name="list-delete-{{ $list->id }}" title="Inativar lista" max-width="md">
                     <form method="POST" action="{{ route('tenant.lists.destroy', $list) }}">
                         @csrf
@@ -84,6 +99,7 @@
                         </div>
                     </form>
                 </x-ui.modal>
+                @endif
                 @endcan
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma lista cadastrada.</p>

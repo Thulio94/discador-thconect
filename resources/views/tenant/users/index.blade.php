@@ -17,7 +17,7 @@
             @endcan
         </div>
 
-        <form method="GET" action="{{ route('tenant.users.index') }}" class="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_180px_180px_220px_220px_auto]">
+        <form method="GET" action="{{ route('tenant.users.index') }}" class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(240px,1.4fr)_180px_180px_220px_220px_auto]">
             <input name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Buscar nome, e-mail ou ramal" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
             <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                 <option value="">Todos status</option>
@@ -51,14 +51,74 @@
         <div class="mt-5 grid gap-3">
             @forelse ($users as $user)
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
-                    <div class="flex items-start justify-between gap-4">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
-                            <p class="font-semibold">{{ $user->name }}</p>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="font-semibold">{{ $user->name }}</p>
+                                <span class="rounded-full px-2 py-1 text-xs" style="background: {{ $user->status === 'active' ? 'color-mix(in srgb, var(--status-success) 12%, var(--surface))' : 'var(--bg-subtle)' }}; color: {{ $user->status === 'active' ? 'var(--status-success)' : 'var(--fg-muted)' }};">
+                                    {{ $user->status === 'active' ? 'Ativo' : 'Inativo' }}
+                                </span>
+                            </div>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $user->email }} | Ramal {{ $user->extension }}</p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">
+                                {{ $user->role?->name ?? 'Sem perfil' }} | {{ $user->assignedTeams->pluck('name')->join(', ') ?: 'Sem equipe' }}
+                            </p>
                         </div>
-                        <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $user->user_type }}</span>
+                        <div class="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+                            <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'user-view-{{ $user->id }}')" />
+                            @can('tenant.users.update')
+                                <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'user-edit-{{ $user->id }}')" />
+                            @endcan
+                            @can('tenant.users.delete')
+                                @if ($user->status === 'active' && $user->id !== auth()->id())
+                                    <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'user-delete-{{ $user->id }}')" />
+                                @endif
+                            @endcan
+                        </div>
                     </div>
                 </div>
+
+                <x-ui.modal name="user-view-{{ $user->id }}" title="Detalhes do usuario" max-width="lg">
+                    <dl class="grid gap-4 text-sm sm:grid-cols-2">
+                        <div><dt class="font-semibold">Nome</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $user->name }}</dd></div>
+                        <div><dt class="font-semibold">E-mail</dt><dd class="mt-1 break-all" style="color: var(--fg-muted);">{{ $user->email }}</dd></div>
+                        <div><dt class="font-semibold">Ramal</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $user->extension }}</dd></div>
+                        <div><dt class="font-semibold">Tipo</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $user->user_type }}</dd></div>
+                        <div><dt class="font-semibold">Perfil</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $user->role?->name ?? 'Sem perfil' }}</dd></div>
+                        <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $user->status === 'active' ? 'Ativo' : 'Inativo' }}</dd></div>
+                        <div class="sm:col-span-2"><dt class="font-semibold">Equipes</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $user->assignedTeams->pluck('name')->join(', ') ?: 'Sem equipe' }}</dd></div>
+                    </dl>
+                </x-ui.modal>
+
+                @can('tenant.users.update')
+                    <x-ui.modal name="user-edit-{{ $user->id }}" title="Editar usuario">
+                        <form method="POST" action="{{ route('tenant.users.update', $user) }}">
+                            @csrf
+                            @method('PUT')
+                            @include('tenant.users._form', ['user' => $user, 'roles' => $roles, 'teams' => $teams])
+                            <div class="mt-5 flex justify-end gap-2">
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'user-edit-{{ $user->id }}')">Cancelar</x-ui.button>
+                                <x-ui.button type="submit">Salvar usuario</x-ui.button>
+                            </div>
+                        </form>
+                    </x-ui.modal>
+                @endcan
+
+                @can('tenant.users.delete')
+                    @if ($user->status === 'active' && $user->id !== auth()->id())
+                        <x-ui.modal name="user-delete-{{ $user->id }}" title="Inativar usuario" max-width="md">
+                            <form method="POST" action="{{ route('tenant.users.destroy', $user) }}">
+                                @csrf
+                                @method('DELETE')
+                                <p class="text-sm" style="color: var(--fg-muted);">{{ $user->name }} perdera o acesso ao sistema, mas permanecera no historico operacional.</p>
+                                <div class="mt-5 flex justify-end gap-2">
+                                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'user-delete-{{ $user->id }}')">Cancelar</x-ui.button>
+                                    <x-ui.button type="submit" variant="danger">Inativar usuario</x-ui.button>
+                                </div>
+                            </form>
+                        </x-ui.modal>
+                    @endif
+                @endcan
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhum usuario cadastrado.</p>
             @endforelse

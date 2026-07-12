@@ -54,6 +54,65 @@ class TenantTeamRoleCrudTest extends TestCase
         $this->assertTrue($role->permissions->contains(fn (Permission $permission): bool => $permission->key === 'teams.read'));
     }
 
+    public function test_tenant_admin_can_update_and_inactivate_team(): void
+    {
+        [$admin, $agent, $supervisor] = $this->tenantUsers();
+        $team = Team::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Equipe Original',
+            'slug' => 'equipe-original',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.teams.update', $team), [
+                'name' => 'Equipe Atualizada',
+                'status' => 'active',
+                'agent_ids' => [$agent->id],
+                'supervisor_ids' => [$supervisor->id],
+            ])
+            ->assertRedirect(route('tenant.teams.index'));
+
+        $this->assertSame('Equipe Atualizada', $team->fresh()->name);
+        $this->assertCount(2, $team->fresh()->members);
+
+        $this->actingAs($admin)
+            ->delete(route('tenant.teams.destroy', $team))
+            ->assertRedirect(route('tenant.teams.index'));
+
+        $this->assertSame('inactive', $team->fresh()->status);
+    }
+
+    public function test_tenant_admin_can_update_and_delete_unused_role_but_not_used_role(): void
+    {
+        [$admin] = $this->tenantUsers();
+        $this->seed(PermissionSeeder::class);
+        $role = Role::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Perfil Temporario',
+            'slug' => 'perfil-temporario',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.roles.update', $role), [
+                'name' => 'Perfil Revisado',
+                'permissions' => ['users.read'],
+            ])
+            ->assertRedirect(route('tenant.roles.index'));
+
+        $this->assertSame('Perfil Revisado', $role->fresh()->name);
+
+        $this->actingAs($admin)
+            ->delete(route('tenant.roles.destroy', $admin->role))
+            ->assertSessionHasErrors('role');
+
+        $this->actingAs($admin)
+            ->delete(route('tenant.roles.destroy', $role))
+            ->assertRedirect(route('tenant.roles.index'));
+
+        $this->assertDatabaseMissing('roles', ['id' => $role->id]);
+    }
+
     public function test_team_index_filters_by_search_status_and_member_with_tenant_scope(): void
     {
         [$admin, $agent, $supervisor] = $this->tenantUsers();
@@ -86,6 +145,9 @@ class TenantTeamRoleCrudTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('Equipe Retencao Premium')
+            ->assertSee('team-view-'.$matching->id)
+            ->assertSee('team-edit-'.$matching->id)
+            ->assertSee('team-delete-'.$matching->id)
             ->assertDontSee('Equipe Inativa');
 
         $this->actingAs($admin)

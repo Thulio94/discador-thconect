@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class RoleController extends Controller
 {
@@ -19,7 +20,12 @@ class RoleController extends Controller
         $companyId = $request->user()->company_id;
 
         return view('tenant.roles.index', [
-            'roles' => Role::query()->where('company_id', $companyId)->with('permissions')->latest()->paginate(12),
+            'roles' => Role::query()
+                ->where('company_id', $companyId)
+                ->with('permissions')
+                ->withCount('users')
+                ->latest()
+                ->paginate(12),
             'modules' => PermissionMatrix::modules(),
         ]);
     }
@@ -61,6 +67,12 @@ class RoleController extends Controller
     public function destroy(Request $request, Role $role): RedirectResponse
     {
         abort_unless($role->company_id === $request->user()->company_id, 403);
+
+        if ($role->users()->exists()) {
+            throw ValidationException::withMessages([
+                'role' => 'Remova os usuarios vinculados antes de excluir o perfil.',
+            ]);
+        }
 
         $role->delete();
 

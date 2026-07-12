@@ -133,6 +133,9 @@ class TenantUserCrudTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('Agente Busca Especial')
+            ->assertSee('user-view-'.$agent->id)
+            ->assertSee('user-edit-'.$agent->id)
+            ->assertSee('user-delete-'.$agent->id)
             ->assertDontSee('Supervisor Fora Filtro')
             ->assertDontSee('Agente Outra Empresa');
 

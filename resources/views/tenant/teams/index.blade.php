@@ -39,11 +39,68 @@
         <div class="mt-5 grid gap-3">
             @forelse ($teams as $team)
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
-                    <p class="font-semibold">{{ $team->name }}</p>
-                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">
-                        {{ $team->agents_count }} agentes | {{ $team->supervisors_count }} supervisores
-                    </p>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="font-semibold">{{ $team->name }}</p>
+                                <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $team->status === 'active' ? 'Ativa' : 'Inativa' }}</span>
+                            </div>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $team->agents_count }} agentes | {{ $team->supervisors_count }} supervisores</p>
+                        </div>
+                        <div class="flex shrink-0 gap-2">
+                            <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'team-view-{{ $team->id }}')" />
+                            @can('tenant.teams.update')
+                                <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'team-edit-{{ $team->id }}')" />
+                            @endcan
+                            @can('tenant.teams.delete')
+                                @if ($team->status === 'active')
+                                    <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'team-delete-{{ $team->id }}')" />
+                                @endif
+                            @endcan
+                        </div>
+                    </div>
                 </div>
+
+                <x-ui.modal name="team-view-{{ $team->id }}" title="Detalhes da equipe" max-width="lg">
+                    <div class="grid gap-4 text-sm">
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <div><p class="font-semibold">Status</p><p class="mt-1" style="color: var(--fg-muted);">{{ $team->status === 'active' ? 'Ativa' : 'Inativa' }}</p></div>
+                            <div><p class="font-semibold">Agentes</p><p class="mt-1" style="color: var(--fg-muted);">{{ $team->agents_count }}</p></div>
+                            <div><p class="font-semibold">Supervisores</p><p class="mt-1" style="color: var(--fg-muted);">{{ $team->supervisors_count }}</p></div>
+                        </div>
+                        <div><p class="font-semibold">Membros</p><p class="mt-1" style="color: var(--fg-muted);">{{ $team->members->pluck('name')->join(', ') ?: 'Nenhum membro vinculado' }}</p></div>
+                    </div>
+                </x-ui.modal>
+
+                @can('tenant.teams.update')
+                    <x-ui.modal name="team-edit-{{ $team->id }}" title="Editar equipe">
+                        <form method="POST" action="{{ route('tenant.teams.update', $team) }}">
+                            @csrf
+                            @method('PUT')
+                            @include('tenant.teams._form', ['team' => $team, 'agents' => $agents, 'supervisors' => $supervisors])
+                            <div class="mt-5 flex justify-end gap-2">
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'team-edit-{{ $team->id }}')">Cancelar</x-ui.button>
+                                <x-ui.button type="submit">Salvar equipe</x-ui.button>
+                            </div>
+                        </form>
+                    </x-ui.modal>
+                @endcan
+
+                @can('tenant.teams.delete')
+                    @if ($team->status === 'active')
+                        <x-ui.modal name="team-delete-{{ $team->id }}" title="Inativar equipe" max-width="md">
+                            <form method="POST" action="{{ route('tenant.teams.destroy', $team) }}">
+                                @csrf
+                                @method('DELETE')
+                                <p class="text-sm" style="color: var(--fg-muted);">A equipe ficara inativa e permanecera no historico das campanhas.</p>
+                                <div class="mt-5 flex justify-end gap-2">
+                                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'team-delete-{{ $team->id }}')">Cancelar</x-ui.button>
+                                    <x-ui.button type="submit" variant="danger">Inativar equipe</x-ui.button>
+                                </div>
+                            </form>
+                        </x-ui.modal>
+                    @endif
+                @endcan
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma equipe cadastrada.</p>
             @endforelse
@@ -55,33 +112,7 @@
     <x-ui.modal name="team-create" title="Nova equipe">
         <form method="POST" action="{{ route('tenant.teams.store') }}">
             @csrf
-            <div class="grid gap-4">
-                <label class="grid gap-1 text-sm">
-                    <span class="font-semibold">Nome</span>
-                    <input name="name" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
-                </label>
-                <input type="hidden" name="status" value="active">
-                <div class="grid gap-3 md:grid-cols-2">
-                    <div>
-                        <p class="mb-2 text-sm font-semibold">Agentes</p>
-                        @foreach ($agents as $agent)
-                            <label class="mb-2 flex items-center gap-2 rounded-lg border p-3 text-sm" style="border-color: var(--border);">
-                                <input type="checkbox" name="agent_ids[]" value="{{ $agent->id }}">
-                                <span>{{ $agent->name }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-                    <div>
-                        <p class="mb-2 text-sm font-semibold">Supervisores</p>
-                        @foreach ($supervisors as $supervisor)
-                            <label class="mb-2 flex items-center gap-2 rounded-lg border p-3 text-sm" style="border-color: var(--border);">
-                                <input type="checkbox" name="supervisor_ids[]" value="{{ $supervisor->id }}">
-                                <span>{{ $supervisor->name }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
+            @include('tenant.teams._form', ['team' => null, 'agents' => $agents, 'supervisors' => $supervisors])
             <div class="mt-5 flex justify-end">
                 <x-ui.button type="submit">Criar equipe</x-ui.button>
             </div>

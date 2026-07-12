@@ -88,6 +88,7 @@
                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $campaign->status }}</span>
                     </div>
                     <div class="mt-4 flex flex-wrap justify-end gap-2">
+                        <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'campaign-view-{{ $campaign->id }}')" />
                         @can('tenant.campaigns.operate')
                         @if ($campaign->status === 'draft')
                             <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-start-{{ $campaign->id }}')">Iniciar</x-ui.button>
@@ -114,6 +115,19 @@
                         @endcan
                     </div>
                 </div>
+
+                <x-ui.modal name="campaign-view-{{ $campaign->id }}" title="Detalhes da campanha" max-width="lg">
+                    <dl class="grid gap-4 text-sm sm:grid-cols-2">
+                        <div><dt class="font-semibold">Nome</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->name }}</dd></div>
+                        <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->status }}</dd></div>
+                        <div><dt class="font-semibold">Modo de discagem</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->dialing_mode }}</dd></div>
+                        <div><dt class="font-semibold">Rota</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->dialing_route ?: 'Nao configurada' }}</dd></div>
+                        <div><dt class="font-semibold">Equipes</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->teams->pluck('name')->join(', ') ?: 'Sem equipe' }}</dd></div>
+                        <div><dt class="font-semibold">Listas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->contactLists->pluck('name')->join(', ') ?: 'Sem lista' }}</dd></div>
+                        <div><dt class="font-semibold">Inicio</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->starts_at?->format('d/m/Y H:i') ?? 'Nao iniciada' }}</dd></div>
+                        <div><dt class="font-semibold">Fim</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->ends_at?->format('d/m/Y H:i') ?? 'Em aberto' }}</dd></div>
+                    </dl>
+                </x-ui.modal>
 
                 @can('tenant.campaigns.operate')
                 <x-ui.modal name="campaign-start-{{ $campaign->id }}" title="Iniciar campanha" max-width="md">

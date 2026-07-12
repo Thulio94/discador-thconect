@@ -24,6 +24,13 @@ class Team extends Model
             ->withTimestamps();
     }
 
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)
+            ->withPivot('company_id', 'membership_type')
+            ->withTimestamps();
+    }
+
     public function agents(): BelongsToMany
     {
         return $this->users()->wherePivot('membership_type', 'agent');

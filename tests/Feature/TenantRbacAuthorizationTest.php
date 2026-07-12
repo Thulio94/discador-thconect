@@ -150,6 +150,7 @@ class TenantRbacAuthorizationTest extends TestCase
             'tenant.reports.export-pdf' => 'reports.export',
             'tenant.reports.schedules.store' => 'reports.schedules',
             'tenant.reports.schedules.update' => 'reports.schedules',
+            'tenant.reports.schedules.destroy' => 'reports.schedules',
             'tenant.reports.schedules.status' => 'reports.schedules',
             'tenant.reports.schedules.run' => 'reports.schedules',
             'tenant.telephony.index' => 'telephony.read',

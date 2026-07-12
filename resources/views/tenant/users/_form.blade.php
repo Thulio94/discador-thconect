@@ -43,7 +43,7 @@
     <div class="grid gap-2 md:grid-cols-2">
         @foreach ($teams as $team)
             <label class="flex items-center gap-2 rounded-lg border p-3 text-sm" style="border-color: var(--border);">
-                <input type="checkbox" name="team_ids[]" value="{{ $team->id }}" @checked(in_array($team->id, old('team_ids', $user?->teams->pluck('id')->all() ?? []), true))>
+                <input type="checkbox" name="team_ids[]" value="{{ $team->id }}" @checked(in_array($team->id, old('team_ids', $user?->assignedTeams->pluck('id')->all() ?? []), true))>
                 <span>{{ $team->name }}</span>
             </label>
         @endforeach

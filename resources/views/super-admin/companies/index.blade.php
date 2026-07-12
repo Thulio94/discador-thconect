@@ -48,10 +48,24 @@
                             </p>
                         </div>
                         <div class="flex shrink-0 gap-2">
+                            <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'company-view-{{ $company->id }}')" />
                             <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'company-edit-{{ $company->id }}')" />
-                            <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'company-delete-{{ $company->id }}')" />
+                            @if ($company->status === 'active')
+                                <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'company-delete-{{ $company->id }}')" />
+                            @endif
                         </div>
                     </div>
+
+                    <x-ui.modal name="company-view-{{ $company->id }}" title="Detalhes da empresa" max-width="lg">
+                        <dl class="grid gap-4 text-sm sm:grid-cols-2">
+                            <div><dt class="font-semibold">Empresa</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->name }}</dd></div>
+                            <div><dt class="font-semibold">Documento</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->document ?: 'Nao informado' }}</dd></div>
+                            <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->status === 'active' ? 'Ativa' : 'Inativa' }}</dd></div>
+                            <div><dt class="font-semibold">Licenca</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->license?->starts_at?->format('d/m/Y') }} a {{ $company->license?->ends_at?->format('d/m/Y') }}</dd></div>
+                            <div><dt class="font-semibold">Usuarios</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['users']['current'] }} / {{ $usage['users']['limit'] ?? 'sem teto' }}</dd></div>
+                            <div><dt class="font-semibold">Chamadas simultaneas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['active_calls']['current'] }} / {{ $usage['active_calls']['limit'] ?? 'sem teto' }}</dd></div>
+                        </dl>
+                    </x-ui.modal>
 
                     <div class="mt-4 grid gap-4 lg:grid-cols-3">
                         @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $usage['users']])
@@ -70,6 +84,7 @@
                         </form>
                     </x-ui.modal>
 
+                    @if ($company->status === 'active')
                     <x-ui.modal name="company-delete-{{ $company->id }}" title="Inativar empresa">
                         <form method="POST" action="{{ route('super-admin.companies.destroy', $company) }}">
                             @csrf
@@ -80,6 +95,7 @@
                             </div>
                         </form>
                     </x-ui.modal>
+                    @endif
                 </div>
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma empresa cadastrada.</p>

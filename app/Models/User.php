@@ -56,6 +56,13 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function assignedTeams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class)
+            ->withPivot('company_id', 'membership_type')
+            ->withTimestamps();
+    }
+
     public function appNotifications(): HasMany
     {
         return $this->hasMany(AppNotification::class);

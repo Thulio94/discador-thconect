@@ -49,6 +49,16 @@ class ReportScheduleController extends Controller
                 : 'Agendamento inativado com sucesso.');
     }
 
+    public function destroy(Request $request, ReportSchedule $reportSchedule): RedirectResponse
+    {
+        $this->authorizeTenant($request, $reportSchedule);
+        $reportSchedule->delete();
+
+        return redirect()
+            ->route('tenant.reports.index')
+            ->with('status', 'Agendamento excluido com sucesso.');
+    }
+
     public function run(
         Request $request,
         ReportSchedule $reportSchedule,
