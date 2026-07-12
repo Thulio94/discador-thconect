@@ -42,12 +42,29 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased" style="background: var(--bg); color: var(--fg);">
-        <div x-data="{ navOpen: false }" class="min-h-screen lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
+        <div
+            x-data="{
+                navOpen: false,
+                sidebarCollapsed: false,
+                init() {
+                    this.sidebarCollapsed = window.localStorage.getItem('thconect:sidebar-collapsed') === 'true';
+                },
+                toggleSidebar() {
+                    this.sidebarCollapsed = !this.sidebarCollapsed;
+                    window.localStorage.setItem('thconect:sidebar-collapsed', String(this.sidebarCollapsed));
+                },
+                isSidebarCollapsed() {
+                    return this.sidebarCollapsed && window.matchMedia('(min-width: 1024px)').matches;
+                },
+            }"
+            x-bind:style="sidebarCollapsed ? '--th-sidebar-width: 5.5rem' : '--th-sidebar-width: 16rem'"
+            class="th-app-shell min-h-screen"
+        >
             <div x-show="navOpen" x-cloak class="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" x-on:click="navOpen = false"></div>
 
             <aside
                 data-layout-sidebar
-                class="th-sidebar fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col border-r px-3 py-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
+                class="th-sidebar fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col border-r px-3 py-4 transition-[transform,width] duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
                 x-bind:class="navOpen ? 'translate-x-0' : '-translate-x-full'"
             >
                 <div class="flex items-center justify-between gap-3 px-2 pb-4">
@@ -55,11 +72,22 @@
                         <div class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white p-1.5 shadow-sm">
                             <x-application-logo class="h-full w-full" />
                         </div>
-                        <div class="min-w-0">
+                        <div x-show="!isSidebarCollapsed()" x-transition.opacity class="min-w-0">
                             <p class="truncate text-xs font-bold text-white">Discador THCONECT</p>
                             <p class="text-[11px] font-medium uppercase" style="color: var(--sidebar-muted);">Central de operacao</p>
                         </div>
                     </div>
+                    <button
+                        type="button"
+                        class="th-focus hidden h-9 w-9 shrink-0 place-items-center rounded-lg lg:grid"
+                        style="color: var(--sidebar-muted);"
+                        x-on:click="toggleSidebar()"
+                        x-bind:aria-label="isSidebarCollapsed() ? 'Expandir menu' : 'Recolher menu'"
+                        x-bind:title="isSidebarCollapsed() ? 'Expandir menu' : 'Recolher menu'"
+                    >
+                        <x-ui.icon name="sidebar-collapse" x-show="!isSidebarCollapsed()" />
+                        <x-ui.icon name="sidebar-expand" x-show="isSidebarCollapsed()" x-cloak />
+                    </button>
                     <button type="button" class="th-focus grid h-9 w-9 place-items-center rounded-lg lg:hidden" style="color: var(--sidebar-muted);" x-on:click="navOpen = false" aria-label="Fechar menu">
                         <x-ui.icon name="cancel" />
                     </button>
@@ -72,14 +100,17 @@
                         <a
                             href="{{ $item['href'] }}"
                             data-active="{{ $item['active'] ? 'true' : 'false' }}"
-                            class="th-nav-link th-focus flex min-h-10 items-center justify-between rounded-lg px-3 py-2 text-[13px] font-semibold transition"
+                            class="th-nav-link th-focus flex min-h-10 items-center rounded-lg py-2 text-[13px] font-semibold transition"
+                            x-bind:class="isSidebarCollapsed() ? 'justify-center px-2' : 'justify-between px-3'"
+                            x-bind:title="isSidebarCollapsed() ? @js($item['label']) : null"
+                            x-bind:aria-label="isSidebarCollapsed() ? @js($item['label']) : null"
                         >
-                            <span class="flex items-center gap-3">
+                            <span class="flex items-center" x-bind:class="isSidebarCollapsed() ? 'justify-center' : 'gap-3'">
                                 <x-ui.icon :name="$item['icon']" />
-                                {{ $item['label'] }}
+                                <span x-show="!isSidebarCollapsed()" x-transition.opacity>{{ $item['label'] }}</span>
                             </span>
                             @if ($item['soon'] ?? false)
-                                <span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style="background: var(--sidebar-bg-hover); color: var(--sidebar-muted);">
+                                <span x-show="!isSidebarCollapsed()" x-transition.opacity class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style="background: var(--sidebar-bg-hover); color: var(--sidebar-muted);">
                                     Em breve
                                 </span>
                             @endif
@@ -88,18 +119,29 @@
                 </nav>
 
                 <div class="mt-4 border-t pt-4" style="border-color: var(--sidebar-border);">
-                    <a href="{{ route('profile.edit') }}" class="th-nav-link th-focus flex items-center gap-3 rounded-lg px-3 py-2 transition">
+                    <a
+                        href="{{ route('profile.edit') }}"
+                        class="th-nav-link th-focus flex items-center rounded-lg py-2 transition"
+                        x-bind:class="isSidebarCollapsed() ? 'justify-center px-2' : 'gap-3 px-3'"
+                        x-bind:title="isSidebarCollapsed() ? @js($user?->name ?? 'Meu perfil') : null"
+                    >
                         <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-white" style="background: var(--primary);">{{ strtoupper(substr($user?->name ?? 'U', 0, 2)) }}</span>
-                        <span class="min-w-0 flex-1">
+                        <span x-show="!isSidebarCollapsed()" x-transition.opacity class="min-w-0 flex-1">
                             <span class="block truncate text-xs font-semibold text-white">{{ $user?->name }}</span>
                             <span class="block truncate text-[10px]" style="color: var(--sidebar-muted);">Ramal {{ $user?->extension ?? '-' }}</span>
                         </span>
                     </a>
                     <form method="POST" action="{{ route('logout') }}" class="mt-1">
                         @csrf
-                        <button type="submit" class="th-nav-link th-focus flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold transition">
+                        <button
+                            type="submit"
+                            class="th-nav-link th-focus flex min-h-10 w-full items-center rounded-lg py-2 text-left text-xs font-semibold transition"
+                            x-bind:class="isSidebarCollapsed() ? 'justify-center px-2' : 'gap-3 px-3'"
+                            x-bind:title="isSidebarCollapsed() ? 'Sair do sistema' : null"
+                            x-bind:aria-label="isSidebarCollapsed() ? 'Sair do sistema' : null"
+                        >
                             <x-ui.icon name="logout" />
-                            Sair do sistema
+                            <span x-show="!isSidebarCollapsed()" x-transition.opacity>Sair do sistema</span>
                         </button>
                     </form>
                 </div>

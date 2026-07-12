@@ -55,6 +55,17 @@
     box-shadow: 10px 0 30px rgba(13, 23, 48, 0.08);
 }
 
+@media (min-width: 1024px) {
+    .th-app-shell {
+        display: grid;
+        grid-template-columns: var(--th-sidebar-width, 16rem) minmax(0, 1fr);
+    }
+
+    .th-sidebar {
+        width: var(--th-sidebar-width, 16rem);
+    }
+}
+
 .th-nav-link {
     color: var(--sidebar-muted);
 }
