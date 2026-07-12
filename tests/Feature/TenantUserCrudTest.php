@@ -54,7 +54,7 @@ class TenantUserCrudTest extends TestCase
         $this->assertSame('agent', $agent->teams()->first()->pivot->membership_type);
     }
 
-    public function test_license_max_users_is_enforced_for_active_users(): void
+    public function test_active_users_are_not_limited_by_the_legacy_license_user_limit(): void
     {
         [$admin, $role] = $this->tenantAdmin(maxUsers: 1);
 
@@ -67,7 +67,8 @@ class TenantUserCrudTest extends TestCase
                 'role_id' => $role->id,
                 'status' => 'active',
             ])
-            ->assertSessionHasErrors('status');
+            ->assertRedirect(route('tenant.users.index'))
+            ->assertSessionHas('status');
     }
 
     public function test_extension_is_unique_inside_company_only(): void

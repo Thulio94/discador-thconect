@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\ApplyGodModeCompanyContext;
 use App\Http\Middleware\ApplySecurityHeaders;
+use App\Http\Middleware\BlockGodModeTelephonyActions;
 use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
@@ -22,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant.active' => EnsureTenantIsActive::class,
             'tenant.user' => EnsureTenantUser::class,
+            'god-mode' => ApplyGodModeCompanyContext::class,
+            'god-mode.telephony-safe' => BlockGodModeTelephonyActions::class,
             'super.admin' => EnsureUserIsSuperAdmin::class,
             'security.headers' => ApplySecurityHeaders::class,
         ]);

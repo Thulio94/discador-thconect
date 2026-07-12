@@ -41,8 +41,10 @@
                 </div>
 
                 <div class="mt-5 grid gap-4">
-                    @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $licenseUsage['users']])
-                    @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $licenseUsage['available_agents']])
+                    <div class="flex items-center justify-between gap-3 text-sm">
+                        <span class="font-semibold">Agentes disponiveis</span>
+                        <span class="text-lg font-bold">{{ $licenseUsage['available_agents'] }}</span>
+                    </div>
                     @include('partials.license-usage-meter', ['label' => 'Chamadas simultaneas', 'metric' => $licenseUsage['active_calls']])
                 </div>
             </x-ui.card>
@@ -66,12 +68,10 @@
             </x-ui.card>
         </div>
     @elseif ($licenseOverview)
-        <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <x-ui.card title="Uso de usuarios" tone="violet">
-                @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $licenseOverview['users']])
-            </x-ui.card>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
             <x-ui.card title="Uso de agentes" tone="cyan">
-                @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $licenseOverview['available_agents']])
+                <p class="text-3xl font-bold">{{ $licenseOverview['available_agents'] }}</p>
+                <p class="mt-2 text-sm" style="color: var(--fg-muted);">Agentes em status disponivel.</p>
             </x-ui.card>
             <x-ui.card title="Uso de chamadas" tone="emerald">
                 @include('partials.license-usage-meter', ['label' => 'Chamadas ativas', 'metric' => $licenseOverview['active_calls']])

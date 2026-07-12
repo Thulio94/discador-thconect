@@ -21,20 +21,12 @@
         </select>
     </label>
     <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Usuarios maximos</span>
-        <input type="number" min="1" max="5000" name="max_users" value="{{ old('max_users', $license?->max_users ?? 10) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
-    </label>
-    <label class="grid gap-1 text-sm">
         <span class="font-semibold">Inicio da licenca</span>
         <input type="date" name="license_starts_at" value="{{ old('license_starts_at', $license?->starts_at?->toDateString() ?? now()->toDateString()) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
     </label>
     <label class="grid gap-1 text-sm">
         <span class="font-semibold">Fim da licenca</span>
         <input type="date" name="license_ends_at" value="{{ old('license_ends_at', $license?->ends_at?->toDateString() ?? now()->addMonth()->toDateString()) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
-    </label>
-    <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Agentes simultaneos</span>
-        <input type="number" min="1" max="5000" name="max_concurrent_agents" value="{{ old('max_concurrent_agents', $license?->max_concurrent_agents) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
     </label>
     <label class="grid gap-1 text-sm">
         <span class="font-semibold">Chamadas por operador disponivel</span>

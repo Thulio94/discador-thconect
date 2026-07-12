@@ -56,16 +56,9 @@ class UserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $company = $request->user()->company;
-        $companyId = $company->id;
+        $companyId = $request->user()->company_id;
 
         $data = $request->validate($this->rules($companyId));
-
-        if ($data['status'] === 'active' && $company->users()->where('status', 'active')->count() >= $company->license->max_users) {
-            throw ValidationException::withMessages([
-                'status' => 'Limite de usuarios da licenca atingido.',
-            ]);
-        }
 
         $user = User::query()->create([
             'company_id' => $companyId,

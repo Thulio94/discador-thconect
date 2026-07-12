@@ -1,7 +1,10 @@
 @php
     $user = Auth::user();
     $theme = $user?->theme_preference ?: 'thconectclaro';
-    $navItems = $user?->is_super_admin
+    $godMode = app(\App\Support\GodMode\GodModeContext::class);
+    $isGodMode = $godMode->isActiveFor($user);
+    $godModeCompany = $isGodMode ? $godMode->company() : null;
+    $navItems = $user?->is_super_admin && ! $isGodMode
         ? [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'pulse', 'active' => request()->routeIs('dashboard')],
             ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'building', 'active' => request()->routeIs('super-admin.companies.*')],
@@ -46,25 +49,27 @@
             x-data="{
                 navOpen: false,
                 sidebarCollapsed: false,
+                viewportWidth: window.innerWidth,
                 init() {
                     this.sidebarCollapsed = window.localStorage.getItem('thconect:sidebar-collapsed') === 'true';
+                    window.addEventListener('resize', () => this.viewportWidth = window.innerWidth);
                 },
                 toggleSidebar() {
                     this.sidebarCollapsed = !this.sidebarCollapsed;
                     window.localStorage.setItem('thconect:sidebar-collapsed', String(this.sidebarCollapsed));
                 },
                 isSidebarCollapsed() {
-                    return this.sidebarCollapsed && window.matchMedia('(min-width: 1024px)').matches;
+                    return this.sidebarCollapsed && this.viewportWidth >= 1024;
                 },
             }"
-            x-bind:style="sidebarCollapsed ? '--th-sidebar-width: 5.5rem' : '--th-sidebar-width: 16rem'"
+            x-bind:style="sidebarCollapsed ? '--th-sidebar-desktop-width: 5.5rem' : '--th-sidebar-desktop-width: 16rem'"
             class="th-app-shell min-h-screen"
         >
             <div x-show="navOpen" x-cloak class="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" x-on:click="navOpen = false"></div>
 
             <aside
                 data-layout-sidebar
-                class="th-sidebar fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col border-r px-3 py-4 transition-[transform,width] duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
+                class="th-sidebar fixed inset-y-0 left-0 z-50 flex -translate-x-full flex-col border-r px-3 py-4 transition-[transform,width] duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
                 x-bind:class="navOpen ? 'translate-x-0' : '-translate-x-full'"
             >
                 <div class="flex items-center justify-between gap-3 px-2 pb-4">
@@ -148,6 +153,23 @@
             </aside>
 
             <main class="th-main min-w-0 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+                @if ($isGodMode && $godModeCompany)
+                    <div class="mb-5 flex flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style="border-color: color-mix(in srgb, var(--accent-violet) 48%, var(--border)); background: color-mix(in srgb, var(--accent-violet) 10%, var(--surface));">
+                        <div class="flex items-center gap-3">
+                            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white" style="background: var(--accent-violet);"><x-ui.icon name="view" /></span>
+                            <div>
+                                <p class="text-sm font-bold">Modo Deus ativo</p>
+                                <p class="text-xs" style="color: var(--fg-muted);">Acompanhando {{ $godModeCompany->name }}. Acoes de telefonia permanecem protegidas.</p>
+                            </div>
+                        </div>
+                        <form method="POST" action="{{ route('super-admin.god-mode.leave') }}">
+                            @csrf
+                            @method('DELETE')
+                            <x-ui.button type="submit" variant="secondary">Sair da empresa</x-ui.button>
+                        </form>
+                    </div>
+                @endif
+
                 <div class="mb-5 flex items-center justify-between border-b pb-3 lg:hidden" style="border-color: var(--border);">
                     <button type="button" class="th-focus grid h-10 w-10 place-items-center rounded-lg border" style="border-color: var(--border); background: var(--surface); color: var(--fg);" x-on:click="navOpen = true" aria-label="Abrir menu">
                         <x-ui.icon name="list" />

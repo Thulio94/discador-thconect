@@ -49,6 +49,7 @@
 }
 
 .th-sidebar {
+    width: 16rem;
     background: var(--sidebar-bg);
     border-color: var(--sidebar-border);
     color: var(--sidebar-fg);
@@ -58,11 +59,11 @@
 @media (min-width: 1024px) {
     .th-app-shell {
         display: grid;
-        grid-template-columns: var(--th-sidebar-width, 16rem) minmax(0, 1fr);
+        grid-template-columns: var(--th-sidebar-desktop-width, 16rem) minmax(0, 1fr);
     }
 
     .th-sidebar {
-        width: var(--th-sidebar-width, 16rem);
+        width: var(--th-sidebar-desktop-width, 16rem);
     }
 }
 

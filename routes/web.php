@@ -5,6 +5,7 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
+use App\Http\Controllers\SuperAdmin\GodModeController;
 use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\Tenant\AgentPanelController;
 use App\Http\Controllers\Tenant\AuditLogController as TenantAuditLogController;
@@ -36,10 +37,12 @@ Route::middleware(['auth', 'super.admin'])
         Route::get('system-status', [SystemStatusController::class, 'index'])->name('system-status.index');
         Route::get('audit-logs', [SuperAdminAuditLogController::class, 'index'])->name('audit-logs.index');
         Route::delete('audit-logs/purge', [SuperAdminAuditLogController::class, 'purge'])->name('audit-logs.purge');
+        Route::post('companies/{company}/god-mode', [GodModeController::class, 'enter'])->name('companies.god-mode.enter');
+        Route::delete('god-mode', [GodModeController::class, 'leave'])->name('god-mode.leave');
         Route::resource('companies', CompanyController::class)->except(['create', 'show', 'edit']);
     });
 
-Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
+Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user'])
     ->prefix('tenant')
     ->name('tenant.')
     ->group(function (): void {
@@ -73,13 +76,13 @@ Route::middleware(['auth', 'verified', 'tenant.active', 'tenant.user'])
         Route::patch('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->middleware('can:tenant.campaigns.operate')->name('campaigns.pause');
         Route::patch('campaigns/{campaign}/restart', [CampaignController::class, 'restart'])->middleware('can:tenant.campaigns.operate')->name('campaigns.restart');
         Route::patch('campaigns/{campaign}/recycle', [CampaignController::class, 'recycle'])->middleware('can:tenant.campaigns.operate')->name('campaigns.recycle');
-        Route::patch('campaigns/{campaign}/dial', [CampaignController::class, 'dial'])->middleware('can:tenant.campaigns.operate')->name('campaigns.dial');
+        Route::patch('campaigns/{campaign}/dial', [CampaignController::class, 'dial'])->middleware(['can:tenant.campaigns.operate', 'god-mode.telephony-safe'])->name('campaigns.dial');
 
-        Route::get('agent', [AgentPanelController::class, 'index'])->middleware('can:tenant.agent.access')->name('agent.index');
-        Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware('can:tenant.agent.access')->name('agent.status');
-        Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->middleware('can:tenant.agent.access')->name('agent.pause');
-        Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->middleware('can:tenant.agent.access')->name('agent.calls.store');
-        Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->middleware('can:tenant.agent.access')->name('agent.calls.end');
+        Route::get('agent', [AgentPanelController::class, 'index'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.index');
+        Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.status');
+        Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.pause');
+        Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.store');
+        Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.end');
 
         Route::get('supervision/poll', [SupervisionController::class, 'poll'])->middleware('can:tenant.supervision.read')->name('supervision.poll');
         Route::get('supervision', [SupervisionController::class, 'index'])->middleware('can:tenant.supervision.read')->name('supervision.index');

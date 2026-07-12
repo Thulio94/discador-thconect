@@ -11,33 +11,60 @@ class LicenseUsageService
 {
     public function forCompany(Company $company): array
     {
-        $company->loadMissing('license');
+        return $this->forCompanies(collect([$company]))[$company->id];
+    }
 
-        $license = $company->license;
-        $activeUsers = $this->activeUsers($company->id);
-        $availableAgents = $this->availableAgents($company->id);
-        $activeCalls = $this->activeCalls($company->id);
-        $callsPerAvailableAgent = max(1, (int) ($license?->max_calls_per_available_agent ?? 1));
-        $agentCallCapacity = $availableAgents * $callsPerAvailableAgent;
-        $contractedCallLimit = $license?->max_concurrent_calls;
-        $effectiveCallLimit = $contractedCallLimit === null
-            ? $agentCallCapacity
-            : min($agentCallCapacity, $contractedCallLimit);
+    /**
+     * @param  iterable<Company>  $companies
+     * @return array<int, array<string, mixed>>
+     */
+    public function forCompanies(iterable $companies): array
+    {
+        $companies = collect($companies)->values();
+        $companies->each(fn (Company $company) => $company->loadMissing('license'));
+        $companyIds = $companies->pluck('id');
 
-        return [
-            'license' => $license,
-            'users' => $this->metric($activeUsers, $license?->max_users),
-            'available_agents' => $this->metric($availableAgents, $license?->max_concurrent_agents),
-            'active_calls' => $this->metric($activeCalls, $contractedCallLimit),
-            'agent_call_capacity' => $agentCallCapacity,
-            'effective_call_limit' => $effectiveCallLimit,
-            'calls_per_available_agent' => $callsPerAvailableAgent,
-            'status' => $this->worstStatus([
-                $this->status($activeUsers, $license?->max_users),
-                $this->status($availableAgents, $license?->max_concurrent_agents),
-                $this->status($activeCalls, $contractedCallLimit),
-            ]),
-        ];
+        if ($companyIds->isEmpty()) {
+            return [];
+        }
+
+        $availableAgents = User::query()
+            ->whereIn('company_id', $companyIds)
+            ->where('status', 'active')
+            ->where('user_type', 'agent')
+            ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
+            ->selectRaw('company_id, count(*) as aggregate')
+            ->groupBy('company_id')
+            ->pluck('aggregate', 'company_id');
+
+        $activeCalls = Call::query()
+            ->whereIn('company_id', $companyIds)
+            ->where('status', 'in_progress')
+            ->selectRaw('company_id, count(*) as aggregate')
+            ->groupBy('company_id')
+            ->pluck('aggregate', 'company_id');
+
+        return $companies->mapWithKeys(function (Company $company) use ($availableAgents, $activeCalls): array {
+            $license = $company->license;
+            $availableAgentCount = (int) ($availableAgents[$company->id] ?? 0);
+            $activeCallCount = (int) ($activeCalls[$company->id] ?? 0);
+            $callsPerAvailableAgent = max(1, (int) ($license?->max_calls_per_available_agent ?? 1));
+            $agentCallCapacity = $availableAgentCount * $callsPerAvailableAgent;
+            $contractedCallLimit = $license?->max_concurrent_calls;
+            $effectiveCallLimit = $contractedCallLimit === null
+                ? $agentCallCapacity
+                : min($agentCallCapacity, $contractedCallLimit);
+
+            return [$company->id => [
+                'license' => $license,
+                'available_agents' => $availableAgentCount,
+                'active_calls' => $this->metric($activeCallCount, $contractedCallLimit),
+                'agent_call_capacity' => $agentCallCapacity,
+                'effective_call_limit' => $effectiveCallLimit,
+                'calls_per_available_agent' => $callsPerAvailableAgent,
+                'status' => $this->status($activeCallCount, $contractedCallLimit),
+            ]];
+        })->all();
     }
 
     public function overview(): array
@@ -47,51 +74,18 @@ class LicenseUsageService
             ->where('status', 'active')
             ->get();
 
-        $summaries = $companies->map(fn (Company $company): array => $this->forCompany($company));
+        $summaries = collect($this->forCompanies($companies));
         $licenses = $companies->pluck('license')->filter();
 
         return [
             'companies' => $companies->count(),
-            'users' => $this->metric(
-                $summaries->sum('users.current'),
-                $this->sumNullableLimit($licenses, 'max_users')
-            ),
-            'available_agents' => $this->metric(
-                $summaries->sum('available_agents.current'),
-                $this->sumNullableLimit($licenses, 'max_concurrent_agents')
-            ),
+            'available_agents' => $summaries->sum('available_agents'),
             'active_calls' => $this->metric(
                 $summaries->sum('active_calls.current'),
                 $this->sumNullableLimit($licenses, 'max_concurrent_calls')
             ),
             'status' => $this->worstStatus($summaries->pluck('status')->all()),
         ];
-    }
-
-    private function activeUsers(int $companyId): int
-    {
-        return User::query()
-            ->where('company_id', $companyId)
-            ->where('status', 'active')
-            ->count();
-    }
-
-    private function availableAgents(int $companyId): int
-    {
-        return User::query()
-            ->where('company_id', $companyId)
-            ->where('status', 'active')
-            ->where('user_type', 'agent')
-            ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
-            ->count();
-    }
-
-    private function activeCalls(int $companyId): int
-    {
-        return Call::query()
-            ->where('company_id', $companyId)
-            ->where('status', 'in_progress')
-            ->count();
     }
 
     private function metric(int $current, ?int $limit): array

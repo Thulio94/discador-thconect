@@ -23,8 +23,10 @@ class CompanyController extends Controller
             ->latest()
             ->paginate(12);
 
-        $companies->getCollection()->transform(function (Company $company) use ($usage): Company {
-            $company->setAttribute('license_usage', $usage->forCompany($company));
+        $usageByCompany = $usage->forCompanies($companies->getCollection());
+
+        $companies->getCollection()->transform(function (Company $company) use ($usageByCompany): Company {
+            $company->setAttribute('license_usage', $usageByCompany[$company->id]);
 
             return $company;
         });
@@ -90,8 +92,6 @@ class CompanyController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'license_starts_at' => ['required', 'date'],
             'license_ends_at' => ['required', 'date', 'after_or_equal:license_starts_at'],
-            'max_users' => ['required', 'integer', 'min:1', 'max:5000'],
-            'max_concurrent_agents' => ['nullable', 'integer', 'min:1', 'max:5000'],
             'max_calls_per_available_agent' => ['required', 'integer', 'min:1', 'max:20'],
             'max_concurrent_calls' => ['nullable', 'integer', 'min:1', 'max:100000'],
             'power_enabled' => ['boolean'],
@@ -107,8 +107,6 @@ class CompanyController extends Controller
             'status' => 'active',
             'starts_at' => $data['license_starts_at'],
             'ends_at' => $data['license_ends_at'],
-            'max_users' => $data['max_users'],
-            'max_concurrent_agents' => $data['max_concurrent_agents'] ?? null,
             'max_calls_per_available_agent' => $data['max_calls_per_available_agent'],
             'max_concurrent_calls' => $data['max_concurrent_calls'] ?? null,
             'power_enabled' => (bool) ($data['power_enabled'] ?? false),

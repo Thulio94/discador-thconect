@@ -10,6 +10,7 @@ use App\Models\OperationalParameter;
 use App\Models\User;
 use App\Observers\AuditableModelObserver;
 use App\Services\Dialer\SimulatedDialerGateway;
+use App\Support\GodMode\GodModeContext;
 use App\Support\Tenant\PermissionMatrix;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -29,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::before(fn (User $user): ?bool => app(GodModeContext::class)->isActiveFor($user) ? true : null);
+
         foreach (PermissionMatrix::keys() as $permissionKey) {
             Gate::define(
                 'tenant.'.str_replace('.', '.', $permissionKey),

@@ -6,12 +6,10 @@
         </div>
     </x-slot>
 
-    <div class="grid gap-4 md:grid-cols-3">
-        <x-ui.card title="Usuarios contratados">
-            @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $licenseOverview['users']])
-        </x-ui.card>
-        <x-ui.card title="Agentes contratados">
-            @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $licenseOverview['available_agents']])
+    <div class="grid gap-4 md:grid-cols-2">
+        <x-ui.card title="Agentes disponiveis">
+            <p class="text-3xl font-bold">{{ $licenseOverview['available_agents'] }}</p>
+            <p class="mt-2 text-sm" style="color: var(--fg-muted);">Agentes em status disponivel para receber chamadas.</p>
         </x-ui.card>
         <x-ui.card title="Chamadas contratadas">
             @include('partials.license-usage-meter', ['label' => 'Chamadas ativas', 'metric' => $licenseOverview['active_calls']])
@@ -49,6 +47,7 @@
                         </div>
                         <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'company-view-{{ $company->id }}')" />
+                            <x-ui.action icon="open" label="Entrar no Modo Deus" x-data x-on:click="$dispatch('open-modal', 'company-god-mode-{{ $company->id }}')" />
                             <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'company-edit-{{ $company->id }}')" />
                             @if ($company->status === 'active')
                                 <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'company-delete-{{ $company->id }}')" />
@@ -62,14 +61,27 @@
                             <div><dt class="font-semibold">Documento</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->document ?: 'Nao informado' }}</dd></div>
                             <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->status === 'active' ? 'Ativa' : 'Inativa' }}</dd></div>
                             <div><dt class="font-semibold">Licenca</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->license?->starts_at?->format('d/m/Y') }} a {{ $company->license?->ends_at?->format('d/m/Y') }}</dd></div>
-                            <div><dt class="font-semibold">Usuarios</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['users']['current'] }} / {{ $usage['users']['limit'] ?? 'sem teto' }}</dd></div>
+                            <div><dt class="font-semibold">Agentes disponiveis</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['available_agents'] }}</dd></div>
                             <div><dt class="font-semibold">Chamadas simultaneas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['active_calls']['current'] }} / {{ $usage['active_calls']['limit'] ?? 'sem teto' }}</dd></div>
                         </dl>
                     </x-ui.modal>
 
-                    <div class="mt-4 grid gap-4 lg:grid-cols-3">
-                        @include('partials.license-usage-meter', ['label' => 'Usuarios ativos', 'metric' => $usage['users']])
-                        @include('partials.license-usage-meter', ['label' => 'Agentes disponiveis', 'metric' => $usage['available_agents']])
+                    <x-ui.modal name="company-god-mode-{{ $company->id }}" title="Entrar no Modo Deus" max-width="lg">
+                        <p class="text-sm" style="color: var(--fg-muted);">Voce acompanhara <span class="font-semibold" style="color: var(--fg);">{{ $company->name }}</span> com acesso administrativo aos modulos da empresa. Nenhum usuario sera criado e esta sessao nao consome capacidade.</p>
+                        <p class="mt-3 text-sm" style="color: var(--fg-muted);">Acoes que originam ou alteram chamadas permanecem bloqueadas neste modo.</p>
+                        <form method="POST" action="{{ route('super-admin.companies.god-mode.enter', $company) }}" class="mt-5 flex justify-end gap-2">
+                            @csrf
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'company-god-mode-{{ $company->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">Entrar na empresa</x-ui.button>
+                        </form>
+                    </x-ui.modal>
+
+                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                        <div class="grid gap-2 text-sm">
+                            <span class="font-semibold">Agentes disponiveis</span>
+                            <span class="text-2xl font-bold">{{ $usage['available_agents'] }}</span>
+                            <span class="text-xs" style="color: var(--fg-muted);">Nao ha limite de agentes conectados.</span>
+                        </div>
                         @include('partials.license-usage-meter', ['label' => 'Chamadas simultaneas', 'metric' => $usage['active_calls']])
                     </div>
 

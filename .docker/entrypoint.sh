@@ -5,6 +5,15 @@ if [ ! -f .env ] && [ -f .env.example ]; then
     cp .env.example .env
 fi
 
+mkdir -p \
+    bootstrap/cache \
+    storage/framework/cache/data \
+    storage/framework/sessions \
+    storage/framework/testing \
+    storage/framework/views
+
+chown -R www-data:www-data bootstrap/cache storage/framework
+
 if [ -f composer.json ] && [ ! -f vendor/autoload.php ]; then
     mkdir -p vendor
 
