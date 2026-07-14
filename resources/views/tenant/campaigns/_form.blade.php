@@ -153,13 +153,14 @@
                 <select name="amd_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                     <option value="disabled" @selected($amdMode === 'disabled')>Desativado</option>
                     <option value="simulated" @selected($amdMode === 'simulated')>Simulado</option>
+                    <option value="asterisk" @selected($amdMode === 'asterisk')>Asterisk / rota</option>
                 </select>
-                <span class="text-xs" style="color: var(--fg-muted);">A deteccao real de secretaria eletronica permanece em breve.</span>
+                <span class="text-xs" style="color: var(--fg-muted);">A rota Asterisk envia o resultado AMD recebido pelo dialplan ou provedor para o historico da chamada.</span>
             </label>
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">Rota de discagem</span>
                 <input name="dialing_route" value="{{ old('dialing_route', $campaign?->dialing_route) }}" placeholder="Ex.: Saida principal" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                <span class="text-xs" style="color: var(--fg-muted);">Preparacao visual. O envio para tronco/Asterisk permanece em breve.</span>
+                <span class="text-xs" style="color: var(--fg-muted);">Use a mesma identificacao configurada em Telefonia para facilitar a operacao.</span>
             </label>
         </div>
 

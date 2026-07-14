@@ -213,14 +213,14 @@ class CampaignController extends Controller
         if (! $dialer->isCampaignInOperationalSchedule($campaign)) {
             return redirect()
                 ->route('tenant.campaigns.index')
-                ->with('status', 'Campanha fora da agenda operacional. Nenhuma chamada simulada foi criada.');
+                ->with('status', 'Campanha fora da agenda operacional. Nenhuma chamada foi criada.');
         }
 
         $count = $dialer->runCampaign($campaign);
 
         return redirect()
             ->route('tenant.campaigns.index')
-            ->with('status', sprintf('%d chamada simulada criada para agentes disponiveis.', $count));
+            ->with('status', sprintf('%d chamada criada para agentes disponiveis.', $count));
     }
 
     private function rules(int $companyId, ?Campaign $campaign = null): array
@@ -252,7 +252,7 @@ class CampaignController extends Controller
                     }
                 },
             ],
-            'amd_mode' => ['nullable', Rule::in(['disabled', 'simulated'])],
+            'amd_mode' => ['nullable', Rule::in(['disabled', 'simulated', 'asterisk'])],
             'dialing_route' => ['nullable', 'string', 'max:80'],
             'status' => ['required', Rule::in(['draft', 'active', 'paused', 'finished'])],
             'priority' => ['nullable', 'integer', 'min:1', 'max:10'],

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Bridge\AsteriskEventController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
@@ -24,6 +25,10 @@ use App\Http\Controllers\Tenant\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', LandingController::class);
+
+Route::post('/bridge/events', AsteriskEventController::class)
+    ->middleware('asterisk.bridge')
+    ->name('bridge.events');
 
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'tenant.active'])
@@ -99,6 +104,7 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
 
         Route::get('telephony', [TelephonyController::class, 'index'])->middleware('can:tenant.telephony.read')->name('telephony.index');
         Route::put('telephony', [TelephonyController::class, 'update'])->middleware('can:tenant.telephony.update')->name('telephony.update');
+        Route::post('telephony/test', [TelephonyController::class, 'test'])->middleware('can:tenant.telephony.update')->name('telephony.test');
         Route::get('settings', [SettingController::class, 'index'])->middleware('can:tenant.settings.read')->name('settings.index');
         Route::put('settings/operational-parameters', [SettingController::class, 'updateOperationalParameters'])->middleware('can:tenant.settings.update')->name('settings.operational-parameters.update');
         Route::post('settings/pause-reasons', [SettingController::class, 'storePauseReason'])->middleware('can:tenant.settings.create')->name('settings.pause-reasons.store');

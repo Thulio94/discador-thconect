@@ -26,6 +26,7 @@ class SystemStatusService
             $this->heartbeatComponent('scheduler', 'Agendador', 'Tarefas programadas'),
             $this->heartbeatComponent('queue-worker', 'Processador de fila', 'Execucao de jobs'),
             $this->probe('reverb', 'Tempo real', 'Eventos e atualizacoes', fn (): mixed => $this->probeReverb()),
+            $this->probe('asterisk-bridge', 'Ponte Asterisk', 'Conexao AMI e eventos de telefonia', fn (): mixed => $this->probeAsteriskBridge()),
         ];
 
         $worstState = collect($components)
@@ -110,6 +111,19 @@ class SystemStatusService
 
         if ($response->serverError()) {
             throw new \RuntimeException('O servidor de tempo real retornou erro.');
+        }
+
+        return $response;
+    }
+
+    private function probeAsteriskBridge(): mixed
+    {
+        $response = Http::connectTimeout(1)
+            ->timeout(2)
+            ->get(rtrim((string) config('services.asterisk_bridge.url'), '/').'/healthz');
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('A ponte Asterisk nao respondeu ao healthcheck.');
         }
 
         return $response;

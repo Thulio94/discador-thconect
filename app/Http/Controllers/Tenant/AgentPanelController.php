@@ -152,7 +152,7 @@ class AgentPanelController extends Controller
             'started_at' => now(),
         ]);
 
-        return redirect()->route('tenant.agent.index')->with('status', 'Chamada simulada iniciada.');
+        return redirect()->route('tenant.agent.index')->with('status', 'Chamada iniciada.');
     }
 
     public function endCall(Request $request, DialerGateway $gateway): RedirectResponse

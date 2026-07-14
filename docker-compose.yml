@@ -136,6 +136,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  asterisk-bridge:
+    build:
+      context: ./services/asterisk-bridge
+      dockerfile: Dockerfile
+    container_name: discador_thconect_asterisk_bridge
+    environment:
+      BRIDGE_PORT: 8090
+      BRIDGE_SHARED_TOKEN: "${ASTERISK_BRIDGE_TOKEN:-}"
+      BRIDGE_WEBHOOK_URL: "http://app/bridge/events"
+      BRIDGE_WEBHOOK_SECRET: "${ASTERISK_BRIDGE_WEBHOOK_SECRET:-}"
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   discador_vendor:
   discador_mysql:

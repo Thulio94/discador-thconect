@@ -312,7 +312,8 @@ Itens futuros:
 - [ ] Transferencia.
 - [ ] Monitoria: ouvir, sussurrar e intervir.
 - [ ] WebRTC com SIP.js ou JsSIP.
-- [ ] AMD real.
+- [x] Base de rota Asterisk AMI: bridge Go, credenciais criptografadas por empresa, originate/hangup, eventos assinados e registro de AMD.
+- [ ] Validacao operacional com as credenciais e dialplan da rota VoIP contratada.
 
 ### Go Bridge e Escala
 

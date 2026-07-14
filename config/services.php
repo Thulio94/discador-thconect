@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'asterisk_bridge' => [
+        'url' => env('ASTERISK_BRIDGE_URL', 'http://asterisk-bridge:8090'),
+        'token' => env('ASTERISK_BRIDGE_TOKEN'),
+        'webhook_secret' => env('ASTERISK_BRIDGE_WEBHOOK_SECRET'),
+        'timeout' => (int) env('ASTERISK_BRIDGE_TIMEOUT', 8),
+    ],
+
 ];

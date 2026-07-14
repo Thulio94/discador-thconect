@@ -9,7 +9,7 @@ use App\Models\CompanyTelephonyConfiguration;
 use App\Models\OperationalParameter;
 use App\Models\User;
 use App\Observers\AuditableModelObserver;
-use App\Services\Dialer\SimulatedDialerGateway;
+use App\Services\Dialer\AsteriskDialerGateway;
 use App\Support\GodMode\GodModeContext;
 use App\Support\Tenant\PermissionMatrix;
 use Illuminate\Support\Facades\Gate;
@@ -22,7 +22,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(DialerGateway::class, SimulatedDialerGateway::class);
+        $this->app->bind(DialerGateway::class, AsteriskDialerGateway::class);
     }
 
     /**

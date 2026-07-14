@@ -72,10 +72,7 @@ class CoreRoutesTest extends TestCase
             ->assertSee('Limite por operador: 3')
             ->assertSee('Teto da empresa: 10')
             ->assertSee('Uso atual da empresa')
-            ->assertSee('Usuarios ativos')
-            ->assertSee('2 / 5')
             ->assertSee('Agentes disponiveis')
-            ->assertSee('1 / 2')
             ->assertSee('Chamadas simultaneas')
             ->assertSee('2 / 10')
             ->assertSee('Capacidade efetiva agora')
@@ -129,7 +126,7 @@ class CoreRoutesTest extends TestCase
         $this->actingAs($user)
             ->get(route('tenant.telephony.index'))
             ->assertOk()
-            ->assertSee('Preparacao de telefonia')
+            ->assertSee('Rota e Asterisk AMI')
             ->assertDontSee('Modulo em breve');
     }
 

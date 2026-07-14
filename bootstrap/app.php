@@ -6,6 +6,7 @@ use App\Http\Middleware\BlockGodModeTelephonyActions;
 use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
+use App\Http\Middleware\VerifyAsteriskBridgeSignature;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -28,7 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'god-mode.telephony-safe' => BlockGodModeTelephonyActions::class,
             'super.admin' => EnsureUserIsSuperAdmin::class,
             'security.headers' => ApplySecurityHeaders::class,
+            'asterisk.bridge' => VerifyAsteriskBridgeSignature::class,
         ]);
+
+        $middleware->validateCsrfTokens(except: ['bridge/events']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

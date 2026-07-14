@@ -820,7 +820,7 @@ class TenantCampaignListCrudTest extends TestCase
         $this->actingAs($admin)
             ->patch(route('tenant.campaigns.dial', $campaign))
             ->assertRedirect(route('tenant.campaigns.index'))
-            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 chamada simulada'));
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 chamada criada'));
 
         $this->assertDatabaseHas('calls', [
             'company_id' => $admin->company_id,
