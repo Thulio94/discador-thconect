@@ -19,9 +19,10 @@ class ConcurrentAgentLoginLimitTest extends TestCase
         $newAgent = $this->agent($company, 'new@empresa.test');
         $this->activeSession($loggedAgent);
 
-        $this->post(route('login'), [
+        $this->withSession(['_token' => 'login-test-token'])->post(route('login'), [
             'email' => $newAgent->email,
             'password' => 'password',
+            '_token' => 'login-test-token',
         ])->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticatedAs($newAgent);
@@ -33,9 +34,10 @@ class ConcurrentAgentLoginLimitTest extends TestCase
         $agent = $this->agent($company, 'agent@empresa.test');
         $this->activeSession($agent);
 
-        $this->post(route('login'), [
+        $this->withSession(['_token' => 'login-test-token'])->post(route('login'), [
             'email' => $agent->email,
             'password' => 'password',
+            '_token' => 'login-test-token',
         ])->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticatedAs($agent);
@@ -53,9 +55,10 @@ class ConcurrentAgentLoginLimitTest extends TestCase
             'email' => 'admin@empresa.test',
         ]);
 
-        $this->post(route('login'), [
+        $this->withSession(['_token' => 'login-test-token'])->post(route('login'), [
             'email' => $administrator->email,
             'password' => 'password',
+            '_token' => 'login-test-token',
         ])->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticatedAs($administrator);

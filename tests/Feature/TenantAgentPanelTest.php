@@ -324,17 +324,20 @@ class TenantAgentPanelTest extends TestCase
         $company->licenses()->firstOrFail()->update(['max_concurrent_agents' => 1]);
 
         $this->actingAs($firstAgent)
-            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->withSession(['_token' => 'agent-license-token'])
+            ->patch(route('tenant.agent.status'), ['status' => 'available', '_token' => 'agent-license-token'])
             ->assertRedirect(route('tenant.agent.index'));
 
         $this->actingAs($secondAgent)
+            ->withSession(['_token' => 'agent-license-token'])
             ->from(route('tenant.agent.index'))
-            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->patch(route('tenant.agent.status'), ['status' => 'available', '_token' => 'agent-license-token'])
             ->assertRedirect(route('tenant.agent.index'))
             ->assertSessionHasErrors('status');
 
         $this->actingAs($supervisor)
-            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->withSession(['_token' => 'agent-license-token'])
+            ->patch(route('tenant.agent.status'), ['status' => 'available', '_token' => 'agent-license-token'])
             ->assertRedirect(route('tenant.agent.index'));
 
         $this->assertSame(1, app(AgentCapacityService::class)->availableAgentsForCompany($company->id));
