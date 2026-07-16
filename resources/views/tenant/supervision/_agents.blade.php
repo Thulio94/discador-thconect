@@ -18,13 +18,13 @@
                 && filled($activeCall?->telephony_channel)
                 && $agent->user_type === 'agent';
         @endphp
-        <div id="supervision-agent-{{ $agent->id }}" class="rounded-lg border border-l-4 p-4" style="border-color: var(--border); border-left-color: {{ $status['color'] }};">
+        <div id="supervision-agent-{{ $agent->id }}" class="rounded-lg border-2 p-4 transition-shadow" style="border-color: color-mix(in srgb, {{ $status['color'] }} 55%, var(--border)); box-shadow: 0 10px 24px color-mix(in srgb, {{ $status['color'] }} 16%, transparent);">
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_260px] lg:items-center">
                 <div>
                     <div class="flex flex-wrap items-center gap-2">
                         <p class="font-semibold">{{ $agent->name }}</p>
-                        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style="background: color-mix(in srgb, {{ $status['color'] }} 14%, var(--surface)); color: {{ $status['color'] }};">
-                            <span class="h-1.5 w-1.5 rounded-full" style="background: currentColor;"></span>{{ $status['label'] }}
+                        <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-bold" style="background: color-mix(in srgb, {{ $status['color'] }} 18%, var(--surface)); color: {{ $status['color'] }}; box-shadow: 0 4px 12px color-mix(in srgb, {{ $status['color'] }} 18%, transparent);">
+                            <span class="h-2 w-2 rounded-full" style="background: currentColor;"></span>{{ $status['label'] }}
                         </span>
                         @foreach ($agent->operational_alerts as $alert)
                             <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger);">{{ $alert }}</span>
@@ -34,7 +34,7 @@
                         Ramal {{ $agent->extension }} | {{ $userType }} | {{ $teamsText }}
                     </p>
                     <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                        <div class="rounded-lg border p-2" style="border-color: var(--border); background: var(--surface-alt);">
+                        <div class="rounded-lg border p-2" style="border-color: color-mix(in srgb, {{ $status['color'] }} 35%, var(--border)); background: color-mix(in srgb, {{ $status['color'] }} 8%, var(--surface-alt));">
                             <p class="text-[11px] font-semibold uppercase" style="color: var(--fg-muted);">Tempo no status</p>
                             <p class="mt-1 text-sm font-semibold">{{ $agent->status_duration_label }}</p>
                         </div>

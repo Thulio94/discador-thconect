@@ -47,19 +47,6 @@
                 </form>
             </div>
 
-            <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-y py-3 text-xs font-semibold" style="border-color: var(--border); color: var(--fg-muted);">
-                @foreach ([
-                    ['Disponivel', 'var(--status-success)'],
-                    ['Em pausa', 'var(--status-warning)'],
-                    ['Em chamada', 'var(--status-info)'],
-                    ['Em tabulacao', 'var(--status-purple)'],
-                    ['Offline', 'var(--status-neutral)'],
-                ] as [$label, $color])
-                    <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full" style="background: {{ $color }};"></span>{{ $label }}</span>
-                @endforeach
-                <span class="ml-auto text-[11px] font-medium">Atualizacao automatica a cada 10 segundos</span>
-            </div>
-
             @include('tenant.supervision._agents')
         </x-ui.card>
     </div>
