@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use App\Services\Licensing\ConcurrentAgentSessionService;
 
 class LoginRequest extends FormRequest
 {
@@ -47,6 +48,16 @@ class LoginRequest extends FormRequest
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
+            ]);
+        }
+
+        $user = Auth::user();
+
+        if ($user && ! app(ConcurrentAgentSessionService::class)->canStart($user)) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'O limite de agentes logados simultaneamente desta empresa foi atingido.',
             ]);
         }
 

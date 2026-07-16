@@ -6,7 +6,10 @@
         </div>
     </x-slot>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-3">
+        <x-ui.card title="Agentes logados">
+            @include('partials.license-usage-meter', ['label' => 'Sessoes de agentes', 'metric' => $licenseOverview['logged_agents']])
+        </x-ui.card>
         <x-ui.card title="Agentes disponiveis">
             <p class="text-3xl font-bold">{{ $licenseOverview['available_agents'] }}</p>
             <p class="mt-2 text-sm" style="color: var(--fg-muted);">Agentes em status disponivel para receber chamadas.</p>
@@ -40,6 +43,8 @@
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                                 {{ $usage['active_calls']['current'] }} ativa de {{ $usage['active_calls']['limit'] ?? 'sem teto' }}
                                 <span aria-hidden="true"> · </span>
+                                {{ $usage['logged_agents']['current'] }} agente{{ $usage['logged_agents']['current'] === 1 ? '' : 's' }} logado{{ $usage['logged_agents']['current'] === 1 ? '' : 's' }} de {{ $usage['logged_agents']['limit'] ?? 'sem teto' }}
+                                <span aria-hidden="true"> · </span>
                                 {{ $usage['calls_per_available_agent'] }} por operador disponivel
                                 <span aria-hidden="true"> · </span>
                                 capacidade efetiva {{ $usage['effective_call_limit'] }}
@@ -62,6 +67,7 @@
                             <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->status === 'active' ? 'Ativa' : 'Inativa' }}</dd></div>
                             <div><dt class="font-semibold">Licenca</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->license?->starts_at?->format('d/m/Y') }} a {{ $company->license?->ends_at?->format('d/m/Y') }}</dd></div>
                             <div><dt class="font-semibold">Agentes disponiveis</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['available_agents'] }}</dd></div>
+                            <div><dt class="font-semibold">Agentes logados</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['logged_agents']['current'] }} / {{ $usage['logged_agents']['limit'] ?? 'sem teto' }}</dd></div>
                             <div><dt class="font-semibold">Chamadas simultaneas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['active_calls']['current'] }} / {{ $usage['active_calls']['limit'] ?? 'sem teto' }}</dd></div>
                         </dl>
                     </x-ui.modal>
@@ -76,12 +82,9 @@
                         </form>
                     </x-ui.modal>
 
-                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
-                        <div class="grid gap-2 text-sm">
-                            <span class="font-semibold">Agentes disponiveis</span>
-                            <span class="text-2xl font-bold">{{ $usage['available_agents'] }}</span>
-                            <span class="text-xs" style="color: var(--fg-muted);">Nao ha limite de agentes conectados.</span>
-                        </div>
+                    <div class="mt-4 grid gap-4 lg:grid-cols-3">
+                        @include('partials.license-usage-meter', ['label' => 'Agentes logados', 'metric' => $usage['logged_agents']])
+                        <div class="grid gap-2 text-sm"><span class="font-semibold">Agentes disponiveis</span><span class="text-2xl font-bold">{{ $usage['available_agents'] }}</span><span class="text-xs" style="color: var(--fg-muted);">Em status disponivel para receber chamadas.</span></div>
                         @include('partials.license-usage-meter', ['label' => 'Chamadas simultaneas', 'metric' => $usage['active_calls']])
                     </div>
 

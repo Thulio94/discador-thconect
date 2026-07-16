@@ -11,7 +11,7 @@ Corrigir a navegação lateral, permitir que o Super Admin acompanhe uma empresa
 - O acesso de um Super Admin em uma empresa e um contexto temporario de sessao, nunca um novo usuario e nunca uma alteracao do `company_id` salvo no banco.
 - O contexto dara acesso administrativo completo aos modulos da empresa e permanecera visualmente identificado em todas as telas. Acoes de telefonia que originam ou alteram uma chamada permanecem bloqueadas para evitar que uma sessao de acompanhamento use o ramal do Super Admin.
 - Usuarios administrativos e supervisores nao consomem capacidade de chamadas.
-- Nao existe limite para quantidade de usuarios ativos ou agentes conectados. A capacidade operacional e: agentes com status `available` multiplicados pelo limite de chamadas por operador disponivel, com teto global de chamadas somente quando o Super Admin o preencher.
+- Nao existe limite para quantidade de usuarios cadastrados. O Super Admin pode definir, por empresa, um teto opcional de agentes logados simultaneamente; administradores, supervisores e Super Admin nao consomem esse teto. A capacidade de chamadas continua sendo: agentes com status `available` multiplicados pelo limite de chamadas por operador disponivel, com teto global de chamadas somente quando o Super Admin o preencher.
 
 ## Etapa 1 - Sidebar recolhivel
 
@@ -48,6 +48,6 @@ Corrigir a navegação lateral, permitir que o Super Admin acompanhe uma empresa
 
 - A sidebar ocupa aproximadamente 88 px recolhida e 256 px expandida, sem sobrepor conteudo.
 - O Super Admin pode entrar e sair de qualquer empresa ativa sem ser incluido em `users` da empresa, sem aparecer em equipes e sem consumir capacidade.
-- Uma empresa pode ter quantidade livre de usuarios e agentes conectados. Chamadas continuam limitadas somente por agentes disponiveis e pelo contrato de chamadas.
+- Uma empresa pode ter quantidade livre de usuarios cadastrados. O limite opcional de login simultaneo se aplica apenas a agentes; chamadas continuam limitadas por agentes disponiveis e pelo contrato de chamadas.
 - A tela de empresas nao executa consultas de uso repetidas para cada registro exibido.
 - Build, testes de frontend, testes de recursos afetados, verificacao de formato e verificacao de diff passam antes do envio ao GitHub.
