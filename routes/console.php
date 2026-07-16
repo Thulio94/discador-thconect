@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\RecordQueueHeartbeat;
+use App\Services\Dialer\CallWrapUpService;
 use App\Services\SystemStatus\SystemStatusService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -21,5 +22,10 @@ Schedule::call(fn () => app(SystemStatusService::class)->recordSchedulerHeartbea
 
 Schedule::job(new RecordQueueHeartbeat)
     ->name('system-status:queue-heartbeat')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::call(fn () => app(CallWrapUpService::class)->expireDue())
+    ->name('dialer:expire-call-wrap-ups')
     ->everyMinute()
     ->withoutOverlapping();

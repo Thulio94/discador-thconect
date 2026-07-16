@@ -542,6 +542,105 @@ class TenantAgentPanelTest extends TestCase
         $this->assertTrue($call->disposition->is($disposition));
     }
 
+    public function test_agent_enters_campaign_wrap_up_before_saving_a_disposition(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha Pos Atendimento',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'wrap_up_minutes' => 2,
+        ]);
+        $disposition = Disposition::create([
+            'company_id' => $company->id,
+            'name' => 'Cliente interessado',
+            'code' => 'INTERESSADO',
+            'category' => 'neutral',
+            'status' => 'active',
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'campaign_id' => $campaign->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990111',
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.hangup'), ['call_id' => $call->id])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHas('status');
+
+        $call->refresh();
+        $this->assertSame('wrap_up', $call->status);
+        $this->assertTrue($call->wrap_up_expires_at->isFuture());
+        $this->assertSame('wrap_up', $agent->fresh()->currentAgentStatus->status);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('Pos-atendimento')
+            ->assertSee('Escolha a tabulacao desta chamada')
+            ->assertSee('Cliente interessado')
+            ->assertSee('Tempo restante');
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.calls.end'), [
+                'call_id' => $call->id,
+                'disposition_id' => $disposition->id,
+            ])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $call->refresh();
+        $this->assertSame('ended', $call->status);
+        $this->assertSame($disposition->id, $call->disposition_id);
+        $this->assertNull($call->wrap_up_expires_at);
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_expired_wrap_up_ends_without_disposition_and_releases_agent(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'wrap_up',
+            'channel' => 'simulated',
+            'phone' => '31999990112',
+            'started_at' => now()->subMinutes(2),
+            'ended_at' => now()->subMinute(),
+            'wrap_up_expires_at' => now()->subSecond(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'wrap_up',
+            'started_at' => now()->subMinute(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertDontSee('Escolha a tabulacao desta chamada');
+
+        $call->refresh();
+        $this->assertSame('ended', $call->status);
+        $this->assertSame('wrap_up_timeout', $call->end_reason);
+        $this->assertNull($call->disposition_id);
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+    }
+
     public function test_pause_minimum_blocks_agent_from_returning_available_too_early(): void
     {
         [$agent] = $this->tenantUser('agent');

@@ -57,6 +57,7 @@ class TenantSupervisionTest extends TestCase
         [$available] = $this->tenantUser('agent', $company, 'Agente Disponivel');
         [$paused] = $this->tenantUser('agent', $company, 'Agente Pausado');
         [$inCall] = $this->tenantUser('agent', $company, 'Agente Em Chamada');
+        [$wrapUp] = $this->tenantUser('agent', $company, 'Agente Tabulando');
         [$offline] = $this->tenantUser('agent', $company, 'Agente Offline');
         $team = Team::create(['company_id' => $company->id, 'name' => 'Equipe Filtro', 'slug' => 'equipe-filtro']);
         $otherTeam = Team::create(['company_id' => $company->id, 'name' => 'Equipe Outra', 'slug' => 'equipe-outra']);
@@ -68,6 +69,7 @@ class TenantSupervisionTest extends TestCase
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $available->id, 'status' => 'available', 'started_at' => now()]);
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $paused->id, 'status' => 'paused', 'started_at' => now()]);
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $inCall->id, 'status' => 'in_call', 'started_at' => now()]);
+        AgentStatus::create(['company_id' => $company->id, 'user_id' => $wrapUp->id, 'status' => 'wrap_up', 'started_at' => now()]);
         Call::create([
             'company_id' => $company->id,
             'user_id' => $inCall->id,
@@ -84,6 +86,7 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Disponiveis')
             ->assertSee('Em pausa')
             ->assertSee('Em chamada')
+            ->assertSee('Em tabulacao')
             ->assertSee('Offline')
             ->assertSee('Chamadas ativas')
             ->assertSee('31999990001')

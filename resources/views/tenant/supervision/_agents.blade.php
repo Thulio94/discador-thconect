@@ -7,6 +7,7 @@
                 'available' => ['label' => 'Disponivel', 'color' => 'var(--status-success)', 'description' => 'Pronto para receber chamadas'],
                 'paused' => ['label' => 'Em pausa', 'color' => 'var(--status-warning)', 'description' => 'Atendimento temporariamente pausado'],
                 'in_call' => ['label' => 'Em chamada', 'color' => 'var(--status-info)', 'description' => 'Em atendimento ativo'],
+                'wrap_up' => ['label' => 'Em tabulacao', 'color' => 'var(--status-purple)', 'description' => 'Registrando o resultado da chamada'],
                 'offline' => ['label' => 'Offline', 'color' => 'var(--status-neutral)', 'description' => 'Sem sessao operacional'],
             ][$agent->supervision_status] ?? ['label' => 'Indisponivel', 'color' => 'var(--status-neutral)', 'description' => 'Status nao identificado'];
             $userType = ['agent' => 'Agente', 'supervisor' => 'Supervisor'][$agent->user_type] ?? 'Usuario';
@@ -40,7 +41,10 @@
                 </div>
 
                 <div class="text-sm">
-                    @if ($activeCall)
+                    @if ($agent->supervision_status === 'wrap_up')
+                        <p class="font-semibold">Tabulacao pendente</p>
+                        <p style="color: var(--fg-muted);">Prazo restante: {{ $agent->wrap_up_duration_label ?? '0 min' }}</p>
+                    @elseif ($activeCall)
                         <p class="font-semibold">Chamada ativa</p>
                         <p style="color: var(--fg-muted);">{{ $activeCall->phone ?? 'Sem numero' }} | {{ $channel }}</p>
                         <p class="mt-2 text-xs font-semibold" style="color: var(--fg);">Tempo em chamada</p>

@@ -1,4 +1,15 @@
 <x-app-layout>
+    @php
+        $statusLabels = [
+            'available' => 'Disponivel',
+            'paused' => 'Em pausa',
+            'in_call' => 'Em chamada',
+            'wrap_up' => 'Em tabulacao',
+            'offline' => 'Offline',
+        ];
+        $callForDisposition = $wrapUpCall ?? $currentCall;
+    @endphp
+
     <x-slot name="header">
         <div>
             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Operacao</p>
@@ -12,12 +23,17 @@
                 <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Status atual</p>
-                        <h2 class="mt-1 text-3xl font-bold">{{ $currentStatus }}</h2>
+                        <h2 class="mt-1 text-3xl font-bold">{{ $statusLabels[$currentStatus] ?? 'Indisponivel' }}</h2>
                         <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                             Ramal {{ auth()->user()->extension }} | {{ auth()->user()->user_type }}
                         </p>
                     </div>
 
+                    @if ($wrapUpCall)
+                        <div class="rounded-lg border px-3 py-2 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-purple) 45%, var(--border)); background: color-mix(in srgb, var(--status-purple) 12%, var(--surface)); color: var(--status-purple);">
+                            Tabulacao em andamento
+                        </div>
+                    @else
                     <div class="flex flex-wrap gap-2">
                         <form method="POST" action="{{ route('tenant.agent.status') }}">
                             @csrf
@@ -35,6 +51,7 @@
                             <x-ui.button type="submit" variant="ghost">Offline</x-ui.button>
                         </form>
                     </div>
+                    @endif
                 </div>
             </x-ui.card>
 
@@ -45,6 +62,9 @@
                         @if ($currentCall)
                             <h2 class="mt-1 text-xl font-bold">{{ $currentCall->phone ?? 'Sem numero' }}</h2>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">Canal {{ $currentCall->channel }} em andamento</p>
+                        @elseif ($wrapUpCall)
+                            <h2 class="mt-1 text-xl font-bold">Chamada encerrada</h2>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">Registre a tabulacao antes do fim do prazo para concluir o atendimento.</p>
                         @else
                             <h2 class="mt-1 text-xl font-bold">Nenhuma chamada ativa</h2>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">Chamada manual simulada pelo ramal do usuario.</p>
@@ -52,7 +72,14 @@
                     </div>
 
                     @if ($currentCall)
-                        <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'call-disposition')">Tabular e encerrar</x-ui.button>
+                        <form method="POST" action="{{ route('tenant.agent.calls.hangup') }}">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="call_id" value="{{ $currentCall->id }}">
+                            <x-ui.button type="submit" variant="danger">Encerrar chamada</x-ui.button>
+                        </form>
+                    @elseif ($wrapUpCall)
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'call-disposition')">Abrir tabulacoes</x-ui.button>
                     @else
                         <form method="POST" action="{{ route('tenant.agent.calls.store') }}" class="flex flex-col gap-2 sm:flex-row">
                             @csrf
@@ -69,22 +96,69 @@
                 </div>
             </x-ui.card>
 
-            @if ($currentCall?->contact)
+            @if ($wrapUpCall)
+                <x-ui.card>
+                    <div
+                        class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]"
+                        x-data="{
+                            remaining: {{ $wrapUpSecondsRemaining }},
+                            timer: null,
+                            format() {
+                                const minutes = Math.floor(this.remaining / 60);
+                                const seconds = this.remaining % 60;
+                                return `${minutes}:${String(seconds).padStart(2, '0')}`;
+                            },
+                            init() {
+                                this.timer = window.setInterval(() => {
+                                    if (this.remaining <= 1) {
+                                        window.clearInterval(this.timer);
+                                        window.location.reload();
+                                        return;
+                                    }
+                                    this.remaining -= 1;
+                                }, 1000);
+                            }
+                        }"
+                    >
+                        <div>
+                            <p class="text-xs font-semibold uppercase" style="color: var(--status-purple);">Pos-atendimento</p>
+                            <h2 class="mt-1 text-xl font-bold">Escolha a tabulacao desta chamada</h2>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">O agente permanece indisponivel para novas ligacoes ate salvar a tabulacao ou terminar o prazo.</p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                @forelse ($dispositions as $disposition)
+                                    <button type="button" class="th-focus rounded-lg border px-3 py-2 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-purple) 35%, var(--border)); color: var(--fg);" x-data x-on:click="$dispatch('open-modal', 'call-disposition')">
+                                        {{ $disposition->name }}
+                                    </button>
+                                @empty
+                                    <p class="text-sm" style="color: var(--status-danger);">Nao ha tabulacoes ativas cadastradas.</p>
+                                @endforelse
+                            </div>
+                        </div>
+                        <div class="rounded-lg border p-4" style="border-color: color-mix(in srgb, var(--status-purple) 35%, var(--border)); background: color-mix(in srgb, var(--status-purple) 8%, var(--surface));">
+                            <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tempo restante</p>
+                            <p class="mt-2 text-3xl font-bold" style="color: var(--status-purple);" x-text="format()"></p>
+                            <p class="mt-2 text-xs" style="color: var(--fg-muted);">Sem tabulacao ao terminar, a chamada sera registrada sem classificacao.</p>
+                        </div>
+                    </div>
+                </x-ui.card>
+            @endif
+
+            @if ($callForDisposition?->contact)
                 <x-ui.card>
                     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                         <div>
                             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Ficha do contato</p>
-                            <h2 class="mt-1 text-xl font-bold">{{ $currentCall->contact->name ?? 'Contato sem nome' }}</h2>
-                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $currentCall->contact->phone }}</p>
+                            <h2 class="mt-1 text-xl font-bold">{{ $callForDisposition->contact->name ?? 'Contato sem nome' }}</h2>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $callForDisposition->contact->phone }}</p>
 
                             <div class="mt-4 grid gap-2 sm:grid-cols-2">
                                 <div class="rounded-lg border p-3" style="border-color: var(--border);">
                                     <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Campanha</p>
-                                    <p class="mt-1 text-sm font-semibold">{{ $currentCall->campaign?->name ?? 'Sem campanha' }}</p>
+                                    <p class="mt-1 text-sm font-semibold">{{ $callForDisposition->campaign?->name ?? 'Sem campanha' }}</p>
                                 </div>
                                 <div class="rounded-lg border p-3" style="border-color: var(--border);">
                                     <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Lista</p>
-                                    <p class="mt-1 text-sm font-semibold">{{ $currentCall->contact->contactList?->name ?? 'Sem lista' }}</p>
+                                    <p class="mt-1 text-sm font-semibold">{{ $callForDisposition->contact->contactList?->name ?? 'Sem lista' }}</p>
                                 </div>
                             </div>
                         </div>
@@ -92,11 +166,11 @@
                         <div class="grid gap-2">
                             <div class="rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
                                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tentativas</p>
-                                <p class="mt-1 text-2xl font-bold">{{ $currentCall->contact->attempts_count }}</p>
+                                <p class="mt-1 text-2xl font-bold">{{ $callForDisposition->contact->attempts_count }}</p>
                             </div>
                             <div class="rounded-lg border p-3" style="border-color: var(--border);">
                                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Ultimo resultado</p>
-                                <p class="mt-1 text-sm font-semibold">{{ $currentCall->contact->last_result ?? 'Sem registro' }}</p>
+                                <p class="mt-1 text-sm font-semibold">{{ $callForDisposition->contact->last_result ?? 'Sem registro' }}</p>
                             </div>
                         </div>
                     </div>
@@ -124,11 +198,11 @@
                     </div>
                 </x-ui.card>
 
-                @if ($currentCall->campaign?->service_script)
+                @if ($callForDisposition->campaign?->service_script)
                     <x-ui.card>
                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Script de atendimento</p>
                         <div class="mt-3 rounded-lg border p-4 text-sm leading-6" style="border-color: var(--border); background: var(--surface-alt); color: var(--fg);">
-                            {!! nl2br(e($currentCall->campaign->service_script)) !!}
+                            {!! nl2br(e($callForDisposition->campaign->service_script)) !!}
                         </div>
                     </x-ui.card>
                 @endif
@@ -245,22 +319,22 @@
         </form>
     </x-ui.modal>
 
-    @if ($currentCall)
+    @if ($callForDisposition)
         <x-ui.modal
             name="call-disposition"
-            title="Tabular chamada"
+            title="{{ $wrapUpCall ? 'Tabular chamada encerrada' : 'Tabular chamada' }}"
             max-width="lg"
-            :show="$errors->hasAny(['disposition_id', 'callback_at', 'callback_type', 'service_fields.*'])"
+            :show="$wrapUpCall || $errors->hasAny(['disposition_id', 'callback_at', 'callback_type', 'service_fields.*'])"
         >
             @if ($dispositions->isNotEmpty())
                 <form method="POST" action="{{ route('tenant.agent.calls.end') }}" class="grid gap-4">
                     @csrf
                     @method('PATCH')
-                    <input type="hidden" name="call_id" value="{{ $currentCall->id }}">
+                    <input type="hidden" name="call_id" value="{{ $callForDisposition->id }}">
 
                     <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border); background: var(--surface-alt);">
-                        <p class="font-semibold">{{ $currentCall->phone ?? 'Sem numero' }}</p>
-                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">Chamada {{ $currentCall->channel }} em andamento.</p>
+                        <p class="font-semibold">{{ $callForDisposition->phone ?? 'Sem numero' }}</p>
+                        <p class="mt-1 text-xs" style="color: var(--fg-muted);">{{ $wrapUpCall ? 'Chamada encerrada aguardando classificacao.' : 'Chamada em andamento.' }}</p>
                     </div>
 
                     <label class="grid gap-1 text-sm">
@@ -309,7 +383,7 @@
                     </div>
 
                     @php
-                        $serviceFieldsSchema = $currentCall->campaign?->service_fields_schema ?: [
+                        $serviceFieldsSchema = $callForDisposition->campaign?->service_fields_schema ?: [
                             ['key' => 'documento', 'label' => 'Documento', 'type' => 'text', 'required' => false],
                             ['key' => 'protocolo', 'label' => 'Protocolo', 'type' => 'text', 'required' => false],
                             ['key' => 'valor', 'label' => 'Valor', 'type' => 'number', 'required' => false],

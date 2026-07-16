@@ -1065,6 +1065,7 @@ class TenantCampaignListCrudTest extends TestCase
                 'list_ids' => [$list->id],
                 'max_attempts_per_contact' => 3,
                 'retry_delay_minutes' => 20,
+                'wrap_up_minutes' => 4,
                 'max_concurrent_calls' => 4,
                 'amd_mode' => 'simulated',
                 'dialing_route' => 'Saida principal',
@@ -1075,6 +1076,7 @@ class TenantCampaignListCrudTest extends TestCase
 
         $this->assertSame(3, $campaign->max_attempts_per_contact);
         $this->assertSame(20, $campaign->retry_delay_minutes);
+        $this->assertSame(4, $campaign->wrap_up_minutes);
         $this->assertSame(4, $campaign->max_concurrent_calls);
         $this->assertSame('simulated', $campaign->amd_mode);
         $this->assertSame('Saida principal', $campaign->dialing_route);

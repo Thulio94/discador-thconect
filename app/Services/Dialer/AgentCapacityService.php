@@ -40,6 +40,7 @@ class AgentCapacityService
             ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
             ->whereDoesntHave('calls', function ($query): void {
                 $query->where('status', 'in_progress')
+                    ->orWhere('status', 'wrap_up')
                     ->orWhere(function ($query): void {
                         $query->where('status', 'ended')
                             ->whereNull('disposition_id');

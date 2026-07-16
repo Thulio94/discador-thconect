@@ -87,6 +87,7 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.status');
         Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.pause');
         Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.store');
+        Route::patch('agent/calls/hangup', [AgentPanelController::class, 'hangupCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.hangup');
         Route::patch('agent/calls/end', [AgentPanelController::class, 'endCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.end');
 
         Route::get('supervision/poll', [SupervisionController::class, 'poll'])->middleware('can:tenant.supervision.read')->name('supervision.poll');

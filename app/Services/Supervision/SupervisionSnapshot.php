@@ -6,17 +6,20 @@ use App\Models\Call;
 use App\Models\OperationalParameter;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Dialer\CallWrapUpService;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Support\Facades\DB;
 
 final class SupervisionSnapshot
 {
     public function __construct(
-        private readonly AppNotificationService $notifications
+        private readonly AppNotificationService $notifications,
+        private readonly CallWrapUpService $wrapUps,
     ) {}
 
     public function forCompany(int $companyId, string $status = '', ?int $teamId = null): array
     {
+        $this->wrapUps->expireForCompany($companyId);
         $parameters = OperationalParameter::forCompany($companyId);
 
         if ($teamId !== null) {
@@ -26,7 +29,7 @@ final class SupervisionSnapshot
         }
 
         abort_unless(
-            in_array($status, ['', 'available', 'paused', 'in_call', 'offline'], true),
+            in_array($status, ['', 'available', 'paused', 'in_call', 'wrap_up', 'offline'], true),
             404
         );
 
@@ -36,7 +39,7 @@ final class SupervisionSnapshot
             ->with([
                 'currentAgentStatus',
                 'calls' => fn ($query) => $query
-                    ->where('status', 'in_progress')
+                    ->whereIn('status', ['in_progress', 'wrap_up'])
                     ->with('campaign')
                     ->latest(),
             ])
@@ -54,6 +57,7 @@ final class SupervisionSnapshot
             ->get()
             ->map(function (User $user) use ($companyId, $parameters): User {
                 $activeCall = $user->calls->first();
+                $wrapUpCall = $user->calls->firstWhere('status', 'wrap_up');
                 $statusStartedAt = $user->currentAgentStatus?->started_at;
                 $statusMinutes = $statusStartedAt
                     ? (int) $statusStartedAt->diffInMinutes(now())
@@ -77,6 +81,12 @@ final class SupervisionSnapshot
                 $user->setAttribute(
                     'current_campaign_name',
                     $activeCall?->campaign?->name
+                );
+                $user->setAttribute(
+                    'wrap_up_duration_label',
+                    $wrapUpCall?->wrap_up_expires_at
+                        ? $this->durationLabel(max(0, now()->diffInMinutes($wrapUpCall->wrap_up_expires_at, false)))
+                        : null
                 );
                 $user->setAttribute('operational_alerts', collect([
                     $user->currentAgentStatus?->status === 'paused'
@@ -139,6 +149,9 @@ final class SupervisionSnapshot
                 )->count(),
                 'in_call' => $statuses->filter(
                     fn (string $value): bool => $value === 'in_call'
+                )->count(),
+                'wrap_up' => $statuses->filter(
+                    fn (string $value): bool => $value === 'wrap_up'
                 )->count(),
                 'offline' => $statuses->filter(
                     fn (string $value): bool => $value === 'offline'

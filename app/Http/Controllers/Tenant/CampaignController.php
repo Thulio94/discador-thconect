@@ -176,6 +176,7 @@ class CampaignController extends Controller
             'lead_phone_strategy' => $campaign->lead_phone_strategy ?? 'vertical',
             'max_attempts_per_contact' => $campaign->max_attempts_per_contact,
             'retry_delay_minutes' => $campaign->retry_delay_minutes,
+            'wrap_up_minutes' => $campaign->wrap_up_minutes,
             'max_concurrent_calls' => $campaign->max_concurrent_calls,
             'amd_mode' => $campaign->amd_mode ?? 'disabled',
             'dialing_route' => $campaign->dialing_route,
@@ -233,6 +234,7 @@ class CampaignController extends Controller
             'lead_phone_strategy' => ['nullable', Rule::in(['vertical', 'horizontal'])],
             'max_attempts_per_contact' => ['nullable', 'integer', 'min:1', 'max:50'],
             'retry_delay_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
+            'wrap_up_minutes' => ['nullable', 'integer', 'min:1', 'max:60'],
             'max_concurrent_calls' => [
                 'nullable',
                 'integer',
@@ -361,6 +363,7 @@ class CampaignController extends Controller
         return [
             'max_attempts_per_contact' => $data['max_attempts_per_contact'] ?? null,
             'retry_delay_minutes' => $data['retry_delay_minutes'] ?? null,
+            'wrap_up_minutes' => $data['wrap_up_minutes'] ?? 1,
             'max_concurrent_calls' => $data['max_concurrent_calls'] ?? null,
             'amd_mode' => $data['amd_mode'] ?? 'disabled',
             'dialing_route' => filled($data['dialing_route'] ?? null) ? trim($data['dialing_route']) : null,

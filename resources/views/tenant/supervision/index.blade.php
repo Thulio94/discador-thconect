@@ -31,7 +31,7 @@
                 <form method="GET" action="{{ route('tenant.supervision.index') }}" class="grid gap-2 sm:grid-cols-[180px_220px_auto]">
                     <select name="status" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                         <option value="">Todos status</option>
-                        @foreach (['available' => 'Disponivel', 'paused' => 'Pausa', 'in_call' => 'Em chamada', 'offline' => 'Offline'] as $value => $label)
+                        @foreach (['available' => 'Disponivel', 'paused' => 'Pausa', 'in_call' => 'Em chamada', 'wrap_up' => 'Em tabulacao', 'offline' => 'Offline'] as $value => $label)
                             <option value="{{ $value }}" @selected($selectedStatus === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
@@ -52,6 +52,7 @@
                     ['Disponivel', 'var(--status-success)'],
                     ['Em pausa', 'var(--status-warning)'],
                     ['Em chamada', 'var(--status-info)'],
+                    ['Em tabulacao', 'var(--status-purple)'],
                     ['Offline', 'var(--status-neutral)'],
                 ] as [$label, $color])
                     <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full" style="background: {{ $color }};"></span>{{ $label }}</span>

@@ -129,7 +129,7 @@
         </label>
         </div>
 
-        <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-3" style="border-color: var(--border); background: var(--surface-alt);">
+        <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-2 xl:grid-cols-4" style="border-color: var(--border); background: var(--surface-alt);">
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">Maximo de tentativas por lead</span>
                 <input name="max_attempts_per_contact" type="number" min="1" max="50" value="{{ old('max_attempts_per_contact', $campaign?->max_attempts_per_contact) }}" placeholder="Usar regra da tabulacao" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -139,6 +139,11 @@
                 <span class="font-semibold">Intervalo minimo entre tentativas</span>
                 <input name="retry_delay_minutes" type="number" min="0" max="10080" value="{{ old('retry_delay_minutes', $campaign?->retry_delay_minutes) }}" placeholder="Usar regra da tabulacao" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                 <span class="text-xs" style="color: var(--fg-muted);">Em minutos; usa o maior intervalo entre campanha e tabulacao.</span>
+            </label>
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Tempo para tabulacao</span>
+                <input name="wrap_up_minutes" type="number" min="1" max="60" value="{{ old('wrap_up_minutes', $campaign?->wrap_up_minutes ?? 1) }}" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <span class="text-xs" style="color: var(--fg-muted);">Em minutos. Nesse periodo o agente nao recebe outra chamada.</span>
             </label>
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">Teto simultaneo da campanha</span>
@@ -245,6 +250,10 @@
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tentativas</p>
                 <p class="mt-1 font-semibold">{{ old('max_attempts_per_contact', $campaign?->max_attempts_per_contact) ?: 'Pela tabulacao' }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tabulacao</p>
+                <p class="mt-1 font-semibold">{{ old('wrap_up_minutes', $campaign?->wrap_up_minutes ?? 1) }} minuto(s)</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">AMD</p>
