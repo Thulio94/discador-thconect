@@ -78,3 +78,19 @@ test('loads preview from an initial file slice without reading the whole file', 
         ['Joao', '31999990002'],
     ]);
 });
+
+test('surfaces file read errors and restores the preview state', async () => {
+    const component = listImportPreview();
+    const file = {
+        name: 'leads.csv',
+        text: async () => {
+            throw new Error('unreadable');
+        },
+    };
+
+    await component.loadFile(file);
+
+    assert.equal(component.isReading, false);
+    assert.equal(component.canSubmit(), false);
+    assert.equal(component.error, 'Nao foi possivel ler este arquivo. Verifique o formato CSV ou TXT.');
+});

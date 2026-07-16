@@ -187,6 +187,26 @@ class TenantCampaignListCrudTest extends TestCase
         ]);
     }
 
+    public function test_csv_import_validation_reopens_the_list_modal_with_visible_feedback(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $response = $this->followingRedirects()->from(route('tenant.lists.index'))->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Sem Feedback Oculto',
+                'status' => 'active',
+                'import_file' => UploadedFile::fake()->createWithContent('leads.txt', "Nome;Telefone\nMaria;31999990001"),
+                'import_columns' => [
+                    ['index' => 0, 'enabled' => '1', 'name' => 'Nome', 'type' => 'extra'],
+                    ['index' => 1, 'enabled' => '1', 'name' => 'Telefone', 'type' => 'extra'],
+                ],
+            ]);
+
+        $response->assertOk()
+            ->assertSee('A lista nao foi importada.')
+            ->assertSee('Selecione pelo menos uma coluna de telefone.');
+    }
+
     public function test_csv_import_rejects_empty_file_and_file_without_header(): void
     {
         [$admin] = $this->tenantAdmin();

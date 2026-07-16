@@ -109,15 +109,39 @@
     </x-ui.card>
 
     @can('tenant.lists.create')
-    <x-ui.modal name="list-create" title="Nova lista" max-width="4xl">
-        <form method="POST" action="{{ route('tenant.lists.store') }}" enctype="multipart/form-data" x-data="listImportPreview()">
+    <x-ui.modal name="list-create" title="Nova lista" max-width="4xl" :show="$errors->any()">
+        <form method="POST" action="{{ route('tenant.lists.store') }}" enctype="multipart/form-data" x-data="listImportPreview()" x-on:submit.prevent="submit($event)">
             @csrf
             @include('tenant.lists._form', ['list' => null])
+            @if ($errors->any())
+                <div class="mt-4 rounded-lg border p-3 text-sm" role="alert" style="border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border)); background: color-mix(in srgb, var(--status-danger) 8%, var(--surface)); color: var(--fg);">
+                    <p class="font-semibold">A lista nao foi importada.</p>
+                    <ul class="mt-2 grid gap-1 text-xs" style="color: var(--status-danger);">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
             <div class="mt-5 flex flex-wrap items-center justify-end gap-3">
-                <span class="text-xs" style="color: var(--fg-muted);" x-show="!canSubmit()">Aguardando coluna de Telefone.</span>
-                <x-ui.button type="submit" x-bind:disabled="!canSubmit()">Criar lista</x-ui.button>
+                <span class="text-xs" style="color: var(--fg-muted);" x-show="!isSubmitting && !canSubmit()">Aguardando coluna de Telefone.</span>
+                <span class="text-sm font-semibold" role="status" aria-live="polite" style="color: var(--primary);" x-show="isSubmitting">Importando mailing e validando contatos...</span>
+                <x-ui.button type="submit" x-bind:disabled="!canSubmit() || isSubmitting"><span x-text="isSubmitting ? 'Importando...' : 'Criar lista'"></span></x-ui.button>
             </div>
         </form>
     </x-ui.modal>
+    @if ($errors->any())
+        <script>
+            window.addEventListener('DOMContentLoaded', () => {
+                window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                        title: 'Importacao nao concluida',
+                        message: @js($errors->first()),
+                        severity: 'error',
+                    },
+                }));
+            });
+        </script>
+    @endif
     @endcan
 </x-app-layout>

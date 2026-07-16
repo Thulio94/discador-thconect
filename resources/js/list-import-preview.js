@@ -89,6 +89,8 @@ export function listImportPreview() {
         columns: [],
         previewRows: [],
         error: '',
+        isReading: false,
+        isSubmitting: false,
         async loadFile(file) {
             this.error = '';
             this.fileName = file?.name ?? '';
@@ -105,12 +107,22 @@ export function listImportPreview() {
                 return;
             }
 
-            const parsed = parseDelimitedText(await readPreviewText(file), this.separator || ';', this.delimiter || '"');
-            this.columns = buildColumnConfig(parsed.headers);
-            this.previewRows = parsed.previewRows;
+            this.isReading = true;
 
-            if (this.columns.length === 0) {
-                this.error = 'O arquivo precisa ter cabecalho.';
+            try {
+                const parsed = parseDelimitedText(await readPreviewText(file), this.separator || ';', this.delimiter || '"');
+                this.columns = buildColumnConfig(parsed.headers);
+                this.previewRows = parsed.previewRows;
+
+                if (this.columns.length === 0) {
+                    this.error = 'O arquivo precisa ter cabecalho.';
+                }
+            } catch {
+                this.columns = [];
+                this.previewRows = [];
+                this.error = 'Nao foi possivel ler este arquivo. Verifique o formato CSV ou TXT.';
+            } finally {
+                this.isReading = false;
             }
         },
         refreshPreview() {
@@ -119,9 +131,17 @@ export function listImportPreview() {
             }
         },
         choose(event) {
+            if (this.isSubmitting) {
+                return;
+            }
+
             this.loadFile(event.target.files?.[0]);
         },
         drop(event) {
+            if (this.isSubmitting) {
+                return;
+            }
+
             if (this.$refs?.file && event.dataTransfer?.files) {
                 this.$refs.file.files = event.dataTransfer.files;
             }
@@ -129,7 +149,24 @@ export function listImportPreview() {
             this.loadFile(event.dataTransfer.files?.[0]);
         },
         canSubmit() {
-            return hasPhoneColumn(this.columns);
+            return !this.isReading && !this.isSubmitting && hasPhoneColumn(this.columns);
+        },
+        submit(event) {
+            const form = event.currentTarget;
+
+            if (!this.canSubmit()) {
+                return;
+            }
+
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            this.isSubmitting = true;
+            this.error = '';
+
+            window.requestAnimationFrame(() => form.submit());
         },
     };
 }
