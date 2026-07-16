@@ -12,10 +12,12 @@
             <span class="font-semibold">Nome</span>
             <input name="name" value="{{ old('name', $disposition?->name) }}" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
         </label>
-        <label class="grid gap-1 text-sm">
+        <div class="grid gap-1 text-sm">
             <span class="font-semibold">Codigo</span>
-            <input name="code" value="{{ old('code', $disposition?->code) }}" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-        </label>
+            <div class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt); color: var(--fg-muted);">
+                {{ $disposition?->code ?? 'Gerado automaticamente ao salvar' }}
+            </div>
+        </div>
     </div>
     <div class="grid gap-3 md:grid-cols-2">
         <label class="grid gap-1 text-sm">
@@ -53,8 +55,9 @@
             <span class="font-semibold">Volta para fila</span>
         </label>
         <label class="grid gap-1 text-sm">
-            <span class="font-semibold">Cooldown minutos</span>
+            <span class="font-semibold">Intervalo para nova tentativa (minutos)</span>
             <input type="number" min="0" max="10080" name="retry_delay_minutes" value="{{ old('retry_delay_minutes', $disposition?->retry_delay_minutes) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            <span class="text-xs" style="color: var(--fg-muted);">Tempo minimo antes de o mesmo contato voltar para a fila de discagem.</span>
         </label>
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Max tentativas</span>

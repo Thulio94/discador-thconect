@@ -53,8 +53,9 @@ class TenantSettingsTest extends TestCase
             ->assertSee('Venda concluida')
             ->assertSee('31999990001')
             ->assertSee('create-pause-reason')
-            ->assertSee('Telefonia - Em breve')
-            ->assertSee('Integracoes - Em breve')
+            ->assertSee('Telefonia')
+            ->assertSee('AMD por campanha')
+            ->assertSee('Integracoes')
             ->assertDontSee('Modulo em breve')
             ->assertDontSee('javascript.alert')
             ->assertDontSee('confirm(');
@@ -169,7 +170,7 @@ class TenantSettingsTest extends TestCase
             ->assertRedirect(route('tenant.settings.index'))
             ->assertSessionHas('status');
 
-        $disposition = Disposition::where('company_id', $admin->company_id)->where('code', 'SEM_INTERESSE')->sole();
+        $disposition = Disposition::where('company_id', $admin->company_id)->where('code', 'TAB-0001')->sole();
         $this->assertTrue($disposition->ends_call);
         $this->assertTrue($disposition->retry_enabled);
         $this->assertSame(30, $disposition->retry_delay_minutes);
@@ -178,8 +179,8 @@ class TenantSettingsTest extends TestCase
         $this->actingAs($admin)
             ->get(route('tenant.settings.index'))
             ->assertOk()
-            ->assertSee('Retry 30 min')
-            ->assertSee('Max 4 tentativas');
+            ->assertSee('Nova tentativa em 30 min')
+            ->assertSee('Maximo de 4 tentativas');
 
         $this->actingAs($admin)
             ->post(route('tenant.settings.blacklist.store'), [
@@ -199,6 +200,21 @@ class TenantSettingsTest extends TestCase
             ->assertSessionHas('status');
 
         $this->assertSame('inactive', $blocked->fresh()->status);
+    }
+
+    public function test_tenant_admin_can_import_blacklist_numbers_in_bulk(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.settings.blacklist.import'), [
+                'numbers' => "(31) 99999-0003;Cliente solicitou bloqueio\n31999990004\ntelefone-invalido",
+            ])
+            ->assertRedirect(route('tenant.settings.index'))
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseHas('blacklist_numbers', ['company_id' => $admin->company_id, 'phone' => '31999990003', 'reason' => 'Cliente solicitou bloqueio']);
+        $this->assertDatabaseHas('blacklist_numbers', ['company_id' => $admin->company_id, 'phone' => '31999990004', 'status' => 'active']);
     }
 
     public function test_settings_records_are_isolated_by_company(): void

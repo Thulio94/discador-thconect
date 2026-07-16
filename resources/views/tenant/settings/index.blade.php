@@ -96,7 +96,7 @@
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold">Tabulacoes</h2>
-                    <p class="text-sm" style="color: var(--fg-muted);">Classificacoes futuras para encerramento e relatorios de chamadas.</p>
+                    <p class="text-sm" style="color: var(--fg-muted);">Classificacoes usadas no encerramento, retorno para fila e relatorios de chamadas.</p>
                 </div>
                 @can('tenant.settings.create')
                     <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-disposition')">Nova tabulacao</x-ui.button>
@@ -111,9 +111,9 @@
                             <p class="text-xs" style="color: var(--fg-muted);">
                                 {{ $disposition->code }}
                                 @if ($disposition->retry_enabled)
-                                    | Retry {{ $disposition->retry_delay_minutes ?? 0 }} min
+                                    | Nova tentativa em {{ $disposition->retry_delay_minutes ?? 0 }} min
                                     @if ($disposition->max_attempts)
-                                        | Max {{ $disposition->max_attempts }} tentativas
+                                        | Maximo de {{ $disposition->max_attempts }} tentativas
                                     @endif
                                 @endif
                             </p>
@@ -142,7 +142,10 @@
                     <p class="text-sm" style="color: var(--fg-muted);">Numeros bloqueados para campanhas futuras.</p>
                 </div>
                 @can('tenant.settings.create')
-                    <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-blacklist-number')">Adicionar numero</x-ui.button>
+                    <div class="flex flex-wrap gap-2">
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'import-blacklist-numbers')">Importar em massa</x-ui.button>
+                        <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'create-blacklist-number')">Adicionar numero</x-ui.button>
+                    </div>
                 @endcan
             </div>
 
@@ -168,18 +171,18 @@
         </x-ui.card>
 
         <div class="grid gap-3 md:grid-cols-3">
-            <div class="rounded-lg border p-4 text-sm" style="border-color: var(--border); background: var(--surface);">
-                <p class="font-semibold">Telefonia - Em breve</p>
-                <p class="mt-1" style="color: var(--fg-muted);">Troncos SIP, rotas e binas ficam reservados para a fase Asterisk.</p>
-            </div>
-            <div class="rounded-lg border p-4 text-sm" style="border-color: var(--border); background: var(--surface);">
-                <p class="font-semibold">AMD avancado - Em breve</p>
-                <p class="mt-1" style="color: var(--fg-muted);">Parametros finos entram junto ao motor real de discagem.</p>
-            </div>
-            <div class="rounded-lg border p-4 text-sm" style="border-color: var(--border); background: var(--surface);">
-                <p class="font-semibold">Integracoes - Em breve</p>
-                <p class="mt-1" style="color: var(--fg-muted);">CRM, webhooks e APIs externas continuam planejados como modulo separado.</p>
-            </div>
+            <a href="{{ route('tenant.telephony.index') }}" class="rounded-lg border p-4 text-sm transition" style="border-color: var(--border); background: var(--surface);">
+                <p class="font-semibold">Telefonia</p>
+                <p class="mt-1" style="color: var(--fg-muted);">Configure a rota Asterisk, tronco, ramais e teste a conexao AMI.</p>
+            </a>
+            <a href="{{ route('tenant.campaigns.index') }}" class="rounded-lg border p-4 text-sm transition" style="border-color: var(--border); background: var(--surface);">
+                <p class="font-semibold">AMD por campanha</p>
+                <p class="mt-1" style="color: var(--fg-muted);">Defina o modo AMD e a rota de discagem nas configuracoes de cada campanha.</p>
+            </a>
+            <a href="{{ route('tenant.integrations.index') }}" class="rounded-lg border p-4 text-sm transition" style="border-color: var(--border); background: var(--surface);">
+                <p class="font-semibold">Integracoes</p>
+                <p class="mt-1" style="color: var(--fg-muted);">Gerencie os conectores e webhooks externos da empresa.</p>
+            </a>
         </div>
     </div>
 
@@ -246,6 +249,22 @@
     @can('tenant.settings.create')
     <x-ui.modal name="create-blacklist-number" title="Adicionar numero" max-width="lg">
         @include('tenant.settings.partials.blacklist-form', ['action' => route('tenant.settings.blacklist.store'), 'number' => null])
+    </x-ui.modal>
+
+    <x-ui.modal name="import-blacklist-numbers" title="Importar blacklist" max-width="lg">
+        <form method="POST" action="{{ route('tenant.settings.blacklist.import') }}" enctype="multipart/form-data" class="grid gap-4">
+            @csrf
+            <p class="text-sm" style="color: var(--fg-muted);">Cole um numero por linha ou envie CSV/TXT. Para incluir o motivo, use <span class="font-semibold">telefone;motivo</span>.</p>
+            <textarea name="numbers" rows="8" placeholder="31999990001;Solicitou bloqueio&#10;31999990002" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);"></textarea>
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Arquivo CSV ou TXT</span>
+                <input type="file" name="file" accept=".csv,.txt,text/csv,text/plain" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            </label>
+            <div class="flex justify-end gap-2">
+                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'import-blacklist-numbers')">Cancelar</x-ui.button>
+                <x-ui.button type="submit">Importar numeros</x-ui.button>
+            </div>
+        </form>
     </x-ui.modal>
     @endcan
 

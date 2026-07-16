@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
+use App\Models\Company;
 use App\Models\Disposition;
 use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class SettingController extends Controller
@@ -78,7 +80,12 @@ class SettingController extends Controller
         $data = $this->validateDisposition($request);
         $data['company_id'] = $request->user()->company_id;
 
-        Disposition::create($data);
+        DB::transaction(function () use ($data): void {
+            Company::query()->whereKey($data['company_id'])->lockForUpdate()->firstOrFail();
+            $data['code'] = $this->nextDispositionCode($data['company_id']);
+
+            Disposition::create($data);
+        });
 
         return redirect()->route('tenant.settings.index')->with('status', 'Tabulacao cadastrada.');
     }
@@ -132,6 +139,81 @@ class SettingController extends Controller
         return redirect()->route('tenant.settings.index')->with('status', 'Numero da blacklist inativado.');
     }
 
+    public function importBlacklist(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'numbers' => ['nullable', 'string', 'max:500000'],
+            'file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
+        ]);
+
+        $content = (string) $request->input('numbers', '');
+
+        if ($request->hasFile('file')) {
+            $content = (string) file_get_contents($request->file('file')->getRealPath());
+        }
+
+        if (blank(trim($content))) {
+            return back()->withErrors(['numbers' => 'Informe numeros no campo ou envie um arquivo CSV/TXT.']);
+        }
+
+        $companyId = $request->user()->company_id;
+        $rows = collect(preg_split('/\R/u', $content) ?: [])
+            ->map(fn (string $line): array => array_map('trim', preg_split('/[;,]/', $line, 2) ?: []))
+            ->filter(fn (array $row): bool => filled($row[0] ?? null));
+        $numbers = [];
+        $invalid = 0;
+
+        foreach ($rows as $row) {
+            $phone = $this->normalizePhone($row[0]);
+
+            if (mb_strlen($phone) < 8 || mb_strlen($phone) > 20) {
+                $invalid++;
+
+                continue;
+            }
+
+            $numbers[$phone] = $row[1] ?? null;
+        }
+
+        $created = 0;
+        $reactivated = 0;
+
+        DB::transaction(function () use ($companyId, $numbers, &$created, &$reactivated): void {
+            foreach ($numbers as $phone => $reason) {
+                $entry = BlacklistNumber::query()
+                    ->where('company_id', $companyId)
+                    ->where('phone', $phone)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $entry) {
+                    BlacklistNumber::create([
+                        'company_id' => $companyId,
+                        'phone' => $phone,
+                        'reason' => filled($reason) ? $reason : null,
+                        'status' => 'active',
+                    ]);
+                    $created++;
+
+                    continue;
+                }
+
+                if ($entry->status !== 'active') {
+                    $entry->update([
+                        'status' => 'active',
+                        'reason' => filled($reason) ? $reason : $entry->reason,
+                    ]);
+                    $reactivated++;
+                }
+            }
+        });
+
+        return redirect()->route('tenant.settings.index')->with(
+            'status',
+            sprintf('Blacklist importada: %d novo(s), %d reativado(s), %d invalido(s) e %d duplicado(s) ignorado(s).', $created, $reactivated, $invalid, max(0, count($rows) - count($numbers) - $invalid))
+        );
+    }
+
     private function validatePauseReason(Request $request, ?PauseReason $pauseReason = null): array
     {
         $companyId = $request->user()->company_id;
@@ -157,14 +239,6 @@ class SettingController extends Controller
 
         return $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'code' => [
-                'required',
-                'string',
-                'max:40',
-                Rule::unique('dispositions', 'code')
-                    ->where('company_id', $companyId)
-                    ->ignore($disposition),
-            ],
             'category' => ['required', Rule::in(['success', 'neutral', 'negative', 'unproductive', 'callback'])],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'ends_call' => ['sometimes', 'boolean'],
@@ -212,6 +286,17 @@ class SettingController extends Controller
     private function normalizePhone(string $phone): string
     {
         return preg_replace('/\D+/', '', $phone) ?: $phone;
+    }
+
+    private function nextDispositionCode(int $companyId): string
+    {
+        $sequence = Disposition::query()->where('company_id', $companyId)->count() + 1;
+
+        do {
+            $code = sprintf('TAB-%04d', $sequence++);
+        } while (Disposition::query()->where('company_id', $companyId)->where('code', $code)->exists());
+
+        return $code;
     }
 
     private function authorizeTenantRecord(Request $request, int $companyId): void

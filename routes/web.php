@@ -11,8 +11,8 @@ use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\Tenant\AgentPanelController;
 use App\Http\Controllers\Tenant\AuditLogController as TenantAuditLogController;
 use App\Http\Controllers\Tenant\CampaignController;
-use App\Http\Controllers\Tenant\ComingSoonController;
 use App\Http\Controllers\Tenant\ContactListController;
+use App\Http\Controllers\Tenant\IntegrationController;
 use App\Http\Controllers\Tenant\NotificationController;
 use App\Http\Controllers\Tenant\ReportController;
 use App\Http\Controllers\Tenant\ReportScheduleController;
@@ -116,10 +116,15 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::put('settings/dispositions/{disposition}', [SettingController::class, 'updateDisposition'])->middleware('can:tenant.settings.update')->name('settings.dispositions.update');
         Route::delete('settings/dispositions/{disposition}', [SettingController::class, 'destroyDisposition'])->middleware('can:tenant.settings.delete')->name('settings.dispositions.destroy');
         Route::post('settings/blacklist', [SettingController::class, 'storeBlacklist'])->middleware('can:tenant.settings.create')->name('settings.blacklist.store');
+        Route::post('settings/blacklist/import', [SettingController::class, 'importBlacklist'])->middleware('can:tenant.settings.create')->name('settings.blacklist.import');
         Route::put('settings/blacklist/{blacklistNumber}', [SettingController::class, 'updateBlacklist'])->middleware('can:tenant.settings.update')->name('settings.blacklist.update');
         Route::delete('settings/blacklist/{blacklistNumber}', [SettingController::class, 'destroyBlacklist'])->middleware('can:tenant.settings.delete')->name('settings.blacklist.destroy');
 
-        Route::get('integrations', ComingSoonController::class)->middleware('can:tenant.integrations.read')->defaults('module', 'integrations')->name('integrations.index');
+        Route::get('integrations', [IntegrationController::class, 'index'])->middleware('can:tenant.integrations.read')->name('integrations.index');
+        Route::post('integrations', [IntegrationController::class, 'store'])->middleware('can:tenant.integrations.create')->name('integrations.store');
+        Route::put('integrations/{webhook}', [IntegrationController::class, 'update'])->middleware('can:tenant.integrations.update')->name('integrations.update');
+        Route::delete('integrations/{webhook}', [IntegrationController::class, 'destroy'])->middleware('can:tenant.integrations.delete')->name('integrations.destroy');
+        Route::post('integrations/{webhook}/test', [IntegrationController::class, 'test'])->middleware('can:tenant.integrations.update')->name('integrations.test');
         Route::get('notifications/poll', [NotificationController::class, 'poll'])->middleware('can:tenant.notifications.read')->name('notifications.poll');
         Route::patch('notifications/preferences', [NotificationController::class, 'updatePreferences'])->middleware('can:tenant.notifications.update')->name('notifications.preferences.update');
         Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->middleware('can:tenant.notifications.update')->name('notifications.read-all');

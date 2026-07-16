@@ -108,7 +108,7 @@ class CoreRoutesTest extends TestCase
             ->assertSee('Fila de processamento');
     }
 
-    public function test_tenant_integrations_module_is_coming_soon(): void
+    public function test_tenant_integrations_module_loads_webhook_configuration(): void
     {
         $user = $this->tenantUser();
 
@@ -116,7 +116,8 @@ class CoreRoutesTest extends TestCase
             ->get(route('tenant.integrations.index'))
             ->assertOk()
             ->assertSee('Integracoes')
-            ->assertSee('Modulo em breve');
+            ->assertSee('Webhooks externos')
+            ->assertDontSee('Modulo em breve');
     }
 
     public function test_tenant_telephony_route_loads_preparation_module(): void

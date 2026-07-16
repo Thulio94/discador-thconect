@@ -42,7 +42,7 @@ class PermissionMatrix
                 'update' => 'Marcar como lida',
             ])],
             'audit' => ['label' => 'Auditoria', 'permissions' => self::onlyRead('audit')],
-            'integrations' => ['label' => 'Integracoes', 'permissions' => self::onlyRead('integrations')],
+            'integrations' => ['label' => 'Integracoes', 'permissions' => self::crud('integrations')],
         ];
     }
 
