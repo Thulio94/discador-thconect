@@ -27,7 +27,7 @@ class SuperAdminCompanyCrudTest extends TestCase
         $company = Company::where('name', 'Nova Empresa')->sole();
 
         $this->assertSame(5, $company->license->max_calls_per_available_agent);
-        $this->assertNull($company->license->max_concurrent_logged_agents);
+        $this->assertSame(10, $company->license->max_concurrent_agents);
         $this->assertSame('active', $company->status);
     }
 
@@ -45,7 +45,7 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->put(route('super-admin.companies.update', $company), $this->payload([
                 'name' => 'Empresa Atualizada',
                 'max_calls_per_available_agent' => 7,
-                'max_concurrent_logged_agents' => 12,
+                'max_concurrent_agents' => 12,
                 'predictive_enabled' => '1',
                 'amd_enabled' => '1',
             ]))
@@ -56,7 +56,7 @@ class SuperAdminCompanyCrudTest extends TestCase
 
         $this->assertSame('Empresa Atualizada', $company->name);
         $this->assertSame(7, $company->license->max_calls_per_available_agent);
-        $this->assertSame(12, $company->license->max_concurrent_logged_agents);
+        $this->assertSame(12, $company->license->max_concurrent_agents);
         $this->assertTrue($company->license->predictive_enabled);
         $this->assertTrue($company->license->amd_enabled);
     }
@@ -82,7 +82,6 @@ class SuperAdminCompanyCrudTest extends TestCase
             'ends_at' => now()->addMonth()->toDateString(),
             'max_users' => 2,
             'max_concurrent_agents' => 1,
-            'max_concurrent_logged_agents' => 1,
             'max_calls_per_available_agent' => 3,
             'max_concurrent_calls' => 1,
         ]);
@@ -123,14 +122,14 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->get(route('super-admin.companies.index'))
             ->assertOk()
             ->assertDontSee('Usuarios contratados')
-            ->assertSee('Agentes logados')
+            ->assertSee('Licencas de agentes')
             ->assertSee('Agentes disponiveis')
             ->assertSee('Chamadas contratadas')
             ->assertSee('2 ativa de 1')
             ->assertSee('3 por operador disponivel')
             ->assertSee('capacidade efetiva 1')
             ->assertSee('Limite excedido')
-            ->assertSee('Agentes logados')
+            ->assertSee('Licencas de agentes em uso')
             ->assertSee('Chamadas simultaneas')
             ->assertSee('2 / 1');
     }
@@ -180,7 +179,6 @@ class SuperAdminCompanyCrudTest extends TestCase
             'license_ends_at' => now()->addMonth()->toDateString(),
             'max_users' => 25,
             'max_concurrent_agents' => 10,
-            'max_concurrent_logged_agents' => null,
             'max_calls_per_available_agent' => 3,
             'max_concurrent_calls' => 30,
             'power_enabled' => '1',

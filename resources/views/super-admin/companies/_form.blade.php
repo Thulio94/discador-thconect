@@ -33,9 +33,9 @@
         <input type="number" min="1" max="20" name="max_calls_per_available_agent" value="{{ old('max_calls_per_available_agent', $license?->max_calls_per_available_agent ?? 1) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
     </label>
     <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Agentes logados simultaneamente</span>
-        <input type="number" min="1" max="100000" name="max_concurrent_logged_agents" value="{{ old('max_concurrent_logged_agents', $license?->max_concurrent_logged_agents) }}" placeholder="Sem limite" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-        <span class="text-xs" style="color: var(--fg-muted);">Administradores, supervisores e Super Admin nao consomem este limite.</span>
+        <span class="font-semibold">Agentes disponiveis simultaneamente</span>
+        <input type="number" min="1" max="100000" name="max_concurrent_agents" value="{{ old('max_concurrent_agents', $license?->max_concurrent_agents) }}" placeholder="Sem limite" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+        <span class="text-xs" style="color: var(--fg-muted);">A licenca e consumida apenas pelo Agente ao ficar disponivel para receber chamadas.</span>
     </label>
     <label class="grid gap-1 text-sm">
         <span class="font-semibold">Chamadas simultaneas maximas</span>

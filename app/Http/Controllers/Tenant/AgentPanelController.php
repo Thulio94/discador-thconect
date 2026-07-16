@@ -17,6 +17,7 @@ use App\Services\Dialer\DialerCallRequest;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AgentPanelController extends Controller
@@ -26,7 +27,7 @@ class AgentPanelController extends Controller
         private readonly CallWrapUpService $wrapUps,
     ) {}
 
-    public function index(Request $request, AgentCapacityService $capacity): View
+    public function index(Request $request): View
     {
         $user = $request->user();
         $this->wrapUps->expireForUser($user);
@@ -67,7 +68,6 @@ class AgentPanelController extends Controller
                 ->limit(8)
                 ->get(),
             'recentStatuses' => $user->agentStatuses()->latest()->limit(8)->get(),
-            'availableAgents' => $capacity->availableAgentsForCompany($user->company_id),
             'pauseReasons' => PauseReason::query()
                 ->where('company_id', $user->company_id)
                 ->where('status', 'active')
@@ -82,7 +82,7 @@ class AgentPanelController extends Controller
         ]);
     }
 
-    public function status(Request $request): RedirectResponse
+    public function status(Request $request, AgentCapacityService $capacity): RedirectResponse
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(['available', 'offline'])],
@@ -101,12 +101,26 @@ class AgentPanelController extends Controller
             return back()->withErrors(['status' => $message]);
         }
 
-        $this->closeOpenRecords($user->id, $user->company_id);
-        $user->agentStatuses()->create([
-            'company_id' => $user->company_id,
-            'status' => $data['status'],
-            'started_at' => now(),
-        ]);
+        $statusUpdated = DB::transaction(function () use ($capacity, $data, $user): bool {
+            if ($data['status'] === 'available' && ! $capacity->canBecomeAvailable($user)) {
+                return false;
+            }
+
+            $this->closeOpenRecords($user->id, $user->company_id);
+            $user->agentStatuses()->create([
+                'company_id' => $user->company_id,
+                'status' => $data['status'],
+                'started_at' => now(),
+            ]);
+
+            return true;
+        });
+
+        if (! $statusUpdated) {
+            return back()->withErrors([
+                'status' => 'O limite de agentes disponiveis desta empresa foi atingido. Peca que outro agente entre em pausa ou fique offline para liberar uma licenca.',
+            ]);
+        }
 
         return redirect()->route('tenant.agent.index')->with('status', 'Status atualizado com sucesso.');
     }

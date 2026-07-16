@@ -4,10 +4,44 @@ namespace App\Services\Dialer;
 
 use App\Models\Call;
 use App\Models\Campaign;
+use App\Models\CompanyLicense;
 use App\Models\User;
 
 class AgentCapacityService
 {
+    /**
+     * Must be called inside the status-change transaction so the license row
+     * serializes simultaneous attempts to become available.
+     */
+    public function canBecomeAvailable(User $user): bool
+    {
+        if ($user->user_type !== 'agent' || $user->status !== 'active' || ! $user->company_id) {
+            return true;
+        }
+
+        $license = CompanyLicense::query()
+            ->where('company_id', $user->company_id)
+            ->where('status', 'active')
+            ->whereDate('starts_at', '<=', today())
+            ->whereDate('ends_at', '>=', today())
+            ->latest('starts_at')
+            ->lockForUpdate()
+            ->first();
+
+        $limit = $license?->max_concurrent_agents;
+
+        if ($limit === null) {
+            return true;
+        }
+
+        $alreadyAvailable = $user->agentStatuses()
+            ->where('status', 'available')
+            ->whereNull('ended_at')
+            ->exists();
+
+        return $alreadyAvailable || $this->availableAgentsForCompany($user->company_id) < (int) $limit;
+    }
+
     public function availableAgentsForCompany(int $companyId): int
     {
         return User::query()

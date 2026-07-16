@@ -312,7 +312,34 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('call-disposition')
             ->assertSee('Retorno')
             ->assertSee('Campos do atendimento')
+            ->assertDontSee('Agentes disponiveis nesta empresa.')
             ->assertDontSee('Modulo em breve');
+    }
+
+    public function test_available_status_consumes_the_agent_license_and_blocks_only_other_agents(): void
+    {
+        [$firstAgent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        [$supervisor] = $this->tenantUser('supervisor', $company);
+        $company->licenses()->firstOrFail()->update(['max_concurrent_agents' => 1]);
+
+        $this->actingAs($firstAgent)
+            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $this->actingAs($secondAgent)
+            ->from(route('tenant.agent.index'))
+            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHasErrors('status');
+
+        $this->actingAs($supervisor)
+            ->patch(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $this->assertSame(1, app(AgentCapacityService::class)->availableAgentsForCompany($company->id));
+        $this->assertSame('available', $supervisor->fresh()->currentAgentStatus->status);
+        $this->assertNull($secondAgent->fresh()->currentAgentStatus);
     }
 
     public function test_agent_panel_shows_current_contact_campaign_and_contact_history(): void

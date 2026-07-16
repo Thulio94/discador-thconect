@@ -251,14 +251,8 @@
             </x-ui.card>
         </div>
 
-        <div class="grid gap-4">
-            <x-ui.card>
-                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Capacidade</p>
-                <p class="mt-2 text-3xl font-bold">{{ $availableAgents }}</p>
-                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Agentes disponiveis nesta empresa.</p>
-            </x-ui.card>
-
-            <x-ui.card>
+          <div class="grid gap-4">
+              <x-ui.card>
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Historico</p>

@@ -12,9 +12,9 @@ class ConcurrentAgentLoginLimitTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_new_agent_login_is_blocked_when_company_concurrent_limit_is_reached(): void
+    public function test_new_agent_login_is_not_limited_by_available_agent_capacity(): void
     {
-        $company = $this->companyWithLoginLimit(1);
+        $company = $this->companyWithAvailableAgentLimit(1);
         $loggedAgent = $this->agent($company, 'logged@empresa.test');
         $newAgent = $this->agent($company, 'new@empresa.test');
         $this->activeSession($loggedAgent);
@@ -22,14 +22,14 @@ class ConcurrentAgentLoginLimitTest extends TestCase
         $this->post(route('login'), [
             'email' => $newAgent->email,
             'password' => 'password',
-        ])->assertSessionHasErrors('email');
+        ])->assertRedirect(route('dashboard', absolute: false));
 
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($newAgent);
     }
 
-    public function test_existing_agent_session_does_not_consume_an_extra_login_slot(): void
+    public function test_existing_agent_session_can_continue_normally(): void
     {
-        $company = $this->companyWithLoginLimit(1);
+        $company = $this->companyWithAvailableAgentLimit(1);
         $agent = $this->agent($company, 'agent@empresa.test');
         $this->activeSession($agent);
 
@@ -41,9 +41,9 @@ class ConcurrentAgentLoginLimitTest extends TestCase
         $this->assertAuthenticatedAs($agent);
     }
 
-    public function test_administrative_users_do_not_consume_or_obey_agent_login_limit(): void
+    public function test_administrative_users_are_not_affected_by_available_agent_capacity(): void
     {
-        $company = $this->companyWithLoginLimit(1);
+        $company = $this->companyWithAvailableAgentLimit(1);
         $this->activeSession($this->agent($company, 'agent@empresa.test'));
         $administrator = User::factory()->create([
             'company_id' => $company->id,
@@ -61,14 +61,14 @@ class ConcurrentAgentLoginLimitTest extends TestCase
         $this->assertAuthenticatedAs($administrator);
     }
 
-    private function companyWithLoginLimit(int $limit): Company
+    private function companyWithAvailableAgentLimit(int $limit): Company
     {
         $company = Company::create(['name' => 'Empresa de Sessoes', 'status' => 'active']);
         $company->licenses()->create([
             'status' => 'active',
             'starts_at' => now()->subDay()->toDateString(),
             'ends_at' => now()->addMonth()->toDateString(),
-            'max_concurrent_logged_agents' => $limit,
+            'max_concurrent_agents' => $limit,
         ]);
 
         return $company;
