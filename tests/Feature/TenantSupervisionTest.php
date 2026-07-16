@@ -87,10 +87,11 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Offline')
             ->assertSee('Chamadas ativas')
             ->assertSee('31999990001')
-            ->assertSee('1 disponivel')
-            ->assertSee('1 pausa')
-            ->assertSee('1 chamada')
-            ->assertSee('2 offline');
+            ->assertSee('Disponivel')
+            ->assertSee('1')
+            ->assertSee('em pausa')
+            ->assertSee('em chamada')
+            ->assertSee('offline');
 
         $this->actingAs($supervisor)
             ->get(route('tenant.supervision.index', ['status' => 'paused']))

@@ -25,7 +25,7 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold">Agentes em operacao</h2>
-                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">Visao simulada dos operadores, ramais, equipes e chamadas ativas.</p>
+                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">Acompanhamento em tempo real de operadores, ramais, equipes e chamadas ativas.</p>
                 </div>
 
                 <form method="GET" action="{{ route('tenant.supervision.index') }}" class="grid gap-2 sm:grid-cols-[180px_220px_auto]">
@@ -45,6 +45,18 @@
 
                     <x-ui.button type="submit" variant="secondary">Filtrar</x-ui.button>
                 </form>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-y py-3 text-xs font-semibold" style="border-color: var(--border); color: var(--fg-muted);">
+                @foreach ([
+                    ['Disponivel', 'var(--status-success)'],
+                    ['Em pausa', 'var(--status-warning)'],
+                    ['Em chamada', 'var(--status-info)'],
+                    ['Offline', 'var(--status-neutral)'],
+                ] as [$label, $color])
+                    <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full" style="background: {{ $color }};"></span>{{ $label }}</span>
+                @endforeach
+                <span class="ml-auto text-[11px] font-medium">Atualizacao automatica a cada 10 segundos</span>
             </div>
 
             @include('tenant.supervision._agents')
