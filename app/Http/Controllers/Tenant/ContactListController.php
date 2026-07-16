@@ -52,7 +52,7 @@ class ContactListController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $companyId = $request->user()->company_id;
-        $data = $request->validate($this->rules($companyId));
+        $data = $request->validate($this->rules($companyId), $this->importMessages());
 
         if ($request->hasFile('import_file')) {
             [$list, $summary] = DB::transaction(function () use ($companyId, $data, $request): array {
@@ -96,7 +96,7 @@ class ContactListController extends Controller
     {
         abort_unless($list->company_id === $request->user()->company_id, 403);
 
-        $data = $request->validate($this->rules($list->company_id, $list));
+        $data = $request->validate($this->rules($list->company_id, $list), $this->importMessages());
 
         $list->update([
             'name' => $data['name'],
@@ -136,6 +136,15 @@ class ContactListController extends Controller
             'import_columns.*.enabled' => ['nullable'],
             'import_columns.*.name' => ['nullable', 'string', 'max:255'],
             'import_columns.*.type' => ['nullable', Rule::in(['extra', 'phone'])],
+        ];
+    }
+
+    private function importMessages(): array
+    {
+        return [
+            'import_file.uploaded' => 'Nao foi possivel enviar o arquivo. Confira sua conexao e tente novamente com um CSV ou TXT de ate 20 MB.',
+            'import_file.max' => 'O arquivo de mailing pode ter no maximo 20 MB.',
+            'import_file.mimes' => 'Envie apenas arquivos CSV ou TXT.',
         ];
     }
 

@@ -232,6 +232,21 @@ class TenantCampaignListCrudTest extends TestCase
         }
     }
 
+    public function test_csv_import_explains_the_mailing_file_size_limit(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Acima do Limite',
+                'status' => 'active',
+                'import_file' => UploadedFile::fake()->create('grande.csv', 20481, 'text/csv'),
+            ])
+            ->assertSessionHasErrors([
+                'import_file' => 'O arquivo de mailing pode ter no maximo 20 MB.',
+            ]);
+    }
+
     public function test_csv_import_applies_blacklist_to_all_phone_columns(): void
     {
         [$admin] = $this->tenantAdmin();

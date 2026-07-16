@@ -42,7 +42,7 @@
                 >
                     Fazer upload CSV/TXT: arraste e solte ou clique para selecionar
                 </button>
-                <span class="text-xs" style="color: var(--fg-muted);" x-text="fileName || 'Envie um arquivo .csv ou .txt com cabecalho na primeira linha.'"></span>
+                <span class="text-xs" style="color: var(--fg-muted);" x-text="fileName || 'Envie um arquivo .csv ou .txt de ate 20 MB, com cabecalho na primeira linha.'"></span>
                 <span class="text-xs" style="color: var(--primary);" x-show="isReading">Lendo colunas do arquivo...</span>
                 <span class="text-xs" style="color: var(--status-danger);" x-show="error" x-text="error"></span>
                 @error('import_file')
