@@ -15,7 +15,7 @@ class AgentCapacityService
      */
     public function canBecomeAvailable(User $user): bool
     {
-        if ($user->user_type !== 'agent' || $user->status !== 'active' || ! $user->company_id) {
+        if ($user->is_super_admin || $user->status !== 'active' || ! $user->company_id) {
             return true;
         }
 
@@ -39,7 +39,17 @@ class AgentCapacityService
             ->whereNull('ended_at')
             ->exists();
 
-        return $alreadyAvailable || $this->availableAgentsForCompany($user->company_id) < (int) $limit;
+        return $alreadyAvailable || $this->availableLicenseUsersForCompany($user->company_id) < (int) $limit;
+    }
+
+    public function availableLicenseUsersForCompany(int $companyId): int
+    {
+        return User::query()
+            ->where('company_id', $companyId)
+            ->where('status', 'active')
+            ->where('user_type', '!=', 'super_admin')
+            ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
+            ->count();
     }
 
     public function availableAgentsForCompany(int $companyId): int

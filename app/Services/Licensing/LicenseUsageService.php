@@ -37,6 +37,15 @@ class LicenseUsageService
             ->groupBy('company_id')
             ->pluck('aggregate', 'company_id');
 
+        $availableUsers = User::query()
+            ->whereIn('company_id', $companyIds)
+            ->where('status', 'active')
+            ->where('user_type', '!=', 'super_admin')
+            ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
+            ->selectRaw('company_id, count(*) as aggregate')
+            ->groupBy('company_id')
+            ->pluck('aggregate', 'company_id');
+
         $activeCalls = Call::query()
             ->whereIn('company_id', $companyIds)
             ->where('status', 'in_progress')
@@ -44,9 +53,10 @@ class LicenseUsageService
             ->groupBy('company_id')
             ->pluck('aggregate', 'company_id');
 
-        return $companies->mapWithKeys(function (Company $company) use ($availableAgents, $activeCalls): array {
+        return $companies->mapWithKeys(function (Company $company) use ($availableAgents, $availableUsers, $activeCalls): array {
             $license = $company->license;
             $availableAgentCount = (int) ($availableAgents[$company->id] ?? 0);
+            $availableUserCount = (int) ($availableUsers[$company->id] ?? 0);
             $activeCallCount = (int) ($activeCalls[$company->id] ?? 0);
             $callsPerAvailableAgent = max(1, (int) ($license?->max_calls_per_available_agent ?? 1));
             $agentCallCapacity = $availableAgentCount * $callsPerAvailableAgent;
@@ -60,13 +70,13 @@ class LicenseUsageService
                 'license' => $license,
                 'available_agents' => $availableAgentCount,
                 'active_calls' => $this->metric($activeCallCount, $contractedCallLimit),
-                'available_agent_slots' => $this->metric($availableAgentCount, $availableAgentLimit),
+                'available_user_slots' => $this->metric($availableUserCount, $availableAgentLimit),
                 'agent_call_capacity' => $agentCallCapacity,
                 'effective_call_limit' => $effectiveCallLimit,
                 'calls_per_available_agent' => $callsPerAvailableAgent,
                 'status' => $this->worstStatus([
                     $this->status($activeCallCount, $contractedCallLimit),
-                    $this->status($availableAgentCount, $availableAgentLimit),
+                    $this->status($availableUserCount, $availableAgentLimit),
                 ]),
             ]];
         })->all();
@@ -85,8 +95,8 @@ class LicenseUsageService
         return [
             'companies' => $companies->count(),
             'available_agents' => $summaries->sum('available_agents'),
-            'available_agent_slots' => $this->metric(
-                $summaries->sum('available_agent_slots.current'),
+            'available_user_slots' => $this->metric(
+                $summaries->sum('available_user_slots.current'),
                 $this->sumNullableLimit($licenses, 'max_concurrent_agents')
             ),
             'active_calls' => $this->metric(

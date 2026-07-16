@@ -122,14 +122,14 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->get(route('super-admin.companies.index'))
             ->assertOk()
             ->assertDontSee('Usuarios contratados')
-            ->assertSee('Licencas de agentes')
+            ->assertSee('Licencas em uso')
             ->assertSee('Agentes disponiveis')
             ->assertSee('Chamadas contratadas')
             ->assertSee('2 ativa de 1')
             ->assertSee('3 por operador disponivel')
             ->assertSee('capacidade efetiva 1')
             ->assertSee('Limite excedido')
-            ->assertSee('Licencas de agentes em uso')
+            ->assertSee('Usuarios disponiveis')
             ->assertSee('Chamadas simultaneas')
             ->assertSee('2 / 1');
     }

@@ -118,7 +118,7 @@ class AgentPanelController extends Controller
 
         if (! $statusUpdated) {
             return back()->withErrors([
-                'status' => 'O limite de agentes disponiveis desta empresa foi atingido. Peca que outro agente entre em pausa ou fique offline para liberar uma licenca.',
+                'status' => 'O limite de usuarios disponiveis desta empresa foi atingido. Peca que outro usuario entre em pausa ou fique offline para liberar uma licenca.',
             ]);
         }
 

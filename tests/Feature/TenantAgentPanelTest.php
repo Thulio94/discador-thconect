@@ -316,7 +316,7 @@ class TenantAgentPanelTest extends TestCase
             ->assertDontSee('Modulo em breve');
     }
 
-    public function test_available_status_consumes_the_agent_license_and_blocks_only_other_agents(): void
+    public function test_available_status_consumes_a_license_for_every_tenant_user(): void
     {
         [$firstAgent, $company] = $this->tenantUser('agent');
         [$secondAgent] = $this->tenantUser('agent', $company);
@@ -337,11 +337,14 @@ class TenantAgentPanelTest extends TestCase
 
         $this->actingAs($supervisor)
             ->withSession(['_token' => 'agent-license-token'])
+            ->from(route('tenant.agent.index'))
             ->patch(route('tenant.agent.status'), ['status' => 'available', '_token' => 'agent-license-token'])
-            ->assertRedirect(route('tenant.agent.index'));
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHasErrors('status');
 
         $this->assertSame(1, app(AgentCapacityService::class)->availableAgentsForCompany($company->id));
-        $this->assertSame('available', $supervisor->fresh()->currentAgentStatus->status);
+        $this->assertSame(1, app(AgentCapacityService::class)->availableLicenseUsersForCompany($company->id));
+        $this->assertNull($supervisor->fresh()->currentAgentStatus);
         $this->assertNull($secondAgent->fresh()->currentAgentStatus);
     }
 
