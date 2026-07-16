@@ -85,20 +85,30 @@ class UserController extends Controller
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId, $user));
 
-        $user->update([
+        $attributes = [
             'role_id' => $data['role_id'],
             'name' => $data['name'],
             'email' => $data['email'],
             'user_type' => $data['user_type'],
             'extension' => $data['extension'],
             'status' => $data['status'],
-        ]);
+        ];
+
+        $passwordChanged = filled($data['password'] ?? null);
+
+        if ($passwordChanged) {
+            $attributes['password'] = Hash::make($data['password']);
+        }
+
+        $user->update($attributes);
 
         $this->syncTeams($user, $data['team_ids'] ?? []);
 
         return redirect()
             ->route('tenant.users.index')
-            ->with('status', 'Usuario atualizado com sucesso.');
+            ->with('status', $passwordChanged
+                ? 'Usuario atualizado e senha alterada com sucesso.'
+                : 'Usuario atualizado com sucesso.');
     }
 
     public function destroy(Request $request, User $user): RedirectResponse
@@ -135,6 +145,9 @@ class UserController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'team_ids' => ['array'],
             'team_ids.*' => [Rule::exists('teams', 'id')->where('company_id', $companyId)],
+            'password' => $user
+                ? ['nullable', 'string', 'min:8', 'max:255', 'confirmed']
+                : ['nullable'],
         ];
     }
 

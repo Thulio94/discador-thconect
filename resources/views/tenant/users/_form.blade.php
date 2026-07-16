@@ -38,6 +38,28 @@
     </label>
 </div>
 
+@if ($user)
+    <section class="mt-4 rounded-lg border p-4" style="border-color: var(--border); background: var(--surface-alt);">
+        <div>
+            <p class="text-sm font-semibold">Alterar senha</p>
+            <p class="mt-1 text-xs" style="color: var(--fg-muted);">Deixe os campos vazios para manter a senha atual.</p>
+        </div>
+        <div class="mt-3 grid gap-4 md:grid-cols-2">
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Nova senha</span>
+                <input type="password" name="password" autocomplete="new-password" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" minlength="8">
+                @error('password')
+                    <span class="text-xs" style="color: var(--status-danger);">{{ $message }}</span>
+                @enderror
+            </label>
+            <label class="grid gap-1 text-sm">
+                <span class="font-semibold">Confirmar nova senha</span>
+                <input type="password" name="password_confirmation" autocomplete="new-password" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" minlength="8">
+            </label>
+        </div>
+    </section>
+@endif
+
 <div class="mt-4 grid gap-2">
     <p class="text-sm font-semibold">Equipes</p>
     <div class="grid gap-2 md:grid-cols-2">

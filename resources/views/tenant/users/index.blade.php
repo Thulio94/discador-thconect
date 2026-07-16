@@ -91,10 +91,11 @@
                 </x-ui.modal>
 
                 @can('tenant.users.update')
-                    <x-ui.modal name="user-edit-{{ $user->id }}" title="Editar usuario">
+                    <x-ui.modal name="user-edit-{{ $user->id }}" title="Editar usuario" :show="$errors->any() && (int) old('_user_id') === $user->id">
                         <form method="POST" action="{{ route('tenant.users.update', $user) }}">
                             @csrf
                             @method('PUT')
+                            <input type="hidden" name="_user_id" value="{{ $user->id }}">
                             @include('tenant.users._form', ['user' => $user, 'roles' => $roles, 'teams' => $teams])
                             <div class="mt-5 flex justify-end gap-2">
                                 <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'user-edit-{{ $user->id }}')">Cancelar</x-ui.button>

@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class TenantUserCrudTest extends TestCase
@@ -189,6 +190,63 @@ class TenantUserCrudTest extends TestCase
         $agent->fresh()->save();
 
         $this->assertSame($count, AuditLog::count());
+    }
+
+    public function test_tenant_admin_can_change_a_users_password(): void
+    {
+        [$admin, $role, $team] = $this->tenantAdmin();
+        $agent = User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $role->id,
+            'user_type' => 'agent',
+            'extension' => '2001',
+            'status' => 'active',
+            'password' => Hash::make('senha-anterior'),
+        ]);
+        $agent->teams()->attach($team->id, ['company_id' => $admin->company_id, 'membership_type' => 'agent']);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.users.update', $agent), [
+                'name' => $agent->name,
+                'email' => $agent->email,
+                'user_type' => $agent->user_type,
+                'extension' => $agent->extension,
+                'role_id' => $role->id,
+                'status' => 'active',
+                'team_ids' => [$team->id],
+                'password' => 'nova-senha-segura',
+                'password_confirmation' => 'nova-senha-segura',
+            ])
+            ->assertRedirect(route('tenant.users.index'))
+            ->assertSessionHas('status', 'Usuario atualizado e senha alterada com sucesso.');
+
+        $this->assertTrue(Hash::check('nova-senha-segura', $agent->fresh()->password));
+        $this->assertFalse(Hash::check('senha-anterior', $agent->fresh()->password));
+    }
+
+    public function test_password_change_requires_matching_confirmation(): void
+    {
+        [$admin, $role] = $this->tenantAdmin();
+        $agent = User::factory()->create([
+            'company_id' => $admin->company_id,
+            'role_id' => $role->id,
+            'user_type' => 'agent',
+            'extension' => '2001',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('tenant.users.update', $agent), [
+                'name' => $agent->name,
+                'email' => $agent->email,
+                'user_type' => $agent->user_type,
+                'extension' => $agent->extension,
+                'role_id' => $role->id,
+                'status' => 'active',
+                'password' => 'nova-senha-segura',
+                'password_confirmation' => 'confirmacao-diferente',
+            ])
+            ->assertSessionHasErrors('password');
     }
 
     private function tenantAdmin(int $maxUsers = 10): array
