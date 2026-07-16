@@ -56,6 +56,7 @@ class DemoTenantSeeder extends Seeder
             'campaigns.operate',
             'agent.access',
             'supervision.read',
+            'supervision.operate',
             'reports.read',
             'reports.export',
             'reports.schedules',

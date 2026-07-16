@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Bridge\AsteriskEventController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
@@ -92,6 +92,7 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
 
         Route::get('supervision/poll', [SupervisionController::class, 'poll'])->middleware('can:tenant.supervision.read')->name('supervision.poll');
         Route::get('supervision', [SupervisionController::class, 'index'])->middleware('can:tenant.supervision.read')->name('supervision.index');
+        Route::post('supervision/agents/{agent}/monitor', [SupervisionController::class, 'monitor'])->middleware('can:tenant.supervision.operate')->name('supervision.monitor');
 
         Route::get('reports', [ReportController::class, 'index'])->middleware('can:tenant.reports.read')->name('reports.index');
         Route::get('reports/export', [ReportController::class, 'export'])->middleware('can:tenant.reports.export')->name('reports.export');

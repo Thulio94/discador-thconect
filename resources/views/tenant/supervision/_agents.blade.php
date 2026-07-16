@@ -11,7 +11,12 @@
                 'offline' => ['label' => 'Offline', 'color' => 'var(--status-neutral)', 'description' => 'Sem sessao operacional'],
             ][$agent->supervision_status] ?? ['label' => 'Indisponivel', 'color' => 'var(--status-neutral)', 'description' => 'Status nao identificado'];
             $userType = ['agent' => 'Agente', 'supervisor' => 'Supervisor'][$agent->user_type] ?? 'Usuario';
-            $channel = ['manual' => 'Manual', 'simulated' => 'Simulada', 'asterisk' => 'Telefonia'][$activeCall?->channel] ?? $activeCall?->channel;
+            $channel = ['manual' => 'Manual', 'simulated' => 'Simulada', 'asterisk_ami' => 'Asterisk'][$activeCall?->channel] ?? $activeCall?->channel;
+            $monitoringAvailable = $monitoringReady
+                && $activeCall?->status === 'in_progress'
+                && $activeCall?->channel === 'asterisk_ami'
+                && filled($activeCall?->telephony_channel)
+                && $agent->user_type === 'agent';
         @endphp
         <div id="supervision-agent-{{ $agent->id }}" class="rounded-lg border border-l-4 p-4" style="border-color: var(--border); border-left-color: {{ $status['color'] }};">
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_260px] lg:items-center">
@@ -57,9 +62,17 @@
 
                 <div class="flex flex-wrap justify-end gap-2">
                     <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'supervision-agent-{{ $agent->id }}')">Detalhes</x-ui.button>
-                    <span class="rounded-lg border px-3 py-2 text-xs font-semibold" style="border-color: var(--border); color: var(--fg-muted);">Ouvir (em breve)</span>
-                    <span class="rounded-lg border px-3 py-2 text-xs font-semibold" style="border-color: var(--border); color: var(--fg-muted);">Sussurrar (em breve)</span>
-                    <span class="rounded-lg border px-3 py-2 text-xs font-semibold" style="border-color: var(--border); color: var(--fg-muted);">Intervir (em breve)</span>
+                    @can('tenant.supervision.operate')
+                        @if ($monitoringAvailable)
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'supervision-monitor-listen-{{ $agent->id }}')">Ouvir</x-ui.button>
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'supervision-monitor-whisper-{{ $agent->id }}')">Sussurrar</x-ui.button>
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'supervision-monitor-barge-{{ $agent->id }}')">Intervir</x-ui.button>
+                        @else
+                            <span class="max-w-[250px] rounded-lg border px-3 py-2 text-xs font-medium" style="border-color: var(--border); color: var(--fg-muted);">
+                                {{ $monitoringReason ?? 'Monitoria disponivel somente em chamadas Asterisk ativas de agentes.' }}
+                            </span>
+                        @endif
+                    @endcan
                 </div>
             </div>
         </div>
@@ -76,9 +89,33 @@
                 @if (count($agent->operational_alerts))
                     <p><span class="font-semibold">Alertas:</span> {{ implode(', ', $agent->operational_alerts) }}</p>
                 @endif
-                <p><span class="font-semibold">Telefonia:</span> Ouvir, Sussurrar e Intervir em breve.</p>
+                <p><span class="font-semibold">Monitoria:</span> {{ $monitoringAvailable ? 'Disponivel para esta chamada Asterisk.' : ($monitoringReason ?? 'Indisponivel para esta chamada.') }}</p>
             </div>
         </x-ui.modal>
+
+        @if ($monitoringAvailable)
+            @foreach ([
+                'listen' => ['titulo' => 'Ouvir chamada', 'botao' => 'Iniciar escuta', 'descricao' => 'Voce ouvira a conversa sem ser percebido pelo agente ou pelo cliente.'],
+                'whisper' => ['titulo' => 'Sussurrar para o agente', 'botao' => 'Iniciar sussurro', 'descricao' => 'Somente o agente ouvira sua voz; o cliente continuara sem ouvir sua intervencao.'],
+                'barge' => ['titulo' => 'Intervir na chamada', 'botao' => 'Entrar na chamada', 'descricao' => 'Voce entrara na conversa e podera falar com o agente e o cliente.'],
+            ] as $mode => $monitor)
+                <x-ui.modal name="supervision-monitor-{{ $mode }}-{{ $agent->id }}" title="{{ $monitor['titulo'] }}" max-width="md">
+                    <form method="POST" action="{{ route('tenant.supervision.monitor', $agent) }}" class="grid gap-4">
+                        @csrf
+                        <input type="hidden" name="mode" value="{{ $mode }}">
+                        <p class="text-sm" style="color: var(--fg-muted);">{{ $monitor['descricao'] }}</p>
+                        <div class="rounded-lg border p-3 text-sm" style="border-color: var(--border); background: var(--surface-alt);">
+                            <p class="font-semibold">{{ $agent->name }}</p>
+                            <p class="mt-1" style="color: var(--fg-muted);">Ramal {{ $agent->extension }} | {{ $activeCall->phone ?? 'Numero nao identificado' }}</p>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'supervision-monitor-{{ $mode }}-{{ $agent->id }}')">Cancelar</x-ui.button>
+                            <x-ui.button type="submit">{{ $monitor['botao'] }}</x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.modal>
+            @endforeach
+        @endif
     @empty
         <p class="text-sm" style="color: var(--fg-muted);">Nenhum operador encontrado.</p>
     @endforelse

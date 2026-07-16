@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Call;
 use App\Models\Company;
 use App\Models\CompanyTelephonyConfiguration;
-use App\Models\Call;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -37,6 +37,7 @@ class TenantTelephonyConfigurationTest extends TestCase
                 'ami_username' => 'discador',
                 'ami_secret' => 'segredo-da-rota',
                 'outbound_channel_template' => 'PJSIP/{phone}@principal',
+                'supervisor_channel_template' => 'PJSIP/{extension}',
                 'dialplan_context' => 'discador-outbound',
                 'dialplan_extension' => 's',
                 'bridge_enabled' => '1',
@@ -56,6 +57,7 @@ class TenantTelephonyConfigurationTest extends TestCase
         $configuration = CompanyTelephonyConfiguration::query()->firstOrFail();
         $this->assertSame('discador', $configuration->ami_username);
         $this->assertSame('segredo-da-rota', $configuration->ami_secret);
+        $this->assertSame('PJSIP/{extension}', $configuration->monitoringChannelTemplate());
         $this->assertStringNotContainsString('segredo-da-rota', (string) DB::table('company_telephony_configurations')->value('ami_secret'));
     }
 

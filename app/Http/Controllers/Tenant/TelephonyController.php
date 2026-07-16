@@ -36,6 +36,7 @@ class TelephonyController extends Controller
             'ami_username' => ['nullable', 'string', 'max:255'],
             'ami_secret' => ['nullable', 'string', 'max:255'],
             'outbound_channel_template' => ['nullable', 'string', 'max:255', 'required_if:driver,asterisk_ami'],
+            'supervisor_channel_template' => ['nullable', 'string', 'max:255'],
             'dialplan_context' => ['nullable', 'string', 'max:100', 'required_if:driver,asterisk_ami'],
             'dialplan_extension' => ['nullable', 'string', 'max:80'],
             'bridge_enabled' => ['nullable', 'boolean'],
@@ -52,6 +53,15 @@ class TelephonyController extends Controller
         $data['company_id'] = $request->user()->company_id;
         $data['ami_port'] = $data['ami_port'] ?? 5038;
         $data['dialplan_extension'] = $data['dialplan_extension'] ?? 's';
+        $data['supervisor_channel_template'] = $data['supervisor_channel_template'] ?? 'PJSIP/{extension}';
+
+        if ($data['driver'] === 'asterisk_ami'
+            && ! str_contains($data['supervisor_channel_template'], '{extension}')) {
+            return back()->withErrors([
+                'supervisor_channel_template' => 'O template do supervisor deve conter {extension} para receber o ramal do usuario.',
+            ])->withInput();
+        }
+
         $data['bridge_enabled'] = $request->boolean('bridge_enabled');
         $data['connection_status'] = $data['driver'] === 'asterisk_ami' && $data['bridge_enabled'] ? 'pending_test' : 'not_configured';
         $data['last_error'] = null;

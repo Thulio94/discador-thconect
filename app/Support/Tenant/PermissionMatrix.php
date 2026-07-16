@@ -22,7 +22,10 @@ class PermissionMatrix
             'agent' => ['label' => 'Agente', 'permissions' => self::actions('agent', [
                 'access' => 'Acessar',
             ])],
-            'supervision' => ['label' => 'Supervisao', 'permissions' => self::onlyRead('supervision')],
+            'supervision' => ['label' => 'Supervisao', 'permissions' => self::actions('supervision', [
+                'read' => 'Ler',
+                'operate' => 'Operar monitoria',
+            ])],
             'reports' => ['label' => 'Relatorios', 'permissions' => self::actions('reports', [
                 'read' => 'Ler',
                 'export' => 'Exportar',

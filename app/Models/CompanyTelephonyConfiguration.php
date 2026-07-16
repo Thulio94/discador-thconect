@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'ami_username',
     'ami_secret',
     'outbound_channel_template',
+    'supervisor_channel_template',
     'dialplan_context',
     'dialplan_extension',
     'bridge_enabled',
@@ -49,6 +50,11 @@ class CompanyTelephonyConfiguration extends Model
             && filled($this->dialplan_extension)
             && filled(config('services.asterisk_bridge.token'))
             && filled(config('services.asterisk_bridge.webhook_secret'));
+    }
+
+    public function monitoringChannelTemplate(): string
+    {
+        return $this->supervisor_channel_template ?: 'PJSIP/{extension}';
     }
 
     public function company(): BelongsTo

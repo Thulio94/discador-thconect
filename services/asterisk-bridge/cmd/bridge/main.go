@@ -21,15 +21,16 @@ import (
 )
 
 type routeConfig struct {
-	CompanyID       int    `json:"company_id"`
-	Host            string `json:"host"`
-	Port            int    `json:"port"`
-	Username        string `json:"username"`
-	Secret          string `json:"secret"`
-	CallerID        string `json:"caller_id"`
-	ChannelTemplate string `json:"channel_template"`
-	Context         string `json:"context"`
-	Extension       string `json:"extension"`
+	CompanyID                 int    `json:"company_id"`
+	Host                      string `json:"host"`
+	Port                      int    `json:"port"`
+	Username                  string `json:"username"`
+	Secret                    string `json:"secret"`
+	CallerID                  string `json:"caller_id"`
+	ChannelTemplate           string `json:"channel_template"`
+	SupervisorChannelTemplate string `json:"supervisor_channel_template"`
+	Context                   string `json:"context"`
+	Extension                 string `json:"extension"`
 }
 
 type originateRequest struct {
@@ -48,6 +49,14 @@ type hangupRequest struct {
 	CallID    int    `json:"call_id"`
 	Channel   string `json:"channel"`
 	UniqueID  string `json:"uniqueid"`
+}
+
+type superviseRequest struct {
+	CompanyID           int    `json:"company_id"`
+	CallID              int    `json:"call_id"`
+	AgentChannel        string `json:"agent_channel"`
+	SupervisorExtension string `json:"supervisor_extension"`
+	Mode                string `json:"mode"`
 }
 
 type actionRef struct {
@@ -91,6 +100,7 @@ func main() {
 	mux.HandleFunc("/v1/routes/", b.authorized(b.syncRoute))
 	mux.HandleFunc("/v1/calls/originate", b.authorized(b.originate))
 	mux.HandleFunc("/v1/calls/hangup", b.authorized(b.hangup))
+	mux.HandleFunc("/v1/calls/supervise", b.authorized(b.supervise))
 
 	port := os.Getenv("BRIDGE_PORT")
 	if port == "" {
@@ -220,6 +230,32 @@ func (b *bridge) hangup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true})
 }
 
+func (b *bridge) supervise(w http.ResponseWriter, r *http.Request) {
+	var request superviseRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		return
+	}
+	if request.CompanyID < 1 || request.CallID < 1 || request.AgentChannel == "" || request.SupervisorExtension == "" {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "company_id, call_id, agent_channel and supervisor_extension are required"})
+		return
+	}
+	if request.Mode != "listen" && request.Mode != "whisper" && request.Mode != "barge" {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "mode must be listen, whisper or barge"})
+		return
+	}
+	current, ok := b.routes.Load(request.CompanyID)
+	if !ok {
+		writeJSON(w, http.StatusConflict, map[string]string{"message": "route is not synchronized"})
+		return
+	}
+	if err := current.(*routeManager).supervise(request); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "mode": request.Mode})
+}
+
 func newRouteManager(b *bridge, config routeConfig) *routeManager {
 	return &routeManager{bridge: b, config: config, stop: make(chan struct{}), done: make(chan struct{}), actions: map[string]actionRef{}, ids: map[string]int{}}
 }
@@ -311,6 +347,33 @@ func (m *routeManager) originate(request originateRequest) error {
 		"Context": request.Context, "Exten": request.Extension, "Priority": "1",
 		"CallerID": request.CallerID, "Async": "true", "Timeout": "45000",
 		"Variable": "THCONECT_CALL_ID=" + strconv.Itoa(request.CallID),
+	})
+}
+
+func (m *routeManager) supervise(request superviseRequest) error {
+	channelTemplate := m.config.SupervisorChannelTemplate
+	if channelTemplate == "" {
+		channelTemplate = "PJSIP/{extension}"
+	}
+	if !strings.Contains(channelTemplate, "{extension}") {
+		return errors.New("supervisor channel template must contain {extension}")
+	}
+	supervisorChannel := strings.ReplaceAll(channelTemplate, "{extension}", request.SupervisorExtension)
+
+	options := "q"
+	switch request.Mode {
+	case "whisper":
+		options = "qw"
+	case "barge":
+		options = "qB"
+	}
+
+	return m.sendAction(map[string]string{
+		"Action":      "Originate",
+		"Channel":     supervisorChannel,
+		"Application": "ChanSpy",
+		"Data":        request.AgentChannel + "," + options,
+		"Async":       "true",
 	})
 }
 
@@ -475,7 +538,7 @@ func readAMIMessage(reader *bufio.Reader) (map[string]string, error) {
 
 func writeAMIAction(conn net.Conn, fields map[string]string) error {
 	var action strings.Builder
-	for _, key := range []string{"Action", "ActionID", "Channel", "Context", "Exten", "Priority", "CallerID", "Async", "Timeout", "Variable", "Username", "Secret", "Events"} {
+	for _, key := range []string{"Action", "ActionID", "Channel", "Context", "Exten", "Priority", "Application", "Data", "CallerID", "Async", "Timeout", "Variable", "Username", "Secret", "Events"} {
 		if value := fields[key]; value != "" {
 			action.WriteString(key + ": " + value + "\r\n")
 		}

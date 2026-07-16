@@ -144,6 +144,7 @@ class TenantRbacAuthorizationTest extends TestCase
             'tenant.agent.calls.end' => 'agent.access',
             'tenant.supervision.index' => 'supervision.read',
             'tenant.supervision.poll' => 'supervision.read',
+            'tenant.supervision.monitor' => 'supervision.operate',
             'tenant.reports.index' => 'reports.read',
             'tenant.reports.export' => 'reports.export',
             'tenant.reports.export-xlsx' => 'reports.export',

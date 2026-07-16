@@ -67,7 +67,7 @@ class RbacSeederTest extends TestCase
         $otherCompany = Company::create(['name' => 'Tenant B']);
 
         $agentRole = $this->role($company, 'Agente', ['users.read', 'agent.access']);
-        $supervisorRole = $this->role($company, 'Supervisor', ['agent.access', 'supervision.read']);
+        $supervisorRole = $this->role($company, 'Supervisor', ['agent.access', 'supervision.read', 'supervision.operate']);
         $adminRole = $company->roles()->create([
             'name' => 'Administrador A',
             'slug' => 'administrador-a',
@@ -93,6 +93,7 @@ class RbacSeederTest extends TestCase
         $this->assertFalse(Gate::forUser($agentWithAdminRole)->allows('tenant.users.read'));
         $this->assertTrue(Gate::forUser($supervisor)->allows('tenant.agent.access'));
         $this->assertTrue(Gate::forUser($supervisor)->allows('tenant.supervision.read'));
+        $this->assertTrue(Gate::forUser($supervisor)->allows('tenant.supervision.operate'));
         $this->assertFalse(Gate::forUser($invalidAdmin)->allows('tenant.users.read'));
         $this->assertFalse(Gate::forUser($superAdmin)->allows('tenant.users.read'));
     }
@@ -129,6 +130,7 @@ class RbacSeederTest extends TestCase
         $this->assertFalse($supervisorRole->is_admin);
         $this->assertFalse($agentRole->is_admin);
         $this->assertTrue($supervisorRole->permissions->contains('key', 'supervision.read'));
+        $this->assertTrue($supervisorRole->permissions->contains('key', 'supervision.operate'));
         $this->assertTrue($supervisorRole->permissions->contains('key', 'agent.access'));
         $this->assertTrue($agentRole->permissions->contains('key', 'agent.access'));
         $this->assertFalse($agentRole->permissions->contains('key', 'users.read'));

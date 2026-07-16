@@ -28,7 +28,7 @@ class AsteriskBridgeClient
     }
 
     /** @param array<string, mixed> $payload
-     *  @return array<string, mixed>
+     * @return array<string, mixed>
      */
     public function originate(array $payload): array
     {
@@ -39,6 +39,12 @@ class AsteriskBridgeClient
     public function hangup(array $payload): void
     {
         $this->request()->post('/v1/calls/hangup', $payload)->throw();
+    }
+
+    /** @param array<string, mixed> $payload */
+    public function supervise(array $payload): void
+    {
+        $this->request()->post('/v1/calls/supervise', $payload)->throw();
     }
 
     private function request(): PendingRequest
@@ -67,6 +73,7 @@ class AsteriskBridgeClient
             'secret' => $configuration->ami_secret,
             'caller_id' => $configuration->caller_id,
             'channel_template' => $configuration->outbound_channel_template,
+            'supervisor_channel_template' => $configuration->monitoringChannelTemplate(),
             'context' => $configuration->dialplan_context,
             'extension' => $configuration->dialplan_extension,
         ];

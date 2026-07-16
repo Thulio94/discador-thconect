@@ -3,15 +3,19 @@
 namespace Tests\Feature;
 
 use App\Models\AgentStatus;
+use App\Models\AuditLog;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\CompanyTelephonyConfiguration;
 use App\Models\OperationalParameter;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request as ClientRequest;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class TenantSupervisionTest extends TestCase
@@ -44,11 +48,10 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Agente Tenant')
             ->assertSee('Agentes em operacao')
             ->assertSee('supervision-agent-'.$agent->id, false)
-            ->assertSee('Ouvir')
-            ->assertSee('Sussurrar')
-            ->assertSee('Intervir')
             ->assertDontSee('Agente Outra Empresa')
-            ->assertDontSee('Modulo em breve');
+            ->assertDontSee('Ouvir (em breve)')
+            ->assertDontSee('Sussurrar (em breve)')
+            ->assertDontSee('Intervir (em breve)');
     }
 
     public function test_supervision_metrics_filters_and_active_calls(): void
@@ -262,6 +265,101 @@ class TenantSupervisionTest extends TestCase
         $this->actingAs($supervisor)
             ->get(route('tenant.supervision.poll', ['team_id' => $otherTeam->id]))
             ->assertNotFound();
+    }
+
+    public function test_supervisor_can_start_asterisk_monitoring_for_an_active_agent_call(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'bridge-webhook-secret');
+        config()->set('services.asterisk_bridge.url', 'http://asterisk-bridge.test');
+
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        $supervisor->role->permissions()->syncWithoutDetaching(
+            Permission::query()->where('key', 'supervision.operate')->pluck('id')
+        );
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Monitorado');
+
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990001',
+            'telephony_channel' => 'PJSIP/1301-0000001a',
+            'started_at' => now(),
+        ]);
+        CompanyTelephonyConfiguration::create([
+            'company_id' => $company->id,
+            'driver' => 'asterisk_ami',
+            'ami_host' => 'pbx.empresa.test',
+            'ami_port' => 5038,
+            'ami_username' => 'discador',
+            'ami_secret' => 'segredo',
+            'outbound_channel_template' => 'PJSIP/{phone}@tronco',
+            'supervisor_channel_template' => 'PJSIP/{extension}',
+            'dialplan_context' => 'discador',
+            'dialplan_extension' => 's',
+            'bridge_enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        Http::fake([
+            'http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->post(route('tenant.supervision.monitor', $agent), ['mode' => 'whisper'])
+            ->assertRedirect(route('tenant.supervision.index'))
+            ->assertSessionHas('status', 'Sussurrar solicitado para a chamada de Agente Monitorado.');
+
+        Http::assertSent(function (ClientRequest $request) use ($company, $call, $supervisor): bool {
+            return $request->url() === 'http://asterisk-bridge.test/v1/calls/supervise'
+                && $request->method() === 'POST'
+                && $request['company_id'] === $company->id
+                && $request['call_id'] === $call->id
+                && $request['agent_channel'] === 'PJSIP/1301-0000001a'
+                && $request['supervisor_extension'] === $supervisor->extension
+                && $request['mode'] === 'whisper';
+        });
+        $this->assertDatabaseHas('audit_logs', [
+            'company_id' => $company->id,
+            'actor_user_id' => $supervisor->id,
+            'event' => 'supervision.monitoring_started',
+            'action' => 'whisper',
+            'subject_type' => $agent->getMorphClass(),
+            'subject_id' => $agent->id,
+        ]);
+        $this->assertSame(
+            'whisper',
+            AuditLog::query()->where('event', 'supervision.monitoring_started')->sole()->metadata['mode']
+        );
+    }
+
+    public function test_supervisor_cannot_monitor_simulated_or_unconfigured_calls(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        $supervisor->role->permissions()->syncWithoutDetaching(
+            Permission::query()->where('key', 'supervision.operate')->pluck('id')
+        );
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Sem AMI');
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990002',
+            'started_at' => now(),
+        ]);
+        Http::fake();
+
+        $this->actingAs($supervisor)
+            ->from(route('tenant.supervision.index'))
+            ->post(route('tenant.supervision.monitor', $agent), ['mode' => 'listen'])
+            ->assertRedirect(route('tenant.supervision.index'))
+            ->assertSessionHasErrors('monitoring');
+
+        Http::assertNothingSent();
     }
 
     private function tenantUser(string $type, ?Company $company = null, ?string $name = null): array

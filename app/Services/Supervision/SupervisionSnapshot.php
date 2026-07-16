@@ -3,6 +3,7 @@
 namespace App\Services\Supervision;
 
 use App\Models\Call;
+use App\Models\CompanyTelephonyConfiguration;
 use App\Models\OperationalParameter;
 use App\Models\Team;
 use App\Models\User;
@@ -21,6 +22,11 @@ final class SupervisionSnapshot
     {
         $this->wrapUps->expireForCompany($companyId);
         $parameters = OperationalParameter::forCompany($companyId);
+        $telephony = CompanyTelephonyConfiguration::query()
+            ->where('company_id', $companyId)
+            ->first();
+        $monitoringReady = $telephony?->isReadyForAsterisk()
+            && $telephony->connection_status === 'online';
 
         if ($teamId !== null) {
             Team::query()
@@ -140,6 +146,10 @@ final class SupervisionSnapshot
                 ->get(),
             'selectedStatus' => $status,
             'selectedTeamId' => $teamId,
+            'monitoringReady' => $monitoringReady,
+            'monitoringReason' => $monitoringReady
+                ? null
+                : 'Configure e teste a rota Asterisk desta empresa para habilitar a monitoria.',
             'metrics' => [
                 'available' => $statuses->filter(
                     fn (string $value): bool => $value === 'available'
