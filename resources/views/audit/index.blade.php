@@ -72,7 +72,7 @@
             </label>
             <div class="flex items-end gap-2">
                 <x-ui.button type="submit">Filtrar</x-ui.button>
-                <a href="{{ $isSuperAdmin ? route('super-admin.audit-logs.index') : route('tenant.audit-logs.index') }}" class="th-focus rounded-lg border px-3 py-2 text-sm font-semibold" style="border-color: var(--border);">Limpar filtros</a>
+                <a href="{{ route('super-admin.audit-logs.index') }}" class="th-focus rounded-lg border px-3 py-2 text-sm font-semibold" style="border-color: var(--border);">Limpar filtros</a>
             </div>
         </form>
     </section>

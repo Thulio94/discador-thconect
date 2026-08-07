@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
 use Throwable;
+use App\Models\ChannelReservation;
+use App\Models\SystemCapacitySetting;
+use App\Models\AsteriskNode;
 
 class SystemStatusService
 {
@@ -27,6 +30,8 @@ class SystemStatusService
             $this->heartbeatComponent('queue-worker', 'Processador de fila', 'Execucao de jobs'),
             $this->probe('reverb', 'Tempo real', 'Eventos e atualizacoes', fn (): mixed => $this->probeReverb()),
             $this->probe('asterisk-bridge', 'Ponte Asterisk', 'Conexao AMI e eventos de telefonia', fn (): mixed => $this->probeAsteriskBridge()),
+            $this->capacityComponent(),
+            $this->asteriskClusterComponent(),
         ];
 
         $worstState = collect($components)
@@ -45,6 +50,22 @@ class SystemStatusService
             'checked_at' => now(),
             'components' => $components,
         ];
+    }
+
+    private function capacityComponent(): array
+    {
+        $started = hrtime(true); $settings = SystemCapacitySetting::current();
+        $used = ChannelReservation::query()->whereIn('status', ['reserved', 'active'])->where('expires_at', '>', now())->count();
+        $percent = $settings->max_channels ? ($used / $settings->max_channels) * 100 : 100;
+        $state = $settings->origination_blocked || $percent >= 100 ? 'outage' : ($percent >= $settings->warning_percent ? 'degraded' : 'operational');
+        return $this->component('capacity', 'Capacidade de telefonia', "{$used} de {$settings->max_channels} canais reservados", $state, $state === 'operational' ? 'Operacional' : ($state === 'degraded' ? 'Em alerta' : 'Bloqueada'), $started);
+    }
+
+    private function asteriskClusterComponent(): array
+    {
+        $started = hrtime(true); $total = AsteriskNode::query()->count(); $online = AsteriskNode::query()->where('status', 'online')->count();
+        $state = $total > 0 && $online === $total ? 'operational' : ($online > 0 ? 'degraded' : 'outage');
+        return $this->component('asterisk-cluster', 'Cluster Asterisk', "{$online} de {$total} nos online", $state, $state === 'operational' ? 'Operacional' : ($state === 'degraded' ? 'Degradado' : 'Indisponivel'), $started);
     }
 
     public function recordSchedulerHeartbeat(): void

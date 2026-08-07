@@ -12,9 +12,11 @@ class VerifyAsteriskBridgeSignature
     {
         $secret = (string) config('services.asterisk_bridge.webhook_secret');
         $signature = (string) $request->header('X-THCONECT-Signature');
-        $expected = hash_hmac('sha256', $request->getContent(), $secret);
+        $timestamp = (int) $request->header('X-THCONECT-Timestamp');
+        $payload = $request->getContent();
+        $expected = hash_hmac('sha256', $timestamp.'.'.$payload, $secret);
 
-        if (blank($secret) || blank($signature) || ! hash_equals($expected, $signature)) {
+        if (blank($secret) || blank($signature) || $timestamp <= 0 || abs(now()->timestamp - $timestamp) > 300 || ! hash_equals($expected, $signature)) {
             abort(401);
         }
 

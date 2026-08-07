@@ -49,7 +49,7 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role): RedirectResponse
     {
-        abort_unless($role->company_id === $request->user()->company_id, 403);
+        abort_unless($role->company_id === $request->user()->company_id, 404);
 
         $data = $request->validate($this->rules());
 
@@ -66,7 +66,7 @@ class RoleController extends Controller
 
     public function destroy(Request $request, Role $role): RedirectResponse
     {
-        abort_unless($role->company_id === $request->user()->company_id, 403);
+        abort_unless($role->company_id === $request->user()->company_id, 404);
 
         if ($role->users()->exists()) {
             throw ValidationException::withMessages([

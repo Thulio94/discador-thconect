@@ -174,7 +174,7 @@ class SaaSDataModelTest extends TestCase
         $otherTenantAgent = User::factory()->create([
             'company_id' => $otherCompany->id,
             'user_type' => 'agent',
-            'extension' => '1001',
+            'extension' => '1002',
         ]);
 
         $team->users()->attach($sameTenantAgent, ['membership_type' => 'agent']);

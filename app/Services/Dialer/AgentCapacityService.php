@@ -6,6 +6,8 @@ use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\CompanyLicense;
 use App\Models\User;
+use App\Models\ChannelReservation;
+use App\Models\SystemCapacitySetting;
 
 class AgentCapacityService
 {
@@ -117,19 +119,12 @@ class AgentCapacityService
         $campaign->loadMissing('company.license');
 
         $capacity = $this->allowedCallsForCampaign($campaign);
+        $settings = SystemCapacitySetting::current();
+        $used = ChannelReservation::query()->whereIn('status', ['reserved', 'active'])->where('expires_at', '>', now())->count();
+        $percent = $settings->max_channels > 0 ? ($used / $settings->max_channels) * 100 : 100;
+        if ($percent >= $settings->critical_percent) $capacity = max(1, (int) floor($capacity * 0.25));
+        elseif ($percent >= $settings->warning_percent) $capacity = max(1, (int) floor($capacity * 0.5));
         $globalLimit = $campaign->company?->license?->max_concurrent_calls;
-        $campaignLimit = $campaign->max_concurrent_calls;
-
-        if ($campaignLimit !== null) {
-            $activeCampaignCalls = Call::query()
-                ->where('company_id', $campaign->company_id)
-                ->where('campaign_id', $campaign->id)
-                ->where('status', 'in_progress')
-                ->count();
-
-            $capacity = min($capacity, max(0, $campaignLimit - $activeCampaignCalls));
-        }
-
         if ($globalLimit === null) {
             return $capacity;
         }

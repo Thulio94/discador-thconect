@@ -2,6 +2,7 @@
 
 namespace App\Services\Reports;
 
+use App\Jobs\GenerateReportExport;
 use App\Models\Call;
 use App\Models\ReportExport;
 use App\Models\ReportSchedule;
@@ -66,10 +67,13 @@ final class SimulatedReportScheduleRunner
             'last_records_count' => $recordsCount,
         ]);
 
-        ReportExport::create([
+        $export = ReportExport::create([
             'company_id' => $schedule->company_id,
             'user_id' => $actor->id,
+            'report_type' => $schedule->report_type ?? 'calls',
             'format' => $schedule->format,
+            'status' => 'queued',
+            'progress' => 0,
             'filters' => array_filter([
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
@@ -82,6 +86,7 @@ final class SimulatedReportScheduleRunner
             ], fn ($value) => $value !== null && $value !== ''),
             'records_count' => $recordsCount,
         ]);
+        GenerateReportExport::dispatch($export->id);
 
         return $recordsCount;
     }

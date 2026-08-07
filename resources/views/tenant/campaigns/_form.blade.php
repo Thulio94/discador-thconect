@@ -9,10 +9,8 @@
         ? collect($oldListIds)->mapWithKeys(fn ($value, $key) => [(int) (is_array($value) ? $key : $value) => (int) (is_array($value) ? ($value['weight'] ?? 1) : 1)])->all()
         : collect($campaign?->contactLists ?? [])->mapWithKeys(fn ($list) => [$list->id => (int) ($list->pivot->weight ?? 1)])->all();
     $schedule = old('operational_schedule', $campaign?->operational_schedule ?? []);
-    $serviceFields = old('service_fields_schema', $campaign?->service_fields_schema ?? []);
     $leadPhoneStrategy = old('lead_phone_strategy', $campaign?->lead_phone_strategy ?? 'vertical');
     $amdMode = old('amd_mode', $campaign?->amd_mode ?? 'disabled');
-    $fieldRows = collect(range(0, 4))->map(fn ($index) => $serviceFields[$index] ?? [])->all();
     $days = [
         'monday' => 'Segunda',
         'tuesday' => 'Terca',
@@ -54,45 +52,6 @@
             <textarea name="service_script" rows="4" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="Abordagem, perguntas e proximos passos.">{{ old('service_script', $campaign?->service_script) }}</textarea>
         </label>
 
-        <div>
-            <p class="mb-2 text-sm font-semibold">Campos dinamicos</p>
-            <div class="grid gap-2">
-                @foreach ($fieldRows as $index => $field)
-                    <div class="grid gap-2 rounded-lg border p-3 text-sm lg:grid-cols-[110px_minmax(0,1fr)_minmax(0,1fr)_140px_110px]" style="border-color: var(--border);">
-                        <label class="flex items-center gap-2 font-semibold">
-                            <input type="checkbox" name="service_fields_schema[{{ $index }}][enabled]" value="1" @checked(filled($field['enabled'] ?? null) || filled($field['key'] ?? null))>
-                            <span>Ativo</span>
-                        </label>
-                        <label class="grid gap-1">
-                            <span class="text-xs" style="color: var(--fg-muted);">Rotulo</span>
-                            <input name="service_fields_schema[{{ $index }}][label]" value="{{ $field['label'] ?? '' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="CPF Cliente">
-                        </label>
-                        <label class="grid gap-1">
-                            <span class="text-xs" style="color: var(--fg-muted);">Chave</span>
-                            <input name="service_fields_schema[{{ $index }}][key]" value="{{ $field['key'] ?? '' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" placeholder="cpf_cliente">
-                        </label>
-                        <label class="grid gap-1">
-                            <span class="text-xs" style="color: var(--fg-muted);">Tipo</span>
-                            <select name="service_fields_schema[{{ $index }}][type]" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                                <option value="text" @selected(($field['type'] ?? 'text') === 'text')>Texto</option>
-                                <option value="number" @selected(($field['type'] ?? 'text') === 'number')>Numero</option>
-                                <option value="date" @selected(($field['type'] ?? 'text') === 'date')>Data</option>
-                                <option value="cpf" @selected(($field['type'] ?? 'text') === 'cpf')>CPF</option>
-                                <option value="cnpj" @selected(($field['type'] ?? 'text') === 'cnpj')>CNPJ</option>
-                                <option value="phone" @selected(($field['type'] ?? 'text') === 'phone')>Telefone</option>
-                                <option value="email" @selected(($field['type'] ?? 'text') === 'email')>E-mail</option>
-                                <option value="currency" @selected(($field['type'] ?? 'text') === 'currency')>Moeda</option>
-                            </select>
-                        </label>
-                        <label class="flex items-center gap-2 font-semibold">
-                            <input type="checkbox" name="service_fields_schema[{{ $index }}][required]" value="1" @checked(filled($field['required'] ?? null))>
-                            <span>Obrigatorio</span>
-                        </label>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Modo</span>
@@ -129,7 +88,7 @@
         </label>
         </div>
 
-        <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-2 xl:grid-cols-4" style="border-color: var(--border); background: var(--surface-alt);">
+        <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-2 xl:grid-cols-3" style="border-color: var(--border); background: var(--surface-alt);">
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">Maximo de tentativas por lead</span>
                 <input name="max_attempts_per_contact" type="number" min="1" max="50" value="{{ old('max_attempts_per_contact', $campaign?->max_attempts_per_contact) }}" placeholder="Usar regra da tabulacao" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
@@ -142,13 +101,8 @@
             </label>
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">Tempo para tabulacao</span>
-                <input name="wrap_up_minutes" type="number" min="1" max="60" value="{{ old('wrap_up_minutes', $campaign?->wrap_up_minutes ?? 1) }}" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                <span class="text-xs" style="color: var(--fg-muted);">Em minutos. Nesse periodo o agente nao recebe outra chamada.</span>
-            </label>
-            <label class="grid gap-1 text-sm">
-                <span class="font-semibold">Teto simultaneo da campanha</span>
-                <input name="max_concurrent_calls" type="number" min="1" max="100000" value="{{ old('max_concurrent_calls', $campaign?->max_concurrent_calls) }}" placeholder="Usar limite do contrato" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                <span class="text-xs" style="color: var(--fg-muted);">Nunca ultrapassa o limite contratado da empresa.</span>
+                <input name="wrap_up_seconds" type="number" min="10" max="3600" value="{{ old('wrap_up_seconds', $campaign?->wrap_up_seconds ?? 60) }}" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <span class="text-xs" style="color: var(--fg-muted);">Em segundos. Nesse periodo o agente nao recebe outra chamada.</span>
             </label>
         </div>
 
@@ -162,11 +116,37 @@
                 </select>
                 <span class="text-xs" style="color: var(--fg-muted);">A rota Asterisk envia o resultado AMD recebido pelo dialplan ou provedor para o historico da chamada.</span>
             </label>
-            <label class="grid gap-1 text-sm">
-                <span class="font-semibold">Rota de discagem</span>
-                <input name="dialing_route" value="{{ old('dialing_route', $campaign?->dialing_route) }}" placeholder="Ex.: Saida principal" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                <span class="text-xs" style="color: var(--fg-muted);">Use a mesma identificacao configurada em Telefonia para facilitar a operacao.</span>
-            </label>
+        </div>
+
+        <div class="rounded-lg border" style="border-color: var(--border); background: var(--surface-alt);" x-data="{ routesEnabled: {{ count($telephonyRoutes) ? 'true' : 'false' }} }">
+            <div class="flex items-center gap-3 border-b px-4 py-3" style="border-color: var(--border);">
+                <input id="campaign-routes-enabled" type="checkbox" x-model="routesEnabled" :disabled="{{ count($telephonyRoutes) ? 'false' : 'true' }}" class="h-4 w-4">
+                <label for="campaign-routes-enabled" class="font-semibold">Rotas de telefonia da campanha</label>
+            </div>
+            <div x-show="routesEnabled" x-cloak class="grid gap-4 p-4 md:grid-cols-2">
+                <label class="grid gap-1 text-sm">
+                    <span class="font-semibold">Rota para fixo</span>
+                    <select name="fixed_telephony_route_id" :disabled="!routesEnabled" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                        <option value="">Selecionar rota</option>
+                        @foreach ($telephonyRoutes as $telephonyRoute)
+                            <option value="{{ $telephonyRoute->id }}" @selected((string) old('fixed_telephony_route_id', $campaign?->fixed_telephony_route_id) === (string) $telephonyRoute->id)>{{ $telephonyRoute->name }} · Tech {{ $telephonyRoute->tech }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="grid gap-1 text-sm">
+                    <span class="font-semibold">Rota para móvel</span>
+                    <select name="mobile_telephony_route_id" :disabled="!routesEnabled" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                        <option value="">Selecionar rota</option>
+                        @foreach ($telephonyRoutes as $telephonyRoute)
+                            <option value="{{ $telephonyRoute->id }}" @selected((string) old('mobile_telephony_route_id', $campaign?->mobile_telephony_route_id) === (string) $telephonyRoute->id)>{{ $telephonyRoute->name }} · Tech {{ $telephonyRoute->tech }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <p class="text-xs md:col-span-2" style="color: var(--fg-muted);">Quando houver duas rotas, a discagem identifica automaticamente números fixos e móveis. Sem seleção, a campanha permanece no simulador.</p>
+            </div>
+            @if (count($telephonyRoutes) === 0)
+                <p class="px-4 py-3 text-sm" style="color: var(--fg-muted);">Nenhuma rota foi liberada pelo SuperAdmin para esta empresa.</p>
+            @endif
         </div>
 
         <div>
@@ -253,15 +233,15 @@
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Tabulacao</p>
-                <p class="mt-1 font-semibold">{{ old('wrap_up_minutes', $campaign?->wrap_up_minutes ?? 1) }} minuto(s)</p>
+                <p class="mt-1 font-semibold">{{ old('wrap_up_seconds', $campaign?->wrap_up_seconds ?? 60) }} segundo(s)</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">AMD</p>
                 <p class="mt-1 font-semibold">{{ $amdMode === 'simulated' ? 'Simulado' : 'Desativado' }}</p>
             </div>
             <div>
-                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Rota</p>
-                <p class="mt-1 font-semibold">{{ old('dialing_route', $campaign?->dialing_route) ?: 'Em breve' }}</p>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Rotas</p>
+                <p class="mt-1 font-semibold">{{ $campaign?->fixedTelephonyRoute?->name ?: 'Fixo nao definido' }} · {{ $campaign?->mobileTelephonyRoute?->name ?: 'Movel nao definido' }}</p>
             </div>
         </div>
     </div>

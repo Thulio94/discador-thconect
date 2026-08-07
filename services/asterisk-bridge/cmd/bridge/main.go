@@ -14,6 +14,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +24,7 @@ import (
 
 type routeConfig struct {
 	CompanyID                 int    `json:"company_id"`
+	RouteID                   int    `json:"route_id"`
 	Host                      string `json:"host"`
 	Port                      int    `json:"port"`
 	Username                  string `json:"username"`
@@ -31,6 +34,13 @@ type routeConfig struct {
 	SupervisorChannelTemplate string `json:"supervisor_channel_template"`
 	Context                   string `json:"context"`
 	Extension                 string `json:"extension"`
+	SIPHost                   string `json:"sip_host"`
+	FromDomain                string `json:"from_domain"`
+	SIPUsername               string `json:"sip_username"`
+	SIPPassword               string `json:"sip_password"`
+	AuthenticationMode        string `json:"authentication_mode"`
+	Transport                 string `json:"transport"`
+	Codecs                    string `json:"codecs"`
 }
 
 type originateRequest struct {
@@ -42,6 +52,7 @@ type originateRequest struct {
 	Context   string `json:"context"`
 	Extension string `json:"extension"`
 	CallerID  string `json:"caller_id"`
+	RecordingFile string `json:"recording_file"`
 }
 
 type hangupRequest struct {
@@ -69,6 +80,8 @@ type bridge struct {
 	webhookSecret string
 	client        *http.Client
 	routes        sync.Map
+	provisioned   sync.Map
+	configPath    string
 }
 
 type routeManager struct {
@@ -80,6 +93,7 @@ type routeManager struct {
 	conn    net.Conn
 	actions map[string]actionRef
 	ids     map[string]int
+	recordings map[int]string
 }
 
 func main() {
@@ -88,6 +102,7 @@ func main() {
 		webhookURL:    os.Getenv("BRIDGE_WEBHOOK_URL"),
 		webhookSecret: os.Getenv("BRIDGE_WEBHOOK_SECRET"),
 		client:        &http.Client{Timeout: 8 * time.Second},
+		configPath:    os.Getenv("ASTERISK_CONFIG_PATH"),
 	}
 
 	if b.token == "" {
@@ -141,6 +156,10 @@ func (b *bridge) testRoute(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
+	if err := b.provisionRoutes([]routeConfig{config}); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+		return
+	}
 	if err := testAMI(config); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
 		return
@@ -157,6 +176,10 @@ func (b *bridge) syncRoute(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodDelete {
 		if current, ok := b.routes.LoadAndDelete(companyID); ok {
 			current.(*routeManager).close()
+		}
+		if err := b.provisionCurrentRoutes(); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"removed": true})
 		return
@@ -177,10 +200,15 @@ func (b *bridge) syncRoute(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
+	b.provisioned.Store(config.RouteID, config)
 
 	manager := newRouteManager(b, config)
 	if current, loaded := b.routes.Swap(companyID, manager); loaded {
 		current.(*routeManager).close()
+	}
+	if err := b.provisionCurrentRoutes(); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+		return
 	}
 	manager.start()
 	writeJSON(w, http.StatusOK, map[string]any{"synchronized": true, "company_id": companyID})
@@ -257,7 +285,7 @@ func (b *bridge) supervise(w http.ResponseWriter, r *http.Request) {
 }
 
 func newRouteManager(b *bridge, config routeConfig) *routeManager {
-	return &routeManager{bridge: b, config: config, stop: make(chan struct{}), done: make(chan struct{}), actions: map[string]actionRef{}, ids: map[string]int{}}
+	return &routeManager{bridge: b, config: config, stop: make(chan struct{}), done: make(chan struct{}), actions: map[string]actionRef{}, ids: map[string]int{}, recordings: map[int]string{}}
 }
 
 func (m *routeManager) start() { go m.connectLoop() }
@@ -316,6 +344,12 @@ func (m *routeManager) connectOnce() error {
 	if !strings.EqualFold(response["Response"], "Success") {
 		return fmt.Errorf("AMI login rejected: %s", response["Message"])
 	}
+	if err := writeAMIAction(conn, map[string]string{"Action": "Command", "Command": "pjsip reload"}); err != nil {
+		return err
+	}
+	if _, err := readAMIMessage(reader); err != nil {
+		return err
+	}
 
 	m.mu.Lock()
 	m.conn = conn
@@ -340,6 +374,7 @@ func (m *routeManager) connectOnce() error {
 func (m *routeManager) originate(request originateRequest) error {
 	m.mu.Lock()
 	m.actions[request.ActionID] = actionRef{CallID: request.CallID}
+	m.recordings[request.CallID] = request.RecordingFile
 	m.mu.Unlock()
 
 	return m.sendAction(map[string]string{
@@ -435,6 +470,33 @@ func (m *routeManager) processEvent(message map[string]string) {
 	}
 
 	go m.bridge.sendWebhook(payload)
+	if event == "Hangup" {
+		if recording, ok := m.recordingFor(callID); ok {
+			go m.bridge.sendWebhook(map[string]any{
+				"company_id": m.config.CompanyID,
+				"call_id": callID,
+				"event": "recording_ready",
+				"recording_path": "recordings/" + filepath.Base(recording.file),
+				"recording_format": strings.TrimPrefix(filepath.Ext(recording.file), "."),
+				"recording_size": recording.size,
+			})
+		}
+	}
+}
+
+type recordingInfo struct {
+	file string
+	size int64
+}
+
+func (m *routeManager) recordingFor(callID int) (recordingInfo, bool) {
+	m.mu.Lock()
+	file := m.recordings[callID]
+	m.mu.Unlock()
+	if file == "" { return recordingInfo{}, false }
+	info, err := os.Stat(filepath.Join("/recordings", filepath.Base(file)))
+	if err != nil || info.Size() == 0 { return recordingInfo{}, false }
+	return recordingInfo{file: file, size: info.Size()}, true
 }
 
 func (m *routeManager) callIDFor(message map[string]string) int {
@@ -470,7 +532,9 @@ func (b *bridge) sendWebhook(payload map[string]any) {
 	if err != nil {
 		return
 	}
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	h := hmac.New(sha256.New, []byte(b.webhookSecret))
+	_, _ = h.Write([]byte(timestamp + "."))
 	_, _ = h.Write(body)
 	request, err := http.NewRequest(http.MethodPost, b.webhookURL, bytes.NewReader(body))
 	if err != nil {
@@ -478,6 +542,7 @@ func (b *bridge) sendWebhook(payload map[string]any) {
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-THCONECT-Signature", hex.EncodeToString(h.Sum(nil)))
+	request.Header.Set("X-THCONECT-Timestamp", timestamp)
 	response, err := b.client.Do(request)
 	if err != nil {
 		log.Printf("webhook delivery failed: %v", err)
@@ -513,10 +578,74 @@ func testAMI(config routeConfig) error {
 }
 
 func validateRoute(config routeConfig) error {
-	if config.CompanyID < 1 || config.Host == "" || config.Port < 1 || config.Port > 65535 || config.Username == "" || config.Secret == "" {
-		return errors.New("company_id, host, port, username and secret are required")
+	if config.CompanyID < 1 || config.RouteID < 1 || config.Host == "" || config.Port < 1 || config.Port > 65535 || config.Username == "" || config.Secret == "" || config.SIPHost == "" {
+		return errors.New("company_id, route_id, AMI and SIP host settings are required")
+	}
+	if config.AuthenticationMode != "ip" && config.AuthenticationMode != "registration" {
+		return errors.New("authentication_mode must be ip or registration")
+	}
+	if config.AuthenticationMode == "registration" && (config.SIPUsername == "" || config.SIPPassword == "") {
+		return errors.New("SIP username and password are required for registration")
+	}
+	if config.Transport != "udp" && config.Transport != "tcp" {
+		return errors.New("transport must be udp or tcp")
+	}
+	for _, value := range []string{config.SIPHost, config.FromDomain, config.SIPUsername, config.SIPPassword, config.CallerID} {
+		if strings.ContainsAny(value, "\r\n") {
+			return errors.New("route settings cannot contain line breaks")
+		}
 	}
 	return nil
+}
+
+func (b *bridge) provisionCurrentRoutes() error {
+	routesByID := map[int]routeConfig{}
+	b.provisioned.Range(func(_, value any) bool {
+		config := value.(routeConfig)
+		routesByID[config.RouteID] = config
+		return true
+	})
+	routes := make([]routeConfig, 0, len(routesByID))
+	for _, config := range routesByID {
+		routes = append(routes, config)
+	}
+	return b.provisionRoutes(routes)
+}
+
+func (b *bridge) provisionRoutes(routes []routeConfig) error {
+	if b.configPath == "" {
+		return errors.New("ASTERISK_CONFIG_PATH is not configured")
+	}
+	sort.Slice(routes, func(i, j int) bool { return routes[i].RouteID < routes[j].RouteID })
+	var content strings.Builder
+	content.WriteString("; Generated by THCONECT Asterisk Bridge. Do not edit manually.\n")
+	for _, route := range routes {
+		name := fmt.Sprintf("thconect-route-%d", route.RouteID)
+		content.WriteString(fmt.Sprintf("\n[%s]\ntype=endpoint\ntransport=transport-%s\ncontext=%s\ndisallow=all\n", name, route.Transport, route.Context))
+		for _, codec := range strings.Split(route.Codecs, ",") {
+			codec = strings.TrimSpace(codec)
+			if codec != "" {
+				content.WriteString("allow=" + codec + "\n")
+			}
+		}
+		content.WriteString(fmt.Sprintf("aors=%s\nfrom_domain=%s\ndirect_media=no\nrtp_symmetric=yes\nforce_rport=yes\nrewrite_contact=yes\n", name, route.FromDomain))
+		if route.AuthenticationMode == "registration" {
+			content.WriteString(fmt.Sprintf("outbound_auth=%s-auth\nfrom_user=%s\n", name, route.SIPUsername))
+		}
+		content.WriteString(fmt.Sprintf("\n[%s]\ntype=aor\ncontact=sip:%s\nqualify_frequency=30\n", name, route.SIPHost))
+		if route.AuthenticationMode == "registration" {
+			content.WriteString(fmt.Sprintf("\n[%s-auth]\ntype=auth\nauth_type=userpass\nusername=%s\npassword=%s\n", name, route.SIPUsername, route.SIPPassword))
+			content.WriteString(fmt.Sprintf("\n[%s-registration]\ntype=registration\noutbound_auth=%s-auth\nserver_uri=sip:%s\nclient_uri=sip:%s@%s\nretry_interval=60\n", name, name, route.SIPHost, route.SIPUsername, route.FromDomain))
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(b.configPath), 0755); err != nil {
+		return err
+	}
+	temporaryPath := b.configPath + ".tmp"
+	if err := os.WriteFile(temporaryPath, []byte(content.String()), 0600); err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, b.configPath)
 }
 
 func readAMIMessage(reader *bufio.Reader) (map[string]string, error) {
@@ -538,7 +667,7 @@ func readAMIMessage(reader *bufio.Reader) (map[string]string, error) {
 
 func writeAMIAction(conn net.Conn, fields map[string]string) error {
 	var action strings.Builder
-	for _, key := range []string{"Action", "ActionID", "Channel", "Context", "Exten", "Priority", "Application", "Data", "CallerID", "Async", "Timeout", "Variable", "Username", "Secret", "Events"} {
+	for _, key := range []string{"Action", "ActionID", "Channel", "Context", "Exten", "Priority", "Application", "Data", "CallerID", "Async", "Timeout", "Variable", "Username", "Secret", "Events", "Command"} {
 		if value := fields[key]; value != "" {
 			action.WriteString(key + ": " + value + "\r\n")
 		}

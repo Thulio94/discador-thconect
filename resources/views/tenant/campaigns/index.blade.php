@@ -69,13 +69,8 @@
                                 @endif
                             </p>
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
-                                Tentativas {{ $campaign->max_attempts_per_contact ?: 'pela tabulacao' }} | Teto {{ $campaign->max_concurrent_calls ?: 'do contrato' }} | AMD {{ ['simulated' => 'simulado', 'asterisk' => 'Asterisk'][(string) $campaign->amd_mode] ?? 'desativado' }} | Rota {{ $campaign->dialing_route ?: 'padrao da empresa' }}
+                                Tentativas {{ $campaign->max_attempts_per_contact ?: 'pela tabulacao' }} | Tabulacao {{ $campaign->wrap_up_seconds ?? 60 }}s | AMD {{ ['simulated' => 'simulado', 'asterisk' => 'Asterisk'][(string) $campaign->amd_mode] ?? 'desativado' }} | Fixo {{ $campaign->fixedTelephonyRoute?->name ?: '-' }} | Movel {{ $campaign->mobileTelephonyRoute?->name ?: '-' }}
                             </p>
-                            @if (count($campaign->service_fields_schema ?? []) > 0)
-                                <p class="mt-1 text-xs" style="color: var(--fg-muted);">
-                                    Campos dinamicos: {{ collect($campaign->service_fields_schema)->pluck('label')->join(', ') }}
-                                </p>
-                            @endif
                             <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Discando {{ $summary['dialing'] ?? 0 }}</span>
@@ -121,7 +116,8 @@
                         <div><dt class="font-semibold">Nome</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->name }}</dd></div>
                         <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->status }}</dd></div>
                         <div><dt class="font-semibold">Modo de discagem</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->dialing_mode }}</dd></div>
-                        <div><dt class="font-semibold">Rota</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->dialing_route ?: 'Nao configurada' }}</dd></div>
+                        <div><dt class="font-semibold">Rota para fixo</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->fixedTelephonyRoute?->name ?: 'Nao configurada' }}</dd></div>
+                        <div><dt class="font-semibold">Rota para móvel</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->mobileTelephonyRoute?->name ?: 'Nao configurada' }}</dd></div>
                         <div><dt class="font-semibold">Equipes</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->teams->pluck('name')->join(', ') ?: 'Sem equipe' }}</dd></div>
                         <div><dt class="font-semibold">Listas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->contactLists->pluck('name')->join(', ') ?: 'Sem lista' }}</dd></div>
                         <div><dt class="font-semibold">Inicio</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->starts_at?->format('d/m/Y H:i') ?? 'Nao iniciada' }}</dd></div>
@@ -207,11 +203,11 @@
                 @endcan
 
                 @can('tenant.campaigns.update')
-                <x-ui.modal name="campaign-edit-{{ $campaign->id }}" title="Editar campanha">
+                <x-ui.modal name="campaign-edit-{{ $campaign->id }}" title="Editar campanha" max-width="6xl">
                     <form method="POST" action="{{ route('tenant.campaigns.update', $campaign) }}">
                         @csrf
                         @method('PUT')
-                        @include('tenant.campaigns._form', ['campaign' => $campaign, 'teams' => $teams, 'lists' => $lists])
+                        @include('tenant.campaigns._form', ['campaign' => $campaign, 'teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
                         <div class="mt-5 flex justify-end gap-2">
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-edit-{{ $campaign->id }}')">Cancelar</x-ui.button>
                             <x-ui.button type="submit">Salvar campanha</x-ui.button>
@@ -241,10 +237,10 @@
     </x-ui.card>
 
     @can('tenant.campaigns.create')
-    <x-ui.modal name="campaign-create" title="Nova campanha">
+    <x-ui.modal name="campaign-create" title="Nova campanha" max-width="6xl">
         <form method="POST" action="{{ route('tenant.campaigns.store') }}">
             @csrf
-            @include('tenant.campaigns._form', ['teams' => $teams, 'lists' => $lists])
+            @include('tenant.campaigns._form', ['teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
             <div class="mt-5 flex justify-end">
                 <x-ui.button type="submit">Criar campanha</x-ui.button>
             </div>

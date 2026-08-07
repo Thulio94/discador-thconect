@@ -127,7 +127,7 @@ class CoreRoutesTest extends TestCase
         $this->actingAs($user)
             ->get(route('tenant.telephony.index'))
             ->assertOk()
-            ->assertSee('Rota e Asterisk AMI')
+            ->assertSee('Rotas liberadas')
             ->assertDontSee('Modulo em breve');
     }
 

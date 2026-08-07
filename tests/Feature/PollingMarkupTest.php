@@ -22,8 +22,8 @@ class PollingMarkupTest extends TestCase
             ->assertOk()
             ->assertSee('pollingRegion(', false)
             ->assertSee(route('tenant.supervision.poll'), false)
-            ->assertSee("'#supervision-metrics'", false)
             ->assertSee("'#supervision-agents'", false)
+            ->assertSee("'#supervision-calls'", false)
             ->assertSee('x-init="start()"', false)
             ->assertSee(
                 'x-on:visibilitychange.document="handleVisibilityChange()"',

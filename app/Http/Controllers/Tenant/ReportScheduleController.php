@@ -20,7 +20,7 @@ class ReportScheduleController extends Controller
         ReportSchedule::create($this->attributes($data, $companyId, $request->user()->id));
 
         return redirect()
-            ->route('tenant.reports.index')
+            ->route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules'])
             ->with('status', 'Agendamento criado com sucesso.');
     }
 
@@ -32,7 +32,7 @@ class ReportScheduleController extends Controller
         $reportSchedule->update($this->attributes($data, $reportSchedule->company_id, $reportSchedule->user_id));
 
         return redirect()
-            ->route('tenant.reports.index')
+            ->route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules'])
             ->with('status', 'Agendamento atualizado com sucesso.');
     }
 
@@ -43,7 +43,7 @@ class ReportScheduleController extends Controller
         $reportSchedule->update(['status' => $status]);
 
         return redirect()
-            ->route('tenant.reports.index')
+            ->route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules'])
             ->with('status', $status === 'active'
                 ? 'Agendamento ativado com sucesso.'
                 : 'Agendamento inativado com sucesso.');
@@ -55,7 +55,7 @@ class ReportScheduleController extends Controller
         $reportSchedule->delete();
 
         return redirect()
-            ->route('tenant.reports.index')
+            ->route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules'])
             ->with('status', 'Agendamento excluido com sucesso.');
     }
 
@@ -75,7 +75,7 @@ class ReportScheduleController extends Controller
         $recordsCount = $runner->run($reportSchedule, $request->user());
 
         return redirect()
-            ->route('tenant.reports.index')
+            ->route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules'])
             ->with('status', sprintf('Agendamento executado. %d registros encontrados.', $recordsCount));
     }
 
@@ -88,6 +88,7 @@ class ReportScheduleController extends Controller
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'report_type' => ['nullable', Rule::in(['calls', 'agents', 'campaigns', 'lists', 'qualifications', 'teams', 'utilization', 'callbacks'])],
             'format' => ['required', Rule::in(['csv', 'xlsx', 'pdf'])],
             'frequency' => ['required', Rule::in(['daily', 'weekly'])],
             'weekday' => ['nullable', 'required_if:frequency,weekly', 'integer', 'between:0,6'],
@@ -107,6 +108,7 @@ class ReportScheduleController extends Controller
         return [
             'company_id' => $companyId,
             'user_id' => $userId,
+            'report_type' => $data['report_type'] ?? 'calls',
             'name' => $data['name'],
             'format' => $data['format'],
             'frequency' => $data['frequency'],

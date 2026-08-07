@@ -6,7 +6,9 @@ use App\Http\Middleware\BlockGodModeTelephonyActions;
 use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
+use App\Http\Middleware\ReleaseAgentConsolePresence;
 use App\Http\Middleware\VerifyAsteriskBridgeSignature;
+use App\Http\Middleware\VerifyMetricsToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,11 +27,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant.active' => EnsureTenantIsActive::class,
             'tenant.user' => EnsureTenantUser::class,
+            'agent.console.presence' => ReleaseAgentConsolePresence::class,
             'god-mode' => ApplyGodModeCompanyContext::class,
             'god-mode.telephony-safe' => BlockGodModeTelephonyActions::class,
             'super.admin' => EnsureUserIsSuperAdmin::class,
             'security.headers' => ApplySecurityHeaders::class,
             'asterisk.bridge' => VerifyAsteriskBridgeSignature::class,
+            'metrics.token' => VerifyMetricsToken::class,
         ]);
 
         $middleware->validateCsrfTokens(except: ['bridge/events']);

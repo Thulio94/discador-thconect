@@ -174,21 +174,21 @@ class TenantTeamRoleCrudTest extends TestCase
             'company_id' => $company->id,
             'role_id' => $role->id,
             'user_type' => 'company_admin',
-            'extension' => '1000',
+            'extension' => (string) (1000 + ($company->id * 10)),
             'status' => 'active',
         ]);
         $agent = User::factory()->create([
             'company_id' => $company->id,
             'role_id' => $role->id,
             'user_type' => 'agent',
-            'extension' => '2001',
+            'extension' => (string) (1001 + ($company->id * 10)),
             'status' => 'active',
         ]);
         $supervisor = User::factory()->create([
             'company_id' => $company->id,
             'role_id' => $role->id,
             'user_type' => 'supervisor',
-            'extension' => '3001',
+            'extension' => (string) (1002 + ($company->id * 10)),
             'status' => 'active',
         ]);
 

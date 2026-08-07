@@ -28,7 +28,11 @@ class AuditLogController extends Controller
             'filters' => $filters,
             'companies' => Company::query()->orderBy('name')->get(),
             'actors' => User::query()->orderBy('name')->get(),
-            'events' => AuditLog::query()->distinct()->orderBy('event')->pluck('event'),
+            'events' => AuditLog::query()
+                ->where('event', 'not like', 'god_mode.%')
+                ->distinct()
+                ->orderBy('event')
+                ->pluck('event'),
             'isSuperAdmin' => true,
             'purgeSelection' => $purgeSelection,
             'purgeEstimate' => $purgeSelection ? $purge->estimate($purgeSelection) : null,

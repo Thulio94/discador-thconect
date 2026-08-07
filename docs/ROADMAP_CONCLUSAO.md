@@ -550,3 +550,15 @@ Pendente antes de uma publicacao real:
 - `docs/superpowers/specs/2026-07-10-scheduled-reports-automation-design.md`
 - `docs/superpowers/specs/2026-07-10-local-production-readiness-design.md`
 - `docs/superpowers/specs/2026-07-10-production-container-artifacts-design.md`
+# Atualizacao de capacidade - 2026-08-03
+
+- [x] Limites globais e por empresa separados da licenca comercial.
+- [x] Capacidade por rota e cadastro de nos Asterisk.
+- [x] Reserva atomica, backpressure, peso e reconciliacao.
+- [x] Importacao assincrona e exportacao CSV progressiva.
+- [x] Cache e agregacoes na supervisao.
+- [x] Filas separadas e PHP-FPM dimensionado.
+- [x] Gravacoes em disco configuravel/S3 e arquivamento de chamadas.
+- [x] Metricas Prometheus protegidas e painel exclusivo do SuperAdmin.
+- [ ] Homologacao SIPp de 500 canais em quatro nos reais.
+- [ ] Teste continuo de oito horas e falha controlada de um no.

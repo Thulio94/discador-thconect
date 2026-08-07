@@ -38,25 +38,21 @@ class AuditLogAccessTest extends TestCase
             ->assertDontSee('window.confirm', false);
     }
 
-    public function test_tenant_admin_sees_only_own_company_even_with_crafted_company_filter(): void
+    public function test_tenant_audit_url_is_not_available_and_navigation_is_hidden(): void
     {
-        [$adminA, $companyA] = $this->tenantAdmin('Tenant A');
-        [, $companyB] = $this->tenantAdmin('Tenant B');
-        AuditLog::query()->delete();
-        $this->log($companyA->id, 'Visivel somente A', 'user.updated');
-        $this->log($companyB->id, 'Oculto de A', 'user.updated');
-        $this->log(null, 'Global oculto de A', 'auth.failed');
+        [$admin] = $this->tenantAdmin('Tenant A');
 
-        $this->actingAs($adminA)
-            ->get(route('tenant.audit-logs.index', ['company_id' => $companyB->id]))
+        $this->actingAs($admin)
+            ->get('/tenant/audit-logs')
+            ->assertNotFound();
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Visivel somente A')
-            ->assertDontSee('Oculto de A')
-            ->assertDontSee('Global oculto de A')
-            ->assertDontSee('Limpar historico');
+            ->assertDontSee('Auditoria');
     }
 
-    public function test_user_without_audit_permission_is_forbidden_and_does_not_see_navigation(): void
+    public function test_audit_permission_is_not_available_to_tenant_roles(): void
     {
         $this->seed(PermissionSeeder::class);
         $company = $this->company('Tenant Restrito');
@@ -76,13 +72,38 @@ class AuditLogAccessTest extends TestCase
         ]);
 
         $this->actingAs($supervisor)
-            ->get(route('tenant.audit-logs.index'))
-            ->assertForbidden();
+            ->get('/tenant/audit-logs')
+            ->assertNotFound();
 
         $this->actingAs($supervisor)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('Auditoria');
+    }
+
+    public function test_removing_legacy_tenant_audit_permission_preserves_audit_logs(): void
+    {
+        $company = $this->company('Tenant Legado');
+        $role = Role::create([
+            'company_id' => $company->id,
+            'name' => 'Administrador legado',
+            'slug' => 'administrador-legado',
+            'is_admin' => true,
+        ]);
+        $permission = Permission::create([
+            'key' => 'audit.read',
+            'name' => 'Ler',
+            'module' => 'audit',
+        ]);
+        $role->permissions()->attach($permission);
+        $log = $this->log($company->id, 'Evento que deve permanecer', 'user.updated');
+
+        $migration = require database_path('migrations/2026_08_03_000002_remove_tenant_audit_permission.php');
+        $migration->up();
+
+        $this->assertDatabaseMissing('permissions', ['key' => 'audit.read']);
+        $this->assertDatabaseMissing('role_permissions', ['permission_id' => $permission->id]);
+        $this->assertDatabaseHas('audit_logs', ['id' => $log->id]);
     }
 
     public function test_audit_filters_apply_date_actor_event_global_and_text_search(): void

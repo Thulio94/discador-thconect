@@ -25,11 +25,7 @@
     </div>
 
     <div class="grid gap-2">
-        <label class="flex items-center gap-2 text-sm">
-            <input type="hidden" name="auto_available_after_call" value="0">
-            <input type="checkbox" name="auto_available_after_call" value="1" @checked(old('auto_available_after_call', $operationalParameter->auto_available_after_call)) class="rounded border" style="border-color: var(--border);">
-            <span class="font-semibold">Agente volta para disponivel apos tabular</span>
-        </label>
+        <p class="text-sm font-semibold">Ao salvar a tabulacao, o agente volta automaticamente para disponivel.</p>
         <label class="flex items-center gap-2 text-sm">
             <input type="hidden" name="allow_manual_calls_while_paused" value="0">
             <input type="checkbox" name="allow_manual_calls_while_paused" value="1" @checked(old('allow_manual_calls_while_paused', $operationalParameter->allow_manual_calls_while_paused)) class="rounded border" style="border-color: var(--border);">

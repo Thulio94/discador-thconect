@@ -14,6 +14,7 @@ WORKDIR /var/www/html
 
 COPY .docker/entrypoint.sh /usr/local/bin/discador-entrypoint
 COPY .docker/app/php.ini /usr/local/etc/php/conf.d/discador.ini
+COPY .docker/app/www.conf /usr/local/etc/php-fpm.d/zz-discador.conf
 RUN chmod +x /usr/local/bin/discador-entrypoint
 
 ENTRYPOINT ["discador-entrypoint"]

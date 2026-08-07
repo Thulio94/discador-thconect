@@ -166,7 +166,7 @@ sequenceDiagram
 1. **Desempenho**: Múltiplas campanhas simultâneas com alta volumetria
 2. **Latência**: Comunicação WebRTC < 200ms
 3. **Escalabilidade**: Arquitetura horizontal
-4. **Auditoria**: Logs de ações críticas
+4. **Auditoria central**: Logs de ações críticas disponíveis exclusivamente ao super admin, com filtro por empresa
 5. **AMD**: Reconhecimento de voz em < 3 segundos para detecção de caixa postal
 6. **Backup**: Estratégias para bases de contatos e histórico
 
@@ -179,3 +179,11 @@ sequenceDiagram
 - [API.md](file:///c:/xampp/htdocs/discador/docs/API.md) - Documentação de Rotas e Endpoints
 - [MODELS.md](file:///c:/xampp/htdocs/discador/docs/MODELS.md) - Documentação de Models
 - [DATABASE.md](file:///c:/xampp/htdocs/discador/docs/DATABASE.md) - Schema do Banco de Dados
+---
+
+## Autenticacao
+
+O e-mail e a identidade global e exclusiva de acesso ao painel compartilhado. Ramais sao identificadores de telefonia e nao autenticam usuarios. As regras de normalizacao, unicidade, recuperacao de senha e migracao segura estao documentadas em [AUTENTICACAO_E_IDENTIDADE.md](AUTENTICACAO_E_IDENTIDADE.md).
+# Capacidade operacional
+
+Os limites tecnicos, filas dedicadas, armazenamento de gravacoes, arquivamento e roteiro de homologacao estao documentados em [CAPACIDADE_E_HOMOLOGACAO.md](CAPACIDADE_E_HOMOLOGACAO.md).

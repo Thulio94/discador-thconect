@@ -29,6 +29,7 @@ class DemoTenantSeeder extends Seeder
             [
                 'starts_at' => now()->subDay()->toDateString(),
                 'ends_at' => now()->addYear()->toDateString(),
+                'billing_due_day' => min(28, now()->day),
                 'max_users' => 10,
                 'max_concurrent_agents' => 4,
                 'max_calls_per_available_agent' => 2,

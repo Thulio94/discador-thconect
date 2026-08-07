@@ -22,6 +22,15 @@
             >
         </label>
 
+        <label class="grid gap-1 text-sm md:col-span-2">
+            <span class="font-semibold">Relatório</span>
+            <select name="report_type" required class="{{ $inputClass }}" style="{{ $inputStyle }}">
+                @foreach (collect($reportCatalog)->except('exports') as $value => $definition)
+                    <option value="{{ $value }}" @selected(old('report_type', $schedule?->report_type ?? 'calls') === $value)>{{ $definition['title'] }}</option>
+                @endforeach
+            </select>
+        </label>
+
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Formato</span>
             <select name="format" required class="{{ $inputClass }}" style="{{ $inputStyle }}">

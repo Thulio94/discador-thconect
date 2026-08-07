@@ -28,6 +28,7 @@ class SuperAdminCompanyCrudTest extends TestCase
 
         $this->assertSame(5, $company->license->max_calls_per_available_agent);
         $this->assertSame(10, $company->license->max_concurrent_agents);
+        $this->assertSame(12, $company->license->billing_due_day);
         $this->assertSame('active', $company->status);
     }
 
@@ -61,6 +62,33 @@ class SuperAdminCompanyCrudTest extends TestCase
         $this->assertTrue($company->license->amd_enabled);
     }
 
+    public function test_company_edit_preserves_internal_license_dates_when_they_are_not_submitted(): void
+    {
+        $company = Company::create(['name' => 'Empresa com Vigencia Interna', 'status' => 'active']);
+        $license = $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => '2026-01-10',
+            'ends_at' => '2027-01-10',
+            'billing_due_day' => 10,
+            'max_calls_per_available_agent' => 1,
+        ]);
+        $payload = $this->payload([
+            'name' => $company->name,
+            'billing_due_day' => 15,
+        ]);
+        unset($payload['license_starts_at'], $payload['license_ends_at']);
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('super-admin.companies.update', $company), $payload)
+            ->assertRedirect(route('super-admin.companies.index'));
+
+        $license->refresh();
+
+        $this->assertSame('2026-01-10', $license->starts_at->toDateString());
+        $this->assertSame('2027-01-10', $license->ends_at->toDateString());
+        $this->assertSame(15, $license->billing_due_day);
+    }
+
     public function test_destroy_inactivates_company_instead_of_deleting(): void
     {
         $company = Company::create(['name' => 'Empresa']);
@@ -71,6 +99,43 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->assertSessionHas('status');
 
         $this->assertSame('inactive', $company->fresh()->status);
+    }
+
+    public function test_super_admin_can_block_and_unblock_a_company(): void
+    {
+        $company = Company::create(['name' => 'Empresa Bloqueavel', 'status' => 'active']);
+
+        $this->actingAs($this->superAdmin())
+            ->patch(route('super-admin.companies.block', $company))
+            ->assertRedirect(route('super-admin.companies.index'));
+
+        $this->assertSame('blocked', $company->fresh()->status);
+
+        $this->actingAs($this->superAdmin())
+            ->patch(route('super-admin.companies.unblock', $company))
+            ->assertRedirect(route('super-admin.companies.index'));
+
+        $this->assertSame('active', $company->fresh()->status);
+    }
+
+    public function test_inactive_companies_are_hidden_until_super_admin_requests_them(): void
+    {
+        Company::create(['name' => 'Empresa Ativa', 'status' => 'active']);
+        Company::create(['name' => 'Empresa Inativa', 'status' => 'inactive']);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('super-admin.companies.index'))
+            ->assertOk()
+            ->assertSee('Empresa Ativa')
+            ->assertDontSee('Empresa Inativa')
+            ->assertSee('Mostrar inativas (1)');
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('super-admin.companies.index', ['show_inactive' => 1]))
+            ->assertOk()
+            ->assertSee('Empresa Ativa')
+            ->assertSee('Empresa Inativa')
+            ->assertSee('Ocultar inativas');
     }
 
     public function test_super_admin_company_list_shows_current_call_usage(): void
@@ -134,6 +199,24 @@ class SuperAdminCompanyCrudTest extends TestCase
             ->assertSee('2 / 1');
     }
 
+    public function test_super_admin_sees_the_next_payment_date_on_company_card(): void
+    {
+        $company = Company::create(['name' => 'Empresa com Vencimento', 'status' => 'active']);
+        $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => now()->subDay()->toDateString(),
+            'ends_at' => now()->addMonth()->toDateString(),
+            'billing_due_day' => now()->addDays(3)->day,
+            'max_calls_per_available_agent' => 1,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('super-admin.companies.index'))
+            ->assertOk()
+            ->assertSee('Cobranca:')
+            ->assertSee(now()->addDays(3)->format('d/m/Y'));
+    }
+
     public function test_company_and_license_creation_are_audited_with_super_admin_actor(): void
     {
         $admin = $this->superAdmin();
@@ -177,6 +260,7 @@ class SuperAdminCompanyCrudTest extends TestCase
             'status' => 'active',
             'license_starts_at' => now()->subDay()->toDateString(),
             'license_ends_at' => now()->addMonth()->toDateString(),
+            'billing_due_day' => 12,
             'max_users' => 25,
             'max_concurrent_agents' => 10,
             'max_calls_per_available_agent' => 3,

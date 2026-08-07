@@ -56,7 +56,7 @@ class TenantReportScheduleTest extends TestCase
                 'campaign_id' => $campaign->id,
                 'status' => 'active',
             ])
-            ->assertRedirect(route('tenant.reports.index'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
             ->assertSessionHas('status', 'Agendamento criado com sucesso.');
 
         $this->actingAs($admin)
@@ -69,7 +69,7 @@ class TenantReportScheduleTest extends TestCase
                 'period_days' => 15,
                 'status' => 'inactive',
             ])
-            ->assertRedirect(route('tenant.reports.index'));
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']));
 
         $daily = ReportSchedule::query()->where('name', 'Resumo diario')->firstOrFail();
         $weekly = ReportSchedule::query()->where('name', 'Resumo semanal')->firstOrFail();
@@ -132,7 +132,7 @@ class TenantReportScheduleTest extends TestCase
                 'period_days' => 60,
                 'status' => 'active',
             ])
-            ->assertRedirect(route('tenant.reports.index'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
             ->assertSessionHas('status', 'Agendamento atualizado com sucesso.');
 
         $schedule->refresh();
@@ -142,7 +142,7 @@ class TenantReportScheduleTest extends TestCase
 
         $this->actingAs($admin)
             ->patch(route('tenant.reports.schedules.status', $schedule))
-            ->assertRedirect(route('tenant.reports.index'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
             ->assertSessionHas('status', 'Agendamento inativado com sucesso.');
 
         $this->assertSame('inactive', $schedule->refresh()->status);
@@ -172,7 +172,7 @@ class TenantReportScheduleTest extends TestCase
 
         $this->actingAs($admin)
             ->delete(route('tenant.reports.schedules.destroy', $schedule))
-            ->assertRedirect(route('tenant.reports.index'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
             ->assertSessionHas('status', 'Agendamento excluido com sucesso.');
 
         $this->assertDatabaseMissing('report_schedules', ['id' => $schedule->id]);
@@ -217,7 +217,7 @@ class TenantReportScheduleTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('tenant.reports.schedules.run', $schedule))
-            ->assertRedirect(route('tenant.reports.index'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
             ->assertSessionHas('status', 'Agendamento executado. 1 registros encontrados.');
 
         $schedule->refresh();
@@ -290,9 +290,9 @@ class TenantReportScheduleTest extends TestCase
         $this->schedule($otherCompany, $otherAdmin, 'Rotina outra empresa');
 
         $this->actingAs($admin)
-            ->get(route('tenant.reports.index'))
+            ->get(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
             ->assertOk()
-            ->assertSee('Agendamentos de relatorios')
+            ->assertSee('Agendamentos de relatórios')
             ->assertSee('Novo agendamento')
             ->assertSee('Resumo diario')
             ->assertSee('Executar agora')

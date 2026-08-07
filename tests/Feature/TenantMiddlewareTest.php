@@ -78,7 +78,9 @@ class TenantMiddlewareTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
             ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin');
+            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin')
+            ->assertHeader('Cross-Origin-Resource-Policy', 'same-origin')
+            ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none');
     }
 
     private function tenantUserWithLicense(): User

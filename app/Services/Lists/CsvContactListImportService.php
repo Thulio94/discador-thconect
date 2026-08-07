@@ -7,6 +7,7 @@ use App\Models\ContactList;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Models\Contact;
 use SplFileObject;
 
 class CsvContactListImportService
@@ -19,6 +20,10 @@ class CsvContactListImportService
         string $delimiter = '"'
     ): CsvContactListImportResult {
         $selectedColumns = $this->selectedColumns($columns);
+        $limits = $list->company()->with('resourceLimit')->first()?->resourceLimit;
+        $maxRows = $limits?->max_import_rows ?? 100000;
+        $maxActiveContacts = $limits?->max_active_contacts ?? 500000;
+        $activeContacts = Contact::query()->where('company_id', $list->company_id)->whereNotIn('status', ['exhausted', 'inactive'])->count();
         $phoneColumns = array_filter($selectedColumns, fn (array $column): bool => $column['type'] === 'phone');
 
         if ($phoneColumns === []) {
@@ -51,7 +56,7 @@ class CsvContactListImportService
             ]);
         }
 
-        DB::transaction(function () use (
+        $process = function () use (
             $csv,
             $list,
             $selectedColumns,
@@ -60,7 +65,10 @@ class CsvContactListImportService
             &$phonesImported,
             &$blocked,
             &$invalid,
-            &$duplicated
+            &$duplicated,
+            $maxRows,
+            $maxActiveContacts,
+            $activeContacts
         ): void {
             while (! $csv->eof()) {
                 $row = $csv->fgetcsv();
@@ -119,6 +127,15 @@ class CsvContactListImportService
                     continue;
                 }
 
+                if ($leadsImported >= $maxRows) {
+                    throw ValidationException::withMessages([
+                        'import_file' => "O arquivo excede o limite de {$maxRows} leads por importacao.",
+                    ]);
+                }
+                if ($activeContacts + $leadsImported >= $maxActiveContacts) {
+                    throw ValidationException::withMessages(['import_file' => 'A protecao de contatos ativos da empresa foi atingida. Contate o administrador.']);
+                }
+
                 $contact = $list->contacts()->create([
                     'company_id' => $list->company_id,
                     'name' => $extra['Nome'] ?? $extra['nome'] ?? null,
@@ -141,7 +158,8 @@ class CsvContactListImportService
                 $leadsImported++;
                 $phonesImported += count($phones);
             }
-        });
+        };
+        $process();
 
         return new CsvContactListImportResult(
             $leadsImported,

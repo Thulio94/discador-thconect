@@ -4,7 +4,12 @@ namespace App\Services\Dialer;
 
 use App\Contracts\Dialer\DialerGateway;
 use App\Models\Call;
-use App\Models\CompanyTelephonyConfiguration;
+use App\Models\Campaign;
+use App\Models\TelephonyRoute;
+use App\Models\Company;
+use App\Exceptions\CapacityExceededException;
+use App\Services\Capacity\ChannelCapacityService;
+use App\Services\Reports\CallReportSnapshot;
 use App\Services\Telephony\AsteriskBridgeClient;
 use Illuminate\Support\Str;
 use Throwable;
@@ -14,16 +19,38 @@ class AsteriskDialerGateway implements DialerGateway
     public function __construct(
         private readonly SimulatedDialerGateway $simulated,
         private readonly AsteriskBridgeClient $bridge,
+        private readonly CallReportSnapshot $snapshots,
+        private readonly ChannelCapacityService $capacity,
     ) {}
 
     public function originate(DialerCallRequest $request): Call
     {
-        $configuration = CompanyTelephonyConfiguration::query()
-            ->where('company_id', $request->companyId)
-            ->first();
+        $campaign = $request->campaignId
+            ? Campaign::query()
+                ->with(['fixedTelephonyRoute', 'mobileTelephonyRoute'])
+                ->where('company_id', $request->companyId)
+                ->find($request->campaignId)
+            : null;
+        $route = $this->routeForPhone($campaign, $request->phone);
 
-        if (! $configuration?->isReadyForAsterisk()) {
+        if (! $route?->isReady() || $route->connection_status !== 'online') {
             return $this->simulated->originate($request);
+        }
+
+        $company = Company::query()->with(['license', 'resourceLimit'])->findOrFail($request->companyId);
+        try {
+            $reservation = $this->capacity->reserve($company, $route, $campaign, $request->userId);
+        } catch (CapacityExceededException $exception) {
+            $call = Call::create([
+                'company_id' => $request->companyId, 'user_id' => $request->userId,
+                'campaign_id' => $request->campaignId, 'telephony_route_id' => $route->id,
+                'contact_id' => $request->contactId, 'contact_phone_id' => $request->contactPhoneId,
+                'direction' => 'outbound', 'status' => 'cancelled', 'channel' => 'capacity_guard',
+                'phone' => $request->phone, 'started_at' => now(), 'ended_at' => now(),
+                'end_reason' => 'capacity_'.$exception->limitKey, 'hangup_party' => 'system',
+            ]);
+            $this->snapshots->capture($call);
+            return $call;
         }
 
         $actionId = 'thconect-'.$request->companyId.'-'.Str::uuid()->toString();
@@ -31,6 +58,8 @@ class AsteriskDialerGateway implements DialerGateway
             'company_id' => $request->companyId,
             'user_id' => $request->userId,
             'campaign_id' => $request->campaignId,
+            'telephony_route_id' => $route->id,
+            'channel_reservation_id' => $reservation->id,
             'contact_id' => $request->contactId,
             'contact_phone_id' => $request->contactPhoneId,
             'direction' => 'outbound',
@@ -40,26 +69,31 @@ class AsteriskDialerGateway implements DialerGateway
             'phone' => $request->phone,
             'started_at' => now(),
         ]);
+        $this->capacity->activate($reservation, $call->id);
+        $this->snapshots->capture($call);
 
         try {
             $this->bridge->originate([
                 'company_id' => $request->companyId,
                 'call_id' => $call->id,
                 'action_id' => $actionId,
-                'phone' => $request->phone,
-                'channel' => str_replace('{phone}', $request->phone, (string) $configuration->outbound_channel_template),
-                'context' => $configuration->dialplan_context,
-                'extension' => $configuration->dialplan_extension,
-                'caller_id' => $configuration->caller_id,
-            ]);
+                'phone' => $route->formattedPhone($request->phone),
+                'channel' => 'PJSIP/'.$route->formattedPhone($request->phone).'@thconect-route-'.$route->id,
+                'context' => $route->dialplan_context,
+                'extension' => $route->dialplan_extension,
+                'caller_id' => $route->caller_id,
+                'recording_file' => sprintf('call-%d.wav', $call->id),
+            ], $route->asteriskNode);
         } catch (Throwable $exception) {
             report($exception);
 
             $call->update([
                 'status' => 'cancelled',
                 'end_reason' => 'bridge_unavailable',
+                'hangup_party' => 'system',
                 'ended_at' => now(),
             ]);
+            $this->capacity->release($reservation, 'bridge_unavailable');
         }
 
         return $call;
@@ -81,12 +115,13 @@ class AsteriskDialerGateway implements DialerGateway
         }
 
         try {
+            $call->loadMissing('telephonyRoute.asteriskNode');
             $this->bridge->hangup([
                 'company_id' => $call->company_id,
                 'call_id' => $call->id,
                 'channel' => $call->telephony_channel,
                 'uniqueid' => $call->telephony_uniqueid,
-            ]);
+            ], $call->telephonyRoute?->asteriskNode);
         } catch (Throwable $exception) {
             report($exception);
         }
@@ -94,8 +129,25 @@ class AsteriskDialerGateway implements DialerGateway
         $call->update([
             'status' => 'ended',
             'ended_at' => now(),
+            'hangup_party' => $call->hangup_party ?? 'agent',
         ]);
+        $this->capacity->release($call->channel_reservation_id, 'agent_hangup');
 
         return $call;
+    }
+
+    private function routeForPhone(?Campaign $campaign, string $phone): ?TelephonyRoute
+    {
+        if (! $campaign) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone) ?: '';
+        $nationalNumber = str_starts_with($digits, '55') ? substr($digits, 2) : $digits;
+        $isMobile = strlen($nationalNumber) >= 11 && ($nationalNumber[2] ?? null) === '9';
+
+        return $isMobile
+            ? ($campaign->mobileTelephonyRoute ?? $campaign->fixedTelephonyRoute)
+            : ($campaign->fixedTelephonyRoute ?? $campaign->mobileTelephonyRoute);
     }
 }

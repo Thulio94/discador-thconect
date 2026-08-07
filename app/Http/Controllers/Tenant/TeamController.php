@@ -77,7 +77,7 @@ class TeamController extends Controller
 
     public function update(Request $request, Team $team): RedirectResponse
     {
-        abort_unless($team->company_id === $request->user()->company_id, 403);
+        abort_unless($team->company_id === $request->user()->company_id, 404);
 
         $data = $request->validate($this->rules($team->company_id, $team));
 
@@ -94,7 +94,7 @@ class TeamController extends Controller
 
     public function destroy(Request $request, Team $team): RedirectResponse
     {
-        abort_unless($team->company_id === $request->user()->company_id, 403);
+        abort_unless($team->company_id === $request->user()->company_id, 404);
 
         $team->update(['status' => 'inactive']);
 
@@ -125,6 +125,17 @@ class TeamController extends Controller
             $sync[(int) $id] = ['membership_type' => 'supervisor'];
         }
 
-        $team->users()->sync($sync);
+        DB::transaction(function () use ($team, $agentIds, $sync): void {
+            // An agent has one operational team. Supervisors may belong to several teams.
+            if ($agentIds !== []) {
+                DB::table('team_user')
+                    ->where('company_id', $team->company_id)
+                    ->whereIn('user_id', $agentIds)
+                    ->where('team_id', '!=', $team->id)
+                    ->delete();
+            }
+
+            $team->users()->sync($sync);
+        });
     }
 }

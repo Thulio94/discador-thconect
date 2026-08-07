@@ -46,7 +46,12 @@
                                 {{ $list->contacts_count }} contatos | {{ $list->campaigns_count }} campanhas
                             </p>
                         </div>
-                        <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $list->status }}</span>
+                        <div class="flex items-center gap-2">
+                            @if($list->import_status !== 'idle')
+                                <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background:color-mix(in srgb, {{ $list->import_status === 'failed' ? 'var(--status-danger)' : ($list->import_status === 'completed' ? 'var(--status-success)' : 'var(--primary)') }} 12%, var(--surface));color:var(--fg);">{{ ['queued'=>'Na fila','processing'=>'Importando','completed'=>'Concluida','failed'=>'Falhou'][$list->import_status] ?? $list->import_status }} · {{ $list->import_progress }}%</span>
+                            @endif
+                            <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $list->status }}</span>
+                        </div>
                     </div>
                     <div class="mt-4 flex flex-wrap justify-end gap-2">
                         <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'list-view-{{ $list->id }}')" />
@@ -67,6 +72,7 @@
                         <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->status === 'active' ? 'Ativa' : 'Inativa' }}</dd></div>
                         <div><dt class="font-semibold">Contatos</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->contacts_count }}</dd></div>
                         <div><dt class="font-semibold">Campanhas vinculadas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->campaigns_count }}</dd></div>
+                        @if($list->import_status !== 'idle')<div class="sm:col-span-2"><dt class="font-semibold">Importacao</dt><dd class="mt-1" style="color:{{ $list->import_status === 'failed' ? 'var(--status-danger)' : 'var(--fg-muted)' }};">{{ $list->import_progress }}% · {{ $list->imported_rows }} leads processados{{ $list->import_error ? ' · '.$list->import_error : '' }}</dd></div>@endif
                         <div><dt class="font-semibold">Criada em</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->created_at?->format('d/m/Y H:i') }}</dd></div>
                         <div><dt class="font-semibold">Atualizada em</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $list->updated_at?->format('d/m/Y H:i') }}</dd></div>
                     </dl>
@@ -125,7 +131,7 @@
             @endif
             <div class="mt-5 flex flex-wrap items-center justify-end gap-3">
                 <span class="text-xs" style="color: var(--fg-muted);" x-show="!isSubmitting && !canSubmit()">Aguardando coluna de Telefone.</span>
-                <span class="text-sm font-semibold" role="status" aria-live="polite" style="color: var(--primary);" x-show="isSubmitting">Importando mailing e validando contatos...</span>
+                <span class="text-sm font-semibold" role="status" aria-live="polite" style="color: var(--primary);" x-show="isSubmitting">Enviando arquivo para a fila de importacao...</span>
                 <x-ui.button type="submit" x-bind:disabled="!canSubmit() || isSubmitting"><span x-text="isSubmitting ? 'Importando...' : 'Criar lista'"></span></x-ui.button>
             </div>
         </form>

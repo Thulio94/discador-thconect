@@ -2,9 +2,9 @@
 
 namespace App\Services\Dialer;
 
+use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
-use App\Models\OperationalParameter;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -64,7 +64,7 @@ final class CallWrapUpService
                 ]);
 
                 if ($call->user_id && $user = User::query()->find($call->user_id)) {
-                    $this->releaseAgent($user);
+                    $this->releaseAgent($user, $call);
                 }
 
                 return true;
@@ -76,7 +76,7 @@ final class CallWrapUpService
         return $expired;
     }
 
-    public function releaseAgent(User $user): void
+    public function releaseAgent(User $user, ?Call $call = null): void
     {
         AgentStatus::query()
             ->where('company_id', $user->company_id)
@@ -84,12 +84,23 @@ final class CallWrapUpService
             ->whereNull('ended_at')
             ->update(['ended_at' => now()]);
 
-        $parameters = OperationalParameter::forCompany($user->company_id);
+        $mustRemainOffline = (bool) data_get($call?->provider_payload, 'agent_console_closed', false);
+        $manualPauseReason = ! $mustRemainOffline && $call?->channel === 'manual'
+            ? data_get($call->provider_payload, 'resume_pause.reason')
+            : null;
+
+        if ($manualPauseReason) {
+            $user->agentPauses()->create([
+                'company_id' => $user->company_id,
+                'reason' => $manualPauseReason,
+                'started_at' => now(),
+            ]);
+        }
+
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
-            'status' => $user->user_type === 'agent' && $parameters->auto_available_after_call
-                ? 'available'
-                : 'offline',
+            'status' => $mustRemainOffline ? 'offline' : ($manualPauseReason ? 'paused' : 'available'),
+            'reason' => $manualPauseReason,
             'started_at' => now(),
         ]);
     }

@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Role;
 use App\Models\Team;
+use App\Models\TelephonyRoute;
 use App\Models\User;
 use App\Services\Dialer\MailingQueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -519,7 +520,7 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSessionHasErrors('lead_phone_strategy');
     }
 
-    public function test_tenant_admin_can_configure_campaign_dynamic_service_fields(): void
+    public function test_campaign_creation_ignores_dynamic_service_fields_sent_manually(): void
     {
         [$admin, $team] = $this->tenantAdmin();
         $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Campos']);
@@ -547,19 +548,16 @@ class TenantCampaignListCrudTest extends TestCase
 
         $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Campos')->sole();
 
-        $this->assertSame(
-            ['text', 'number', 'date', 'cpf', 'cnpj', 'phone', 'email', 'currency'],
-            collect($campaign->service_fields_schema)->pluck('type')->all(),
-        );
+        $this->assertNull($campaign->service_fields_schema);
 
         $this->actingAs($admin)
             ->get(route('tenant.campaigns.index'))
             ->assertOk()
-            ->assertSee('Campos dinamicos')
-            ->assertSee('CPF');
+            ->assertDontSee('Campos dinamicos')
+            ->assertDontSee('CPF Cliente');
     }
 
-    public function test_tenant_admin_cannot_configure_an_unknown_service_field_type(): void
+    public function test_campaign_creation_ignores_unknown_dynamic_service_field_type(): void
     {
         [$admin, $team] = $this->tenantAdmin();
         $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Tipo Invalido']);
@@ -575,9 +573,9 @@ class TenantCampaignListCrudTest extends TestCase
                     ['enabled' => '1', 'key' => 'arquivo', 'label' => 'Arquivo', 'type' => 'file'],
                 ],
             ])
-            ->assertSessionHasErrors('service_fields_schema.0.type');
+            ->assertRedirect(route('tenant.campaigns.index'));
 
-        $this->assertDatabaseMissing('campaigns', ['name' => 'Campanha Tipo Invalido']);
+        $this->assertDatabaseHas('campaigns', ['name' => 'Campanha Tipo Invalido']);
     }
 
     public function test_tenant_admin_can_update_and_finish_campaign(): void
@@ -696,11 +694,11 @@ class TenantCampaignListCrudTest extends TestCase
 
         $this->actingAs($admin)
             ->patch(route('tenant.campaigns.start', $otherCampaign))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->actingAs($admin)
             ->post(route('tenant.campaigns.duplicate', $otherCampaign))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertSame('draft', $otherCampaign->fresh()->status);
     }
@@ -812,7 +810,7 @@ class TenantCampaignListCrudTest extends TestCase
 
         $this->actingAs($admin)
             ->patch(route('tenant.campaigns.recycle', $otherCampaign))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_tenant_admin_can_trigger_simulated_campaign_dialer_from_campaign(): void
@@ -1055,6 +1053,15 @@ class TenantCampaignListCrudTest extends TestCase
         [$admin, $team] = $this->tenantAdmin();
         $admin->company->licenses()->firstOrFail()->update(['max_concurrent_calls' => 8]);
         $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Avancada']);
+        $fixedRoute = TelephonyRoute::create([
+            'name' => 'Rota fixa', 'tech' => '5006', 'host' => 'sbc.fixa.test', 'transport' => 'udp',
+            'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound', 'dialplan_extension' => 's', 'codecs' => 'alaw,g729',
+        ]);
+        $mobileRoute = TelephonyRoute::create([
+            'name' => 'Rota movel', 'tech' => '7033', 'host' => 'sbc.movel.test', 'transport' => 'udp',
+            'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound', 'dialplan_extension' => 's', 'codecs' => 'alaw,g729',
+        ]);
+        $admin->company->telephonyRoutes()->attach([$fixedRoute->id, $mobileRoute->id]);
 
         $this->actingAs($admin)
             ->post(route('tenant.campaigns.store'), [
@@ -1065,10 +1072,11 @@ class TenantCampaignListCrudTest extends TestCase
                 'list_ids' => [$list->id],
                 'max_attempts_per_contact' => 3,
                 'retry_delay_minutes' => 20,
-                'wrap_up_minutes' => 4,
+                'wrap_up_seconds' => 240,
                 'max_concurrent_calls' => 4,
                 'amd_mode' => 'simulated',
-                'dialing_route' => 'Saida principal',
+                'fixed_telephony_route_id' => $fixedRoute->id,
+                'mobile_telephony_route_id' => $mobileRoute->id,
             ])
             ->assertRedirect(route('tenant.campaigns.index'));
 
@@ -1076,13 +1084,14 @@ class TenantCampaignListCrudTest extends TestCase
 
         $this->assertSame(3, $campaign->max_attempts_per_contact);
         $this->assertSame(20, $campaign->retry_delay_minutes);
-        $this->assertSame(4, $campaign->wrap_up_minutes);
-        $this->assertSame(4, $campaign->max_concurrent_calls);
+        $this->assertSame(240, $campaign->wrap_up_seconds);
+        $this->assertNull($campaign->max_concurrent_calls);
         $this->assertSame('simulated', $campaign->amd_mode);
-        $this->assertSame('Saida principal', $campaign->dialing_route);
+        $this->assertSame($fixedRoute->id, $campaign->fixed_telephony_route_id);
+        $this->assertSame($mobileRoute->id, $campaign->mobile_telephony_route_id);
     }
 
-    public function test_campaign_concurrent_limit_cannot_exceed_company_contract(): void
+    public function test_campaign_cannot_override_company_concurrent_limit(): void
     {
         [$admin, $team] = $this->tenantAdmin();
         $admin->company->licenses()->firstOrFail()->update(['max_concurrent_calls' => 2]);
@@ -1097,7 +1106,10 @@ class TenantCampaignListCrudTest extends TestCase
                 'list_ids' => [$list->id],
                 'max_concurrent_calls' => 3,
             ])
-            ->assertSessionHasErrors('max_concurrent_calls');
+            ->assertRedirect(route('tenant.campaigns.index'));
+
+        $campaign = Campaign::query()->where('company_id', $admin->company_id)->where('name', 'Campanha Acima Contrato')->sole();
+        $this->assertNull($campaign->max_concurrent_calls);
     }
 
     private function tenantAdmin(): array
@@ -1123,7 +1135,7 @@ class TenantCampaignListCrudTest extends TestCase
             'company_id' => $company->id,
             'role_id' => $role->id,
             'user_type' => 'company_admin',
-            'extension' => '1000',
+            'extension' => (string) (1000 + User::query()->count()),
             'status' => 'active',
         ]);
 

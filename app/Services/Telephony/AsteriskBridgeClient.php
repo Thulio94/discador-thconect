@@ -2,7 +2,8 @@
 
 namespace App\Services\Telephony;
 
-use App\Models\CompanyTelephonyConfiguration;
+use App\Models\AsteriskNode;
+use App\Models\TelephonyRoute;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -10,19 +11,19 @@ use RuntimeException;
 class AsteriskBridgeClient
 {
     /** @return array<string, mixed> */
-    public function test(CompanyTelephonyConfiguration $configuration): array
+    public function testRoute(TelephonyRoute $route): array
     {
-        return $this->request()
-            ->post('/v1/routes/test', $this->routePayload($configuration))
+        return $this->request($route->asteriskNode)
+            ->post('/v1/routes/test', $this->routePayload($route, 1))
             ->throw()
             ->json();
     }
 
     /** @return array<string, mixed> */
-    public function synchronize(CompanyTelephonyConfiguration $configuration): array
+    public function synchronize(TelephonyRoute $route, int $companyId): array
     {
-        return $this->request()
-            ->put('/v1/routes/'.$configuration->company_id, $this->routePayload($configuration))
+        return $this->request($route->asteriskNode)
+            ->put('/v1/routes/'.$companyId, $this->routePayload($route, $companyId))
             ->throw()
             ->json();
     }
@@ -30,15 +31,15 @@ class AsteriskBridgeClient
     /** @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
-    public function originate(array $payload): array
+    public function originate(array $payload, ?AsteriskNode $node = null): array
     {
-        return $this->request()->post('/v1/calls/originate', $payload)->throw()->json();
+        return $this->request($node)->post('/v1/calls/originate', $payload)->throw()->json();
     }
 
     /** @param array<string, mixed> $payload */
-    public function hangup(array $payload): void
+    public function hangup(array $payload, ?AsteriskNode $node = null): void
     {
-        $this->request()->post('/v1/calls/hangup', $payload)->throw();
+        $this->request($node)->post('/v1/calls/hangup', $payload)->throw();
     }
 
     /** @param array<string, mixed> $payload */
@@ -47,15 +48,15 @@ class AsteriskBridgeClient
         $this->request()->post('/v1/calls/supervise', $payload)->throw();
     }
 
-    private function request(): PendingRequest
+    private function request(?AsteriskNode $node = null): PendingRequest
     {
-        $token = (string) config('services.asterisk_bridge.token');
+        $token = (string) ($node?->bridge_token ?: config('services.asterisk_bridge.token'));
 
         if (blank($token)) {
             throw new RuntimeException('A ponte Asterisk ainda nao possui o token interno configurado.');
         }
 
-        return Http::baseUrl(rtrim((string) config('services.asterisk_bridge.url'), '/'))
+        return Http::baseUrl(rtrim((string) ($node?->bridge_url ?: config('services.asterisk_bridge.url')), '/'))
             ->acceptJson()
             ->asJson()
             ->withToken($token)
@@ -63,19 +64,27 @@ class AsteriskBridgeClient
     }
 
     /** @return array<string, mixed> */
-    private function routePayload(CompanyTelephonyConfiguration $configuration): array
+    private function routePayload(TelephonyRoute $route, int $companyId): array
     {
         return [
-            'company_id' => $configuration->company_id,
-            'host' => $configuration->ami_host,
-            'port' => $configuration->ami_port,
-            'username' => $configuration->ami_username,
-            'secret' => $configuration->ami_secret,
-            'caller_id' => $configuration->caller_id,
-            'channel_template' => $configuration->outbound_channel_template,
-            'supervisor_channel_template' => $configuration->monitoringChannelTemplate(),
-            'context' => $configuration->dialplan_context,
-            'extension' => $configuration->dialplan_extension,
+            'company_id' => $companyId,
+            'route_id' => $route->id,
+            'host' => config('services.asterisk_bridge.manager_host'),
+            'port' => config('services.asterisk_bridge.manager_port'),
+            'username' => config('services.asterisk_bridge.manager_username'),
+            'secret' => config('services.asterisk_bridge.manager_secret'),
+            'caller_id' => $route->caller_id,
+            'channel_template' => 'PJSIP/{phone}@thconect-route-'.$route->id,
+            'supervisor_channel_template' => 'PJSIP/{extension}',
+            'context' => $route->dialplan_context,
+            'extension' => $route->dialplan_extension,
+            'sip_host' => $route->host,
+            'from_domain' => $route->from_domain ?: $route->host,
+            'sip_username' => $route->sip_username,
+            'sip_password' => $route->sip_password,
+            'authentication_mode' => $route->authentication_mode,
+            'transport' => $route->transport,
+            'codecs' => $route->codecs,
         ];
     }
 }

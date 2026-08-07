@@ -4,10 +4,15 @@
     $godMode = app(\App\Support\GodMode\GodModeContext::class);
     $isGodMode = $godMode->isActiveFor($user);
     $godModeCompany = $isGodMode ? $godMode->company() : null;
+    $ownerBillingNotice = ! $isGodMode && $user?->user_type === 'company_admin'
+        ? $user->company?->license?->billingNotice(5)
+        : null;
     $navItems = $user?->is_super_admin && ! $isGodMode
         ? [
             ['label' => 'Dashboard', 'href' => route('dashboard'), 'icon' => 'pulse', 'active' => request()->routeIs('dashboard')],
             ['label' => 'Empresas', 'href' => route('super-admin.companies.index'), 'icon' => 'building', 'active' => request()->routeIs('super-admin.companies.*')],
+            ['label' => 'Rotas de telefonia', 'href' => route('super-admin.telephony-routes.index'), 'icon' => 'phone', 'active' => request()->routeIs('super-admin.telephony-routes.*')],
+            ['label' => 'Capacidade', 'href' => route('super-admin.capacity.index'), 'icon' => 'status', 'active' => request()->routeIs('super-admin.capacity.*')],
             ['label' => 'Status do sistema', 'href' => route('super-admin.system-status.index'), 'icon' => 'status', 'active' => request()->routeIs('super-admin.system-status.*')],
             ['label' => 'Auditoria', 'href' => route('super-admin.audit-logs.index'), 'icon' => 'history', 'active' => request()->routeIs('super-admin.audit-logs.*')],
         ]
@@ -23,7 +28,6 @@
             ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'report', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
             ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read'],
             ['label' => 'Configuracoes', 'href' => route('tenant.settings.index'), 'icon' => 'settings', 'active' => request()->routeIs('tenant.settings.*'), 'ability' => 'tenant.settings.read'],
-            ['label' => 'Auditoria', 'href' => route('tenant.audit-logs.index'), 'icon' => 'history', 'active' => request()->routeIs('tenant.audit-logs.*'), 'ability' => 'tenant.audit.read'],
             ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'ability' => 'tenant.integrations.read', 'soon' => true],
         ];
     $navItems = collect($navItems)
@@ -167,6 +171,16 @@
                             @method('DELETE')
                             <x-ui.button type="submit" variant="secondary">Sair da empresa</x-ui.button>
                         </form>
+                    </div>
+                @endif
+
+                @if ($ownerBillingNotice && $ownerBillingNotice['is_due_soon'])
+                    <div class="mb-5 flex items-start gap-3 rounded-lg border px-4 py-3" style="border-color: color-mix(in srgb, var(--status-warning) 45%, var(--border)); background: color-mix(in srgb, var(--status-warning) 10%, var(--surface));">
+                        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style="background: color-mix(in srgb, var(--status-warning) 20%, var(--surface)); color: var(--status-warning);"><x-ui.icon name="status" /></span>
+                        <div>
+                            <p class="text-sm font-bold">Pagamento proximo</p>
+                            <p class="text-xs" style="color: var(--fg-muted);">O pagamento da sua empresa esta previsto para {{ $ownerBillingNotice['due_at']->format('d/m/Y') }}.</p>
+                        </div>
                     </div>
                 @endif
 

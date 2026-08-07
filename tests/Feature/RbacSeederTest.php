@@ -27,17 +27,14 @@ class RbacSeederTest extends TestCase
         $this->assertContains('agent.access', PermissionMatrix::keys());
         $this->assertContains('reports.export', PermissionMatrix::keys());
         $this->assertContains('reports.schedules', PermissionMatrix::keys());
-        $this->assertContains('audit.read', PermissionMatrix::keys());
+        $this->assertNotContains('audit.read', PermissionMatrix::keys());
         $this->assertContains('settings.delete', PermissionMatrix::keys());
         $this->assertContains('integrations.read', PermissionMatrix::keys());
         $this->assertDatabaseHas('permissions', [
             'key' => 'users.create',
             'module' => 'users',
         ]);
-        $this->assertDatabaseHas('permissions', [
-            'key' => 'audit.read',
-            'module' => 'audit',
-        ]);
+        $this->assertDatabaseMissing('permissions', ['key' => 'audit.read']);
 
         $company = Company::create(['name' => 'Tenant A']);
         $role = $company->roles()->create([

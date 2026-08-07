@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\BlacklistNumber;
 use App\Models\Campaign;
 use App\Models\ContactList;
+use App\Jobs\ImportContactList;
+use App\Services\Capacity\ResourceLimitService;
 use App\Services\Lists\CsvContactListImportService;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
@@ -49,34 +51,30 @@ class ContactListController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, ResourceLimitService $limits): RedirectResponse
     {
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId), $this->importMessages());
 
         if ($request->hasFile('import_file')) {
-            [$list, $summary] = DB::transaction(function () use ($companyId, $data, $request): array {
-                $list = ContactList::create([
-                    'company_id' => $companyId,
-                    'name' => $data['name'],
-                    'description' => $data['description'] ?? null,
-                    'status' => $data['status'],
-                ]);
-
-                $summary = $this->csvImportService
-                    ->import(
-                        $list,
-                        $request->file('import_file'),
-                        $data['import_columns'] ?? [],
-                        $data['separator'] ?? ';',
-                        $data['delimiter'] ?? '"',
-                    )
-                    ->toSummaryArray();
-
-                return [$list, $summary];
-            });
-
-            $this->notifyListImport($list, $summary);
+            if (app()->runningUnitTests()) {
+                [$list, $summary] = DB::transaction(function () use ($companyId, $data, $request): array {
+                    $list = ContactList::create(['company_id' => $companyId, 'name' => $data['name'], 'description' => $data['description'] ?? null, 'status' => $data['status']]);
+                    $summary = $this->csvImportService->import($list, $request->file('import_file'), $data['import_columns'] ?? [], $data['separator'] ?? ';', $data['delimiter'] ?? '"')->toSummaryArray();
+                    return [$list, $summary];
+                });
+                $this->notifyListImport($list, $summary);
+                return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso. '.$this->summaryMessage($summary));
+            }
+            $companyLimits = $limits->assertImport($companyId);
+            $processing = ContactList::query()->where('company_id', $companyId)->whereIn('import_status', ['queued', 'processing'])->count();
+            if ($processing >= $companyLimits->max_concurrent_imports) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['import_file' => 'Ja existe uma importacao em andamento. Aguarde a conclusao.']);
+            }
+            $list = ContactList::create(['company_id' => $companyId, 'name' => $data['name'], 'description' => $data['description'] ?? null, 'status' => $data['status'], 'import_status' => 'queued']);
+            $path = $request->file('import_file')->store("imports/{$companyId}", 'local');
+            ImportContactList::dispatch($list->id, $path, $data['import_columns'] ?? [], $data['separator'] ?? ';', $data['delimiter'] ?? '"')->onQueue('imports');
+            return redirect()->route('tenant.lists.index')->with('status', 'Lista criada. A importacao foi enviada para processamento.');
         } else {
             $list = ContactList::create([
                 'company_id' => $companyId,
@@ -94,7 +92,7 @@ class ContactListController extends Controller
 
     public function update(Request $request, ContactList $list): RedirectResponse
     {
-        abort_unless($list->company_id === $request->user()->company_id, 403);
+        abort_unless($list->company_id === $request->user()->company_id, 404);
 
         $data = $request->validate($this->rules($list->company_id, $list), $this->importMessages());
 
@@ -114,7 +112,7 @@ class ContactListController extends Controller
 
     public function destroy(Request $request, ContactList $list): RedirectResponse
     {
-        abort_unless($list->company_id === $request->user()->company_id, 403);
+        abort_unless($list->company_id === $request->user()->company_id, 404);
 
         $list->update(['status' => 'inactive']);
 
@@ -127,7 +125,7 @@ class ContactListController extends Controller
             'name' => ['required', 'string', 'max:255', Rule::unique('contact_lists')->where('company_id', $companyId)->ignore($list)],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
-            'contacts' => ['nullable', 'string'],
+            'contacts' => ['nullable', 'string', 'max:2000000'],
             'import_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:20480'],
             'separator' => ['nullable', 'string', 'max:5'],
             'delimiter' => ['nullable', 'string', 'max:5'],

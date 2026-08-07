@@ -57,6 +57,7 @@ class TenantAgentPanelTest extends TestCase
         $this->assertTrue($agent->calls->contains($call));
         $this->assertTrue($agent->company->agentStatuses->contains($status));
         $this->assertSame('available', $agent->currentAgentStatus->status);
+        $this->assertMatchesRegularExpression('/^'.now()->format('ymd').'\\d{6}$/', $call->protocol);
     }
 
     public function test_only_available_active_agents_count_for_company_capacity(): void
@@ -134,6 +135,16 @@ class TenantAgentPanelTest extends TestCase
             'started_at' => now()->subMinute(),
             'ended_at' => now(),
         ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'manual',
+            'phone' => '31999990099',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
 
         $service = app(AgentCapacityService::class);
 
@@ -141,7 +152,7 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(3, $service->remainingConcurrentCallsForCampaign($campaign));
     }
 
-    public function test_remaining_campaign_capacity_respects_its_own_concurrent_limit(): void
+    public function test_remaining_campaign_capacity_ignores_legacy_campaign_concurrent_limit(): void
     {
         [$agent, $company] = $this->tenantUser('agent');
         [$secondAgent] = $this->tenantUser('agent', $company);
@@ -161,7 +172,7 @@ class TenantAgentPanelTest extends TestCase
         ]);
 
         $this->assertSame(
-            2,
+            6,
             app(AgentCapacityService::class)->remainingConcurrentCallsForCampaign($campaign),
         );
     }
@@ -306,14 +317,134 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('Disponivel')
             ->assertSee('Pausa')
             ->assertSee('Offline')
-            ->assertSee('Chamada simulada')
+            ->assertSee('Atendimento atual')
+            ->assertSee('Dados do mailing')
+            ->assertSee('Historico de ligacoes')
             ->assertSee('agent-pause')
             ->assertSee('Venda concluida')
             ->assertSee('call-disposition')
-            ->assertSee('Retorno')
+            ->assertSee('Agendamento de retorno')
             ->assertSee('Campos do atendimento')
             ->assertDontSee('Agentes disponiveis nesta empresa.')
             ->assertDontSee('Modulo em breve');
+    }
+
+    public function test_agent_dashboard_releases_available_license_and_limits_history_to_selected_date(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $agent->role->permissions()->syncWithoutDetaching([
+            Permission::query()->firstOrCreate(
+                ['key' => 'dashboard.read'],
+                ['name' => 'Ler', 'module' => 'dashboard'],
+            )->id,
+        ]);
+
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990001',
+            'started_at' => now(),
+            'answered_at' => now(),
+            'ended_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999990002',
+            'started_at' => now()->subDay(),
+            'ended_at' => now()->subDay(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['date' => now()->toDateString(), 'phone' => '(31) 99999-0001']))
+            ->assertOk()
+            ->assertSee('Meu dashboard')
+            ->assertSee('Voce esta deslogado do painel do agente')
+            ->assertSee('31999990001')
+            ->assertDontSee('31999990099')
+            ->assertDontSee('31999990002');
+
+        $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame(0, app(AgentCapacityService::class)->availableAgentsForCompany($company->id));
+    }
+
+    public function test_agent_dashboard_is_locked_but_does_not_end_an_active_call(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $agent->role->permissions()->syncWithoutDetaching([
+            Permission::query()->firstOrCreate(
+                ['key' => 'dashboard.read'],
+                ['name' => 'Ler', 'module' => 'dashboard'],
+            )->id,
+        ]);
+
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'in_progress',
+            'channel' => 'simulated',
+            'phone' => '31999990003',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Voce esta em chamada')
+            ->assertSee('Voltar ao painel do agente');
+
+        $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
+        $this->assertDatabaseHas('calls', ['user_id' => $agent->id, 'status' => 'in_progress']);
+    }
+
+    public function test_leaving_agent_console_while_paused_closes_pause_and_releases_license(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $agent->role->permissions()->syncWithoutDetaching([
+            Permission::query()->firstOrCreate(
+                ['key' => 'dashboard.read'],
+                ['name' => 'Ler', 'module' => 'dashboard'],
+            )->id,
+        ]);
+        $pause = AgentPause::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'reason' => 'Almoco',
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'paused',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Voce esta deslogado do painel do agente');
+
+        $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
+        $this->assertNotNull($pause->fresh()->ended_at);
     }
 
     public function test_available_status_consumes_a_license_for_every_tenant_user(): void
@@ -410,14 +541,14 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)
             ->get(route('tenant.agent.index'))
             ->assertOk()
-            ->assertSee('Ficha do contato')
+            ->assertSee('Dados do mailing')
             ->assertSee('Cliente Ficha')
             ->assertSee('31999990030')
             ->assertSee('Campanha Ficha')
             ->assertSee('Lista Ouro')
-            ->assertSee('Tentativas')
+            ->assertSee('tentativa(s)')
             ->assertSee('2')
-            ->assertSee('Historico do contato')
+            ->assertSee('Historico deste contato')
             ->assertSee('Sem resposta')
             ->assertSee('Nao atendeu ontem')
             ->assertSee('Script de atendimento')
@@ -497,13 +628,79 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)
             ->get(route('tenant.agent.index'))
             ->assertOk()
-            ->assertSee('Ultimas chamadas')
+            ->assertSee('Ultimos atendimentos')
             ->assertSee('31999990088')
             ->assertSee('Retorno marcado')
             ->assertSee('Retorno publico')
             ->assertSee('31999990077')
             ->assertSee('Venda fechada')
             ->assertDontSee('31999990099');
+    }
+
+    public function test_agent_can_open_recent_call_mailing_with_imported_fields_and_all_phones(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista Modal Historico',
+            'status' => 'active',
+        ]);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Cliente Historico Completo',
+            'phone' => '31999991111',
+            'status' => 'answered',
+            'extra' => [
+                'CPF Cliente' => '12345678901',
+                'Plano Atual' => 'Fibra 500 MB',
+            ],
+        ]);
+        $contact->phones()->createMany([
+            [
+                'company_id' => $company->id,
+                'phone' => '31999991111',
+                'column_name' => 'Telefone principal',
+                'position' => 0,
+                'is_primary' => true,
+                'status' => 'answered',
+            ],
+            [
+                'company_id' => $company->id,
+                'phone' => '31988882222',
+                'column_name' => 'Telefone alternativo',
+                'position' => 1,
+                'is_primary' => false,
+                'status' => 'pending',
+            ],
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'contact_id' => $contact->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999991111',
+            'disposition_name' => 'Cliente atendido',
+            'disposition_notes' => 'Solicitou nova proposta',
+            'started_at' => now()->subMinutes(3),
+            'ended_at' => now()->subMinute(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('call-mailing-'.$call->id)
+            ->assertSee('Dados do mailing da ligacao')
+            ->assertSee('Cliente Historico Completo')
+            ->assertSee('Lista Modal Historico')
+            ->assertSee('31999991111')
+            ->assertSee('31988882222')
+            ->assertSee('CPF Cliente')
+            ->assertSee('12345678901')
+            ->assertSee('Plano Atual')
+            ->assertSee('Fibra 500 MB')
+            ->assertSee('Solicitou nova proposta');
     }
 
     public function test_agent_can_change_status_to_available_and_pause(): void
@@ -532,6 +729,12 @@ class TenantAgentPanelTest extends TestCase
     public function test_agent_can_start_and_end_simulated_call(): void
     {
         [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
         $disposition = Disposition::create([
             'company_id' => $agent->company_id,
             'name' => 'Cliente comprou',
@@ -583,7 +786,7 @@ class TenantAgentPanelTest extends TestCase
             'name' => 'Campanha Pos Atendimento',
             'dialing_mode' => 'power',
             'status' => 'active',
-            'wrap_up_minutes' => 2,
+            'wrap_up_seconds' => 120,
         ]);
         $disposition = Disposition::create([
             'company_id' => $company->id,
@@ -622,8 +825,8 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)
             ->get(route('tenant.agent.index'))
             ->assertOk()
-            ->assertSee('Pos-atendimento')
-            ->assertSee('Escolha a tabulacao desta chamada')
+            ->assertSee('Tabulacao')
+            ->assertSee('Resultado do atendimento')
             ->assertSee('Cliente interessado')
             ->assertSee('Tempo restante');
 
@@ -665,7 +868,7 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)
             ->get(route('tenant.agent.index'))
             ->assertOk()
-            ->assertDontSee('Escolha a tabulacao desta chamada');
+            ->assertDontSee('Tempo restante');
 
         $call->refresh();
         $this->assertSame('ended', $call->status);
@@ -765,7 +968,38 @@ class TenantAgentPanelTest extends TestCase
             ->assertRedirect(route('tenant.agent.index'))
             ->assertSessionHas('status');
 
+        $this->assertSame('paused', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame('Almoco', $agent->fresh()->currentAgentStatus->reason);
+        $this->assertTrue($agent->agentPauses()->whereNull('ended_at')->where('reason', 'Almoco')->exists());
+    }
+
+    public function test_manual_call_requires_valid_ddd_number_and_agent_leave_releases_presence(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->from(route('tenant.agent.index'))
+            ->post(route('tenant.agent.calls.store'), ['phone' => '999', 'channel' => 'manual'])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHasErrors('phone');
+
+        $this->actingAs($agent)
+            ->post(route('tenant.agent.leave'))
+            ->assertNoContent();
+
         $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
+
+        $this->actingAs($agent)
+            ->from(route('tenant.agent.index'))
+            ->post(route('tenant.agent.calls.store'), ['phone' => '31999990001', 'channel' => 'manual'])
+            ->assertRedirect(route('tenant.agent.index'))
+            ->assertSessionHasErrors('phone');
     }
 
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void
@@ -957,7 +1191,7 @@ class TenantAgentPanelTest extends TestCase
                 ],
             ])
             ->assertOk()
-            ->assertSee('x-data="{ show: true }"', false)
+            ->assertSee('id="call-disposition"', false)
             ->assertSee('CPF Cliente possui CPF invalido.')
             ->assertSee('111.111.111-11');
 
@@ -1307,6 +1541,12 @@ class TenantAgentPanelTest extends TestCase
     public function test_supervisor_can_start_and_end_manual_extension_call_without_becoming_available_agent(): void
     {
         [$supervisor] = $this->tenantUser('supervisor');
+        AgentStatus::create([
+            'company_id' => $supervisor->company_id,
+            'user_id' => $supervisor->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
         $disposition = Disposition::create([
             'company_id' => $supervisor->company_id,
             'name' => 'Ligacao interna encerrada',
@@ -1319,7 +1559,7 @@ class TenantAgentPanelTest extends TestCase
             ->get(route('tenant.agent.index'))
             ->assertOk()
             ->assertSee('Ramal '.$supervisor->extension)
-            ->assertSee('Chamada manual simulada');
+            ->assertSee('Aguardando chamada');
 
         $this->actingAs($supervisor)
             ->post(route('tenant.agent.calls.store'), [
@@ -1348,7 +1588,7 @@ class TenantAgentPanelTest extends TestCase
         $supervisor->refresh();
         $call->refresh();
 
-        $this->assertSame('offline', $supervisor->currentAgentStatus->status);
+        $this->assertSame('available', $supervisor->currentAgentStatus->status);
         $this->assertSame('ended', $call->status);
         $this->assertSame('MANUAL_OK', $call->disposition_code);
         $this->assertSame(0, app(AgentCapacityService::class)->availableAgentsForCompany($supervisor->company_id));

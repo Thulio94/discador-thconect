@@ -11,6 +11,8 @@ services:
       - discador_framework_cache:/var/www/html/storage/framework
       - discador_bootstrap_cache:/var/www/html/bootstrap/cache
       - ./.docker/app/php.ini:/usr/local/etc/php/conf.d/zz-discador.ini:ro
+      - ./.docker/app/www.conf:/usr/local/etc/php-fpm.d/zz-discador.conf:ro
+      - discador_asterisk_recordings:/var/www/html/storage/app/recordings
     depends_on:
       mysql:
         condition: service_healthy
@@ -47,7 +49,7 @@ services:
     image: mariadb:11.4
     container_name: discador_thconect_mysql
     ports:
-      - "${MYSQL_FORWARD_PORT:-3317}:3306"
+      - "${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_FORWARD_PORT:-3317}:3306"
     environment:
       MYSQL_DATABASE: "${DB_DATABASE:-discador_thconect}"
       MYSQL_USER: "${DB_USERNAME:-discador}"
@@ -55,6 +57,7 @@ services:
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-root_secret}"
     volumes:
       - discador_mysql:/var/lib/mysql
+      - ./.docker/mysql/performance.cnf:/etc/mysql/conf.d/zz-discador-performance.cnf:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
@@ -66,7 +69,7 @@ services:
     image: redis:7-alpine
     container_name: discador_thconect_redis
     ports:
-      - "${REDIS_FORWARD_PORT:-6387}:6379"
+      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_FORWARD_PORT:-6387}:6379"
     volumes:
       - discador_redis:/data
     restart: unless-stopped
@@ -81,7 +84,7 @@ services:
       context: .
       dockerfile: .docker/app/Dockerfile
     container_name: discador_thconect_queue
-    command: php artisan queue:work --tries=3 --timeout=90
+    command: php artisan queue:work --queue=default,notifications --tries=3 --timeout=90 --max-jobs=500
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
@@ -89,11 +92,77 @@ services:
       - discador_framework_cache:/var/www/html/storage/framework
       - discador_bootstrap_cache:/var/www/html/bootstrap/cache
       - ./.docker/app/php.ini:/usr/local/etc/php/conf.d/zz-discador.ini:ro
+      - discador_asterisk_recordings:/var/www/html/storage/app/recordings
     depends_on:
       app:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  queue-telephony:
+    build:
+      context: .
+      dockerfile: .docker/app/Dockerfile
+    command: php artisan queue:work --queue=telephony --tries=3 --timeout=30 --sleep=1 --max-jobs=1000
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - discador_vendor:/var/www/html/vendor
+      - discador_framework_cache:/var/www/html/storage/framework
+      - discador_bootstrap_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  queue-imports:
+    build:
+      context: .
+      dockerfile: .docker/app/Dockerfile
+    command: php artisan queue:work --queue=imports --tries=2 --timeout=1800 --memory=384 --max-jobs=20
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - discador_vendor:/var/www/html/vendor
+      - discador_framework_cache:/var/www/html/storage/framework
+      - discador_bootstrap_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  queue-reports:
+    build:
+      context: .
+      dockerfile: .docker/app/Dockerfile
+    command: php artisan queue:work --queue=reports --tries=2 --timeout=900 --memory=512 --max-jobs=20
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - discador_vendor:/var/www/html/vendor
+      - discador_framework_cache:/var/www/html/storage/framework
+      - discador_bootstrap_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      app: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  queue-media:
+    build:
+      context: .
+      dockerfile: .docker/app/Dockerfile
+    command: php artisan queue:work --queue=media --tries=3 --timeout=600 --memory=256 --max-jobs=100
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - discador_vendor:/var/www/html/vendor
+      - discador_framework_cache:/var/www/html/storage/framework
+      - discador_bootstrap_cache:/var/www/html/bootstrap/cache
+      - discador_asterisk_recordings:/var/www/html/storage/app/recordings
+    depends_on:
+      app: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
 
   scheduler:
@@ -122,7 +191,7 @@ services:
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     working_dir: /var/www/html
     ports:
-      - "${REVERB_PORT:-8097}:8080"
+      - "${REVERB_BIND_ADDRESS:-127.0.0.1}:${REVERB_PORT:-8097}:8080"
     volumes:
       - .:/var/www/html
       - discador_vendor:/var/www/html/vendor
@@ -141,15 +210,42 @@ services:
       context: ./services/asterisk-bridge
       dockerfile: Dockerfile
     container_name: discador_thconect_asterisk_bridge
+    user: "0:0"
     environment:
       BRIDGE_PORT: 8090
       BRIDGE_SHARED_TOKEN: "${ASTERISK_BRIDGE_TOKEN:-}"
       BRIDGE_WEBHOOK_URL: "http://app/bridge/events"
       BRIDGE_WEBHOOK_SECRET: "${ASTERISK_BRIDGE_WEBHOOK_SECRET:-}"
+      ASTERISK_CONFIG_PATH: /etc/asterisk/pjsip.d/thconect-routes.conf
     depends_on:
       app:
         condition: service_healthy
+      asterisk:
+        condition: service_started
+    volumes:
+      - discador_asterisk_config:/etc/asterisk/pjsip.d
+      - discador_asterisk_recordings:/recordings:ro
     restart: unless-stopped
+
+  asterisk:
+    build:
+      context: ./.docker/asterisk
+      dockerfile: Dockerfile
+    container_name: discador_thconect_asterisk
+    environment:
+      ASTERISK_AMI_SECRET: "${ASTERISK_AMI_SECRET:-change-me-before-real-calls}"
+      ASTERISK_RTP_START: "${ASTERISK_RTP_START:-10000}"
+      ASTERISK_RTP_END: "${ASTERISK_RTP_END:-10010}"
+    volumes:
+      - discador_asterisk_config:/etc/asterisk/pjsip.d
+      - discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "asterisk -rx 'core show uptime' >/dev/null 2>&1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   discador_vendor:
@@ -157,3 +253,5 @@ volumes:
   discador_redis:
   discador_framework_cache:
   discador_bootstrap_cache:
+  discador_asterisk_config:
+  discador_asterisk_recordings:

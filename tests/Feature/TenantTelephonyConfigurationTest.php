@@ -4,71 +4,58 @@ namespace Tests\Feature;
 
 use App\Models\Call;
 use App\Models\Company;
-use App\Models\CompanyTelephonyConfiguration;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\TelephonyRoute;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class TenantTelephonyConfigurationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_tenant_admin_can_configure_telephony_and_credentials_are_encrypted(): void
+    public function test_tenant_admin_can_view_the_super_admin_assigned_route_without_credentials(): void
     {
         $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota centralizada',
+            'tech' => '5006',
+            'host' => 'sbc.solutionsvoip.com.br',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
 
         $this->actingAs($admin)
             ->get(route('tenant.telephony.index'))
             ->assertOk()
-            ->assertSee('Rota e Asterisk AMI')
-            ->assertSee('Simulador ativo');
-
-        $this->actingAs($admin)
-            ->put(route('tenant.telephony.update'), [
-                'driver' => 'asterisk_ami',
-                'trunk_label' => 'SIP Principal',
-                'outbound_route_label' => 'Saida Comercial',
-                'caller_id' => '3133334444',
-                'ami_host' => 'pbx.empresa.test',
-                'ami_port' => 5038,
-                'ami_username' => 'discador',
-                'ami_secret' => 'segredo-da-rota',
-                'outbound_channel_template' => 'PJSIP/{phone}@principal',
-                'supervisor_channel_template' => 'PJSIP/{extension}',
-                'dialplan_context' => 'discador-outbound',
-                'dialplan_extension' => 's',
-                'bridge_enabled' => '1',
-            ])
-            ->assertRedirect(route('tenant.telephony.index'))
-            ->assertSessionHas('status');
-
-        $this->assertDatabaseHas('company_telephony_configurations', [
-            'company_id' => $admin->company_id,
-            'trunk_label' => 'SIP Principal',
-            'outbound_route_label' => 'Saida Comercial',
-            'caller_id' => '3133334444',
-            'driver' => 'asterisk_ami',
-            'ami_host' => 'pbx.empresa.test',
-        ]);
-
-        $configuration = CompanyTelephonyConfiguration::query()->firstOrFail();
-        $this->assertSame('discador', $configuration->ami_username);
-        $this->assertSame('segredo-da-rota', $configuration->ami_secret);
-        $this->assertSame('PJSIP/{extension}', $configuration->monitoringChannelTemplate());
-        $this->assertStringNotContainsString('segredo-da-rota', (string) DB::table('company_telephony_configurations')->value('ami_secret'));
+            ->assertSee('Rota centralizada')
+            ->assertSee('Tech')
+            ->assertDontSee('Configuracao de telefonia')
+            ->assertDontSee('segredo');
     }
 
     public function test_telephony_preparation_is_isolated_by_company(): void
     {
         $admin = $this->tenantAdmin();
         $otherCompany = Company::create(['name' => 'Outra Empresa']);
-        CompanyTelephonyConfiguration::create([
-            'company_id' => $otherCompany->id,
-            'trunk_label' => 'Tronco da Outra Empresa',
+        $otherRoute = TelephonyRoute::create([
+            'name' => 'Tronco da Outra Empresa',
+            'tech' => '7033',
+            'host' => 'outra.operadora.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
         ]);
+        $otherCompany->telephonyRoutes()->attach($otherRoute);
 
         $this->actingAs($admin)
             ->get(route('tenant.telephony.index'))
@@ -97,15 +84,30 @@ class TenantTelephonyConfigurationTest extends TestCase
             'uniqueid' => '1720000000.1',
         ];
         $json = json_encode($payload, JSON_THROW_ON_ERROR);
+        $timestamp = now()->timestamp;
 
         $this->postJson(route('bridge.events'), $payload, [
-            'X-THCONECT-Signature' => hash_hmac('sha256', $json, 'webhook-test-secret'),
+            'X-THCONECT-Timestamp' => $timestamp,
+            'X-THCONECT-Signature' => hash_hmac('sha256', $timestamp.'.'.$json, 'webhook-test-secret'),
         ])->assertOk();
 
         $call->refresh();
         $this->assertSame('in_progress', $call->status);
         $this->assertSame('PJSIP/rota-0001', $call->telephony_channel);
         $this->assertNotNull($call->answered_at);
+    }
+
+    public function test_asterisk_event_rejects_expired_or_replayed_payloads(): void
+    {
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+        $payload = ['company_id' => 1, 'call_id' => 1, 'event' => 'answered'];
+        $json = json_encode($payload, JSON_THROW_ON_ERROR);
+        $timestamp = now()->subMinutes(6)->timestamp;
+
+        $this->postJson(route('bridge.events'), $payload, [
+            'X-THCONECT-Timestamp' => $timestamp,
+            'X-THCONECT-Signature' => hash_hmac('sha256', $timestamp.'.'.$json, 'webhook-test-secret'),
+        ])->assertUnauthorized();
     }
 
     private function tenantAdmin(): User

@@ -25,12 +25,22 @@
                 <h2 class="text-lg font-semibold">Contratos SaaS</h2>
                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">Uso contratado versus uso atual por empresa.</p>
             </div>
-            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'company-create')">Nova empresa</x-ui.button>
+            <div class="flex flex-wrap items-center gap-2">
+                <x-ui.action
+                    as="a"
+                    :href="route('super-admin.companies.index', $showInactive ? [] : ['show_inactive' => 1])"
+                    :icon="$showInactive ? 'cancel' : 'view'"
+                    :label="$showInactive ? 'Ocultar inativas' : 'Mostrar inativas'.($inactiveCompaniesCount ? ' ('.$inactiveCompaniesCount.')' : '')"
+                    :show-label="true"
+                />
+                <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'company-create')">Nova empresa</x-ui.button>
+            </div>
         </div>
 
         <div class="mt-5 grid gap-3">
             @forelse ($companies as $company)
                 @php($usage = $company->license_usage)
+                @php($billing = $company->license?->billingNotice())
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
                     <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div>
@@ -39,6 +49,16 @@
                                 <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: {{ $usage['status'] === 'exceeded' ? 'color-mix(in srgb, var(--status-danger) 12%, var(--surface))' : ($usage['status'] === 'warning' ? 'color-mix(in srgb, var(--status-warning) 14%, var(--surface))' : 'var(--primary-soft)') }}; color: var(--fg);">
                                     {{ $usage['status'] === 'exceeded' ? 'Limite excedido' : ($usage['status'] === 'warning' ? 'Atencao' : 'Normal') }}
                                 </span>
+                                @if ($company->status === 'blocked')
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: color-mix(in srgb, var(--status-danger) 14%, var(--surface)); color: var(--status-danger);">Empresa bloqueada</span>
+                                @elseif ($company->status === 'inactive')
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: var(--surface-muted); color: var(--fg-muted);">Empresa inativa</span>
+                                @endif
+                                @if ($billing)
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: {{ $billing['is_due_soon'] ? 'color-mix(in srgb, var(--status-warning) 16%, var(--surface))' : 'var(--surface-muted)' }}; color: var(--fg);">
+                                        {{ $billing['is_due_soon'] ? 'Cobranca: ' : 'Proximo pagamento: ' }}{{ $billing['due_at']->format('d/m/Y') }}
+                                    </span>
+                                @endif
                             </div>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                                 {{ $usage['active_calls']['current'] }} ativa de {{ $usage['active_calls']['limit'] ?? 'sem teto' }}
@@ -49,13 +69,20 @@
                                 <span aria-hidden="true"> · </span>
                                 capacidade efetiva {{ $usage['effective_call_limit'] }}
                             </p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">Rotas liberadas: {{ $company->telephonyRoutes->pluck('name')->join(', ') ?: 'Nenhuma' }}</p>
                         </div>
                         <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'company-view-{{ $company->id }}')" />
                             <x-ui.action icon="open" label="Entrar no Modo Deus" x-data x-on:click="$dispatch('open-modal', 'company-god-mode-{{ $company->id }}')" />
                             <x-ui.action icon="edit" label="Editar" x-data x-on:click="$dispatch('open-modal', 'company-edit-{{ $company->id }}')" />
                             @if ($company->status === 'active')
+                                <x-ui.action icon="lock" label="Bloquear empresa" variant="warning" x-data x-on:click="$dispatch('open-modal', 'company-block-{{ $company->id }}')" />
                                 <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'company-delete-{{ $company->id }}')" />
+                            @elseif ($company->status === 'blocked')
+                                <x-ui.action icon="unlock" label="Desbloquear empresa" variant="warning" x-data x-on:click="$dispatch('open-modal', 'company-unblock-{{ $company->id }}')" />
+                                <x-ui.action icon="delete" label="Inativar" variant="danger" x-data x-on:click="$dispatch('open-modal', 'company-delete-{{ $company->id }}')" />
+                            @else
+                                <x-ui.action icon="unlock" label="Reativar empresa" variant="primary" x-data x-on:click="$dispatch('open-modal', 'company-activate-{{ $company->id }}')" />
                             @endif
                         </div>
                     </div>
@@ -64,10 +91,11 @@
                         <dl class="grid gap-4 text-sm sm:grid-cols-2">
                             <div><dt class="font-semibold">Empresa</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->name }}</dd></div>
                             <div><dt class="font-semibold">Documento</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->document ?: 'Nao informado' }}</dd></div>
-                            <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->status === 'active' ? 'Ativa' : 'Inativa' }}</dd></div>
-                            <div><dt class="font-semibold">Licenca</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->license?->starts_at?->format('d/m/Y') }} a {{ $company->license?->ends_at?->format('d/m/Y') }}</dd></div>
+                            <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ ['active' => 'Ativa', 'blocked' => 'Bloqueada', 'inactive' => 'Inativa'][$company->status] }}</dd></div>
+                            <div><dt class="font-semibold">Vencimento mensal</dt><dd class="mt-1" style="color: var(--fg-muted);">Todo dia {{ $company->license?->billing_due_day ?? '-' }}. Proximo: {{ $billing ? $billing['due_at']->format('d/m/Y') : '-' }}</dd></div>
                             <div><dt class="font-semibold">Usuarios disponiveis</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['available_user_slots']['current'] }} / {{ $usage['available_user_slots']['limit'] ?? 'sem teto' }}</dd></div>
                             <div><dt class="font-semibold">Chamadas simultaneas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $usage['active_calls']['current'] }} / {{ $usage['active_calls']['limit'] ?? 'sem teto' }}</dd></div>
+                            <div><dt class="font-semibold">Rotas liberadas</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $company->telephonyRoutes->pluck('name')->join(', ') ?: 'Nenhuma' }}</dd></div>
                         </dl>
                     </x-ui.modal>
 
@@ -98,7 +126,31 @@
                         </form>
                     </x-ui.modal>
 
-                    @if ($company->status === 'active')
+                    @if ($company->status !== 'inactive')
+                    <x-ui.modal name="company-block-{{ $company->id }}" title="Bloquear empresa">
+                        <form method="POST" action="{{ route('super-admin.companies.block', $company) }}">
+                            @csrf
+                            @method('PATCH')
+                            <p class="text-sm" style="color: var(--fg-muted);">Os usuarios desta empresa perderao o acesso a operacao ate que ela seja desbloqueada.</p>
+                            <div class="mt-5 flex justify-end gap-2">
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'company-block-{{ $company->id }}')">Cancelar</x-ui.button>
+                                <x-ui.button type="submit" variant="danger">Bloquear empresa</x-ui.button>
+                            </div>
+                        </form>
+                    </x-ui.modal>
+
+                    <x-ui.modal name="company-unblock-{{ $company->id }}" title="Desbloquear empresa">
+                        <form method="POST" action="{{ route('super-admin.companies.unblock', $company) }}">
+                            @csrf
+                            @method('PATCH')
+                            <p class="text-sm" style="color: var(--fg-muted);">A empresa voltara a permitir acesso aos usuarios ativos.</p>
+                            <div class="mt-5 flex justify-end gap-2">
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'company-unblock-{{ $company->id }}')">Cancelar</x-ui.button>
+                                <x-ui.button type="submit">Desbloquear empresa</x-ui.button>
+                            </div>
+                        </form>
+                    </x-ui.modal>
+
                     <x-ui.modal name="company-delete-{{ $company->id }}" title="Inativar empresa">
                         <form method="POST" action="{{ route('super-admin.companies.destroy', $company) }}">
                             @csrf
@@ -106,6 +158,20 @@
                             <p class="text-sm" style="color: var(--fg-muted);">A empresa sera marcada como inativa.</p>
                             <div class="mt-5 flex justify-end gap-2">
                                 <x-ui.button type="submit" variant="danger">Inativar</x-ui.button>
+                            </div>
+                        </form>
+                    </x-ui.modal>
+                    @endif
+
+                    @if ($company->status === 'inactive')
+                    <x-ui.modal name="company-activate-{{ $company->id }}" title="Reativar empresa">
+                        <form method="POST" action="{{ route('super-admin.companies.activate', $company) }}">
+                            @csrf
+                            @method('PATCH')
+                            <p class="text-sm" style="color: var(--fg-muted);">A empresa voltara para a lista principal e os usuarios poderao acessar a operacao.</p>
+                            <div class="mt-5 flex justify-end gap-2">
+                                <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'company-activate-{{ $company->id }}')">Cancelar</x-ui.button>
+                                <x-ui.button type="submit">Reativar empresa</x-ui.button>
                             </div>
                         </form>
                     </x-ui.modal>

@@ -142,7 +142,7 @@ Porta RTP:10.000 a 65.000
 2.  **Latência**: A comunicação de voz (WebRTC) deve ter latência mínima (< 200ms) para garantir qualidade na conversação.
 3.  **Escalabilidade**: A arquitetura deve permitir escalabilidade horizontal (adicionar mais servidores de processamento) sem interromper o serviço.
 4.  **Interface Responsiva**: O painel deve ser acessível e responsivo, funcionando bem em diferentes resoluções de monitor.
-5.  **Auditoria**: Todas as ações críticas (exclusão de campanha, exportação de mailling, alteração de usuário) devem gerar logs de auditoria.
+5.  **Auditoria central**: Todas as ações críticas (exclusão de campanha, exportação de mailing, alteração de usuário) devem gerar logs consultáveis exclusivamente pelo super admin.
 6.  **Backup e Recuperação**: O sistema deve garantir a integridade dos dados e estratégias de backup para as bases de contatos e histórico.
 
 ---

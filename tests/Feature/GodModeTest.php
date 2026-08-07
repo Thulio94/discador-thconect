@@ -48,7 +48,7 @@ class GodModeTest extends TestCase
             ->assertSee('Modo Deus ativo');
 
         $this->assertSame($usersBefore, User::query()->count());
-        $this->assertDatabaseHas('audit_logs', [
+        $this->assertDatabaseMissing('audit_logs', [
             'company_id' => $company->id,
             'actor_user_id' => $superAdmin->id,
             'event' => 'god_mode.entered',
@@ -58,7 +58,7 @@ class GodModeTest extends TestCase
             ->assertRedirect(route('super-admin.companies.index'))
             ->assertSessionMissing('god_mode.company_id');
 
-        $this->assertDatabaseHas('audit_logs', [
+        $this->assertDatabaseMissing('audit_logs', [
             'company_id' => $company->id,
             'actor_user_id' => $superAdmin->id,
             'event' => 'god_mode.left',

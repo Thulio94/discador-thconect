@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -37,6 +38,13 @@ class User extends Authenticatable
 
     public const THEME_PREFERENCES = ['thconectclaro', 'thconectescuro'];
 
+    protected function email(): Attribute
+    {
+        return Attribute::make(
+            set: fn (mixed $value): string => mb_strtolower(trim((string) $value)),
+        );
+    }
+
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
@@ -60,6 +68,13 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Team::class)
             ->withPivot('company_id', 'membership_type')
+            ->withTimestamps();
+    }
+
+    public function assignedCampaigns(): BelongsToMany
+    {
+        return $this->belongsToMany(Campaign::class, 'campaign_user')
+            ->withPivot('company_id')
             ->withTimestamps();
     }
 

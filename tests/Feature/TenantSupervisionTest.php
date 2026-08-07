@@ -7,11 +7,11 @@ use App\Models\AuditLog;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
-use App\Models\CompanyTelephonyConfiguration;
 use App\Models\OperationalParameter;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Team;
+use App\Models\TelephonyRoute;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
@@ -47,6 +47,7 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Supervisao')
             ->assertSee('Agente Tenant')
             ->assertSee('Agentes em operacao')
+            ->assertSee('Ligacoes')
             ->assertSee('supervision-agent-'.$agent->id, false)
             ->assertDontSee('Agente Outra Empresa')
             ->assertDontSee('Ouvir (em breve)')
@@ -89,15 +90,15 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Disponiveis')
             ->assertSee('Em pausa')
             ->assertSee('Em chamada')
-            ->assertSee('Em tabulacao')
+            ->assertSee('Tabulando')
             ->assertSee('Offline')
-            ->assertSee('Chamadas ativas')
+            ->assertSee('Ultimas')
             ->assertSee('31999990001')
             ->assertSee('Disponivel')
             ->assertSee('1')
-            ->assertSee('em pausa')
-            ->assertSee('em chamada')
-            ->assertSee('offline');
+            ->assertSee('Em pausa')
+            ->assertSee('Em chamada')
+            ->assertSee('Offline');
 
         $this->actingAs($supervisor)
             ->get(route('tenant.supervision.index', ['status' => 'paused']))
@@ -243,8 +244,8 @@ class TenantSupervisionTest extends TestCase
             ->assertOk()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertHeader('X-Poll-Interval', '10')
-            ->assertSee('id="supervision-metrics"', false)
             ->assertSee('id="supervision-agents"', false)
+            ->assertSee('id="supervision-calls"', false)
             ->assertSee('Agente Polling')
             ->assertSee('Pausa longa')
             ->assertDontSee('Agente Externo Polling')
@@ -272,6 +273,7 @@ class TenantSupervisionTest extends TestCase
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');
         config()->set('services.asterisk_bridge.webhook_secret', 'bridge-webhook-secret');
         config()->set('services.asterisk_bridge.url', 'http://asterisk-bridge.test');
+        config()->set('services.asterisk_bridge.manager_secret', 'ami-test-secret');
 
         [$supervisor, $company] = $this->tenantUser('supervisor');
         $supervisor->role->permissions()->syncWithoutDetaching(
@@ -289,23 +291,29 @@ class TenantSupervisionTest extends TestCase
             'telephony_channel' => 'PJSIP/1301-0000001a',
             'started_at' => now(),
         ]);
-        CompanyTelephonyConfiguration::create([
-            'company_id' => $company->id,
-            'driver' => 'asterisk_ami',
-            'ami_host' => 'pbx.empresa.test',
-            'ami_port' => 5038,
-            'ami_username' => 'discador',
-            'ami_secret' => 'segredo',
-            'outbound_channel_template' => 'PJSIP/{phone}@tronco',
-            'supervisor_channel_template' => 'PJSIP/{extension}',
-            'dialplan_context' => 'discador',
+        $route = TelephonyRoute::create([
+            'name' => 'Rota monitorada',
+            'tech' => '5006',
+            'host' => 'sbc.operadora.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
             'dialplan_extension' => 's',
-            'bridge_enabled' => true,
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
             'connection_status' => 'online',
         ]);
+        $company->telephonyRoutes()->attach($route);
         Http::fake([
             'http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202),
         ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.index'))
+            ->assertOk()
+            ->assertSee('Modo Spy em')
+            ->assertSee('So ouvir')
+            ->assertSee('Agente');
 
         $this->actingAs($supervisor)
             ->post(route('tenant.supervision.monitor', $agent), ['mode' => 'whisper'])

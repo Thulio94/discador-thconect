@@ -47,6 +47,13 @@ return [
             'report' => false,
         ],
 
+        'recordings' => [
+            'driver' => 'local',
+            'root' => storage_path('app'),
+            'serve' => false,
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
@@ -61,6 +68,9 @@ return [
         ],
 
     ],
+
+    'recordings_disk' => env('RECORDINGS_DISK', 'recordings'),
+    'archive_disk' => env('ARCHIVE_DISK', 's3'),
 
     /*
     |--------------------------------------------------------------------------

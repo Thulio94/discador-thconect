@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['name', 'document', 'status'])]
+#[Fillable(['name', 'document', 'status', 'telephony_route_id', 'recording_retention_days'])]
 class Company extends Model
 {
     public function license(): HasOne
@@ -101,6 +103,17 @@ class Company extends Model
         return $this->hasOne(CompanyTelephonyConfiguration::class);
     }
 
+    public function telephonyRoute(): BelongsTo
+    {
+        return $this->belongsTo(TelephonyRoute::class);
+    }
+
+    public function telephonyRoutes(): BelongsToMany
+    {
+        return $this->belongsToMany(TelephonyRoute::class, 'company_telephony_route')
+            ->withTimestamps();
+    }
+
     public function reportExports(): HasMany
     {
         return $this->hasMany(ReportExport::class);
@@ -109,5 +122,15 @@ class Company extends Model
     public function reportSchedules(): HasMany
     {
         return $this->hasMany(ReportSchedule::class);
+    }
+
+    public function callbacks(): HasMany
+    {
+        return $this->hasMany(CallCallback::class);
+    }
+
+    public function resourceLimit(): HasOne
+    {
+        return $this->hasOne(CompanyResourceLimit::class);
     }
 }

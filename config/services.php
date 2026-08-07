@@ -2,6 +2,8 @@
 
 return [
 
+    'metrics' => ['token' => env('METRICS_TOKEN')],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -40,6 +42,10 @@ return [
         'token' => env('ASTERISK_BRIDGE_TOKEN'),
         'webhook_secret' => env('ASTERISK_BRIDGE_WEBHOOK_SECRET'),
         'timeout' => (int) env('ASTERISK_BRIDGE_TIMEOUT', 8),
+        'manager_host' => env('ASTERISK_AMI_HOST', 'asterisk'),
+        'manager_port' => (int) env('ASTERISK_AMI_PORT', 5038),
+        'manager_username' => env('ASTERISK_AMI_USERNAME', 'thconect'),
+        'manager_secret' => env('ASTERISK_AMI_SECRET'),
     ],
 
 ];

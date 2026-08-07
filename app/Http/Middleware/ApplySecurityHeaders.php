@@ -17,6 +17,8 @@ class ApplySecurityHeaders
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
+        $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
 
         if (app()->environment('production')) {
             $response->headers->set(

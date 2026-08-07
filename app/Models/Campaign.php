@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['company_id', 'name', 'description', 'service_script', 'service_fields_schema', 'dialing_mode', 'lead_phone_strategy', 'max_attempts_per_contact', 'retry_delay_minutes', 'wrap_up_minutes', 'max_concurrent_calls', 'amd_mode', 'dialing_route', 'status', 'priority', 'operational_schedule', 'starts_at', 'ends_at'])]
+#[Fillable(['company_id', 'name', 'description', 'service_script', 'service_fields_schema', 'dialing_mode', 'lead_phone_strategy', 'max_attempts_per_contact', 'retry_delay_minutes', 'wrap_up_minutes', 'wrap_up_seconds', 'max_concurrent_calls', 'amd_mode', 'dialing_route', 'fixed_telephony_route_id', 'mobile_telephony_route_id', 'status', 'priority', 'operational_schedule', 'starts_at', 'ends_at'])]
 class Campaign extends Model
 {
     protected $casts = [
@@ -17,6 +17,7 @@ class Campaign extends Model
         'max_attempts_per_contact' => 'integer',
         'retry_delay_minutes' => 'integer',
         'wrap_up_minutes' => 'integer',
+        'wrap_up_seconds' => 'integer',
         'max_concurrent_calls' => 'integer',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
@@ -41,8 +42,25 @@ class Campaign extends Model
             ->withTimestamps();
     }
 
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'campaign_user')
+            ->withPivot('company_id')
+            ->withTimestamps();
+    }
+
     public function calls(): HasMany
     {
         return $this->hasMany(Call::class);
+    }
+
+    public function fixedTelephonyRoute(): BelongsTo
+    {
+        return $this->belongsTo(TelephonyRoute::class, 'fixed_telephony_route_id');
+    }
+
+    public function mobileTelephonyRoute(): BelongsTo
+    {
+        return $this->belongsTo(TelephonyRoute::class, 'mobile_telephony_route_id');
     }
 }

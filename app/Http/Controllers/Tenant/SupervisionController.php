@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Call;
-use App\Models\CompanyTelephonyConfiguration;
 use App\Models\User;
 use App\Services\Audit\AuditLogService;
 use App\Services\Supervision\SupervisionSnapshot;
@@ -43,7 +42,7 @@ class SupervisionController extends Controller
                 $request->string('status')->toString(),
                 $request->integer('team_id') ?: null,
             )
-        )->fragments(['supervision-metrics', 'supervision-agents']);
+        )->fragments(['supervision-agents', 'supervision-calls']);
 
         return response($html)
             ->header('Cache-Control', 'no-store, private')
@@ -56,13 +55,13 @@ class SupervisionController extends Controller
         AsteriskBridgeClient $bridge,
         AuditLogService $audit,
     ): RedirectResponse {
+        $supervisor = $request->user();
+        abort_unless($agent->company_id === $supervisor->company_id, 404);
+        abort_unless($agent->user_type === 'agent', 422, 'A monitoria opera somente chamadas de agentes.');
+
         $data = $request->validate([
             'mode' => ['required', Rule::in(['listen', 'whisper', 'barge'])],
         ]);
-
-        $supervisor = $request->user();
-        abort_unless($agent->company_id === $supervisor->company_id, 403);
-        abort_unless($agent->user_type === 'agent', 422, 'A monitoria opera somente chamadas de agentes.');
 
         $call = Call::query()
             ->where('company_id', $supervisor->company_id)
@@ -77,11 +76,11 @@ class SupervisionController extends Controller
             return back()->withErrors(['monitoring' => 'O agente nao possui uma chamada AMI ativa com canal identificado para monitoria.']);
         }
 
-        $configuration = CompanyTelephonyConfiguration::query()
-            ->where('company_id', $supervisor->company_id)
-            ->first();
+        $monitoringReady = $supervisor->company?->telephonyRoutes()
+            ->get()
+            ->contains(fn ($route): bool => $route->isReady() && $route->connection_status === 'online');
 
-        if (! $configuration?->isReadyForAsterisk() || $configuration->connection_status !== 'online') {
+        if (! $monitoringReady) {
             return back()->withErrors(['monitoring' => 'A rota Asterisk desta empresa precisa estar conectada e sincronizada antes de usar a monitoria.']);
         }
 

@@ -1,7 +1,7 @@
 @props([
     'name',
     'title' => null,
-    'maxWidth' => '2xl',
+    'maxWidth' => '4xl',
     'show' => false,
 ])
 
@@ -9,11 +9,14 @@
     $maxWidthClass = [
         'sm' => 'sm:max-w-sm',
         'md' => 'sm:max-w-md',
-        'lg' => 'sm:max-w-lg',
-        'xl' => 'sm:max-w-xl',
-        '2xl' => 'sm:max-w-2xl',
-        '4xl' => 'sm:max-w-4xl',
-    ][$maxWidth] ?? 'sm:max-w-2xl';
+        'lg' => 'sm:max-w-xl',
+        'xl' => 'sm:max-w-2xl',
+        '2xl' => 'sm:max-w-3xl',
+        '3xl' => 'sm:max-w-4xl',
+        '4xl' => 'sm:max-w-5xl',
+        '5xl' => 'sm:max-w-6xl',
+        '6xl' => 'sm:max-w-7xl',
+    ][$maxWidth] ?? 'sm:max-w-5xl';
 @endphp
 
 <div
@@ -36,11 +39,11 @@
     <div
         x-show="show"
         x-transition
-        class="relative mx-auto mb-6 w-full transform overflow-hidden rounded-lg border shadow-xl {{ $maxWidthClass }}"
+        class="relative mx-auto mb-6 w-full transform overflow-visible rounded-lg border shadow-xl {{ $maxWidthClass }}"
         style="background: var(--surface); border-color: var(--border); color: var(--fg);"
     >
         @if ($title)
-            <header class="flex items-center justify-between gap-4 border-b px-5 py-4" style="border-color: var(--border);">
+            <header class="flex items-center justify-between gap-4 border-b px-6 py-4" style="border-color: var(--border);">
                 <h2 class="text-base font-semibold">{{ $title }}</h2>
                 <button
                     type="button"
@@ -54,7 +57,7 @@
             </header>
         @endif
 
-        <div class="p-5">
+        <div class="p-6 lg:p-7">
             {{ $slot }}
         </div>
     </div>

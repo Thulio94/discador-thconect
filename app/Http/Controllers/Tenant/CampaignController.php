@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
-use App\Models\CompanyLicense;
 use App\Models\ContactList;
 use App\Models\Team;
+use App\Models\TelephonyRoute;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
+use App\Services\Capacity\ResourceLimitService;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -32,7 +33,7 @@ class CampaignController extends Controller
 
         $campaigns = Campaign::query()
             ->where('company_id', $companyId)
-            ->with(['teams', 'contactLists'])
+            ->with(['teams', 'contactLists', 'fixedTelephonyRoute', 'mobileTelephonyRoute'])
             ->when($filters['q'] ?? null, fn ($query, $search) => $query->where(function ($query) use ($search): void {
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%");
@@ -57,14 +58,19 @@ class CampaignController extends Controller
                 ->all(),
             'teams' => Team::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
+            'telephonyRoutes' => $request->user()->company
+                ->telephonyRoutes()
+                ->orderBy('name')
+                ->get(),
             'filters' => $filters,
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, ResourceLimitService $limits): RedirectResponse
     {
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId));
+        if (($data['status'] ?? null) === 'active') $limits->assertCampaignCanActivate($companyId);
         $this->validateListSelection($request, $companyId, $data['list_ids'] ?? []);
 
         $campaign = Campaign::create([
@@ -72,7 +78,6 @@ class CampaignController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'service_script' => $data['service_script'] ?? null,
-            'service_fields_schema' => $this->serviceFieldsSchemaPayload($data['service_fields_schema'] ?? []),
             'dialing_mode' => $data['dialing_mode'],
             'lead_phone_strategy' => $data['lead_phone_strategy'] ?? 'vertical',
             ...$this->advancedDialingPayload($data),
@@ -86,18 +91,18 @@ class CampaignController extends Controller
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha criada com sucesso.');
     }
 
-    public function update(Request $request, Campaign $campaign): RedirectResponse
+    public function update(Request $request, Campaign $campaign, ResourceLimitService $limits): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $data = $request->validate($this->rules($campaign->company_id, $campaign));
+        if (($data['status'] ?? null) === 'active' && $campaign->status !== 'active') $limits->assertCampaignCanActivate($campaign->company_id, $campaign->id);
         $this->validateListSelection($request, $campaign->company_id, $data['list_ids'] ?? []);
 
         $campaign->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'service_script' => $data['service_script'] ?? null,
-            'service_fields_schema' => $this->serviceFieldsSchemaPayload($data['service_fields_schema'] ?? []),
             'dialing_mode' => $data['dialing_mode'],
             'lead_phone_strategy' => $data['lead_phone_strategy'] ?? 'vertical',
             ...$this->advancedDialingPayload($data),
@@ -113,7 +118,7 @@ class CampaignController extends Controller
 
     public function destroy(Request $request, Campaign $campaign): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $campaign->update([
             'status' => 'finished',
@@ -124,9 +129,10 @@ class CampaignController extends Controller
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha finalizada com sucesso.');
     }
 
-    public function start(Request $request, Campaign $campaign): RedirectResponse
+    public function start(Request $request, Campaign $campaign, ResourceLimitService $limits): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
+        $limits->assertCampaignCanActivate($campaign->company_id, $campaign->id);
 
         $campaign->update([
             'status' => 'active',
@@ -140,7 +146,7 @@ class CampaignController extends Controller
 
     public function pause(Request $request, Campaign $campaign): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $campaign->update(['status' => 'paused']);
         $this->notifyCampaign($campaign, 'warning', 'Campanha pausada', "A campanha {$campaign->name} foi pausada.");
@@ -150,7 +156,7 @@ class CampaignController extends Controller
 
     public function restart(Request $request, Campaign $campaign): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $campaign->update([
             'status' => 'active',
@@ -164,7 +170,7 @@ class CampaignController extends Controller
 
     public function duplicate(Request $request, Campaign $campaign): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $copy = Campaign::create([
             'company_id' => $campaign->company_id,
@@ -176,10 +182,12 @@ class CampaignController extends Controller
             'lead_phone_strategy' => $campaign->lead_phone_strategy ?? 'vertical',
             'max_attempts_per_contact' => $campaign->max_attempts_per_contact,
             'retry_delay_minutes' => $campaign->retry_delay_minutes,
-            'wrap_up_minutes' => $campaign->wrap_up_minutes,
-            'max_concurrent_calls' => $campaign->max_concurrent_calls,
+            'wrap_up_seconds' => $campaign->wrap_up_seconds ?? 60,
+            'max_concurrent_calls' => null,
             'amd_mode' => $campaign->amd_mode ?? 'disabled',
             'dialing_route' => $campaign->dialing_route,
+            'fixed_telephony_route_id' => $campaign->fixed_telephony_route_id,
+            'mobile_telephony_route_id' => $campaign->mobile_telephony_route_id,
             'status' => 'draft',
             'priority' => $campaign->priority,
             'operational_schedule' => $campaign->operational_schedule,
@@ -198,7 +206,7 @@ class CampaignController extends Controller
 
     public function recycle(Request $request, Campaign $campaign, MailingQueueService $queue): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $count = $queue->recycleCampaign($campaign);
 
@@ -209,7 +217,7 @@ class CampaignController extends Controller
 
     public function dial(Request $request, Campaign $campaign, SimulatedDialerService $dialer): RedirectResponse
     {
-        abort_unless($campaign->company_id === $request->user()->company_id, 403);
+        abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         if (! $dialer->isCampaignInOperationalSchedule($campaign)) {
             return redirect()
@@ -234,28 +242,10 @@ class CampaignController extends Controller
             'lead_phone_strategy' => ['nullable', Rule::in(['vertical', 'horizontal'])],
             'max_attempts_per_contact' => ['nullable', 'integer', 'min:1', 'max:50'],
             'retry_delay_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
-            'wrap_up_minutes' => ['nullable', 'integer', 'min:1', 'max:60'],
-            'max_concurrent_calls' => [
-                'nullable',
-                'integer',
-                'min:1',
-                'max:100000',
-                function (string $attribute, mixed $value, \Closure $fail) use ($companyId): void {
-                    $licenseLimit = CompanyLicense::query()
-                        ->where('company_id', $companyId)
-                        ->where('status', 'active')
-                        ->where('starts_at', '<=', today())
-                        ->where('ends_at', '>=', today())
-                        ->latest('starts_at')
-                        ->value('max_concurrent_calls');
-
-                    if ($licenseLimit !== null && (int) $value > (int) $licenseLimit) {
-                        $fail('O limite da campanha nao pode ser maior que o limite contratado da empresa.');
-                    }
-                },
-            ],
+            'wrap_up_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
             'amd_mode' => ['nullable', Rule::in(['disabled', 'simulated', 'asterisk'])],
-            'dialing_route' => ['nullable', 'string', 'max:80'],
+            'fixed_telephony_route_id' => ['nullable', 'integer', $this->companyRouteRule($companyId)],
+            'mobile_telephony_route_id' => ['nullable', 'integer', $this->companyRouteRule($companyId)],
             'status' => ['required', Rule::in(['draft', 'active', 'paused', 'finished'])],
             'priority' => ['nullable', 'integer', 'min:1', 'max:10'],
             'team_ids' => ['required', 'array', 'min:1'],
@@ -281,15 +271,6 @@ class CampaignController extends Controller
             'operational_schedule.*.enabled' => ['nullable'],
             'operational_schedule.*.start' => ['nullable', 'date_format:H:i'],
             'operational_schedule.*.end' => ['nullable', 'date_format:H:i'],
-            'service_fields_schema' => ['nullable', 'array'],
-            'service_fields_schema.*.enabled' => ['nullable'],
-            'service_fields_schema.*.key' => ['nullable', 'string', 'max:60'],
-            'service_fields_schema.*.label' => ['nullable', 'string', 'max:80'],
-            'service_fields_schema.*.type' => [
-                'nullable',
-                Rule::in(['text', 'number', 'date', 'cpf', 'cnpj', 'phone', 'email', 'currency']),
-            ],
-            'service_fields_schema.*.required' => ['nullable'],
         ];
     }
 
@@ -363,48 +344,31 @@ class CampaignController extends Controller
         return [
             'max_attempts_per_contact' => $data['max_attempts_per_contact'] ?? null,
             'retry_delay_minutes' => $data['retry_delay_minutes'] ?? null,
-            'wrap_up_minutes' => $data['wrap_up_minutes'] ?? 1,
-            'max_concurrent_calls' => $data['max_concurrent_calls'] ?? null,
+            'wrap_up_seconds' => $data['wrap_up_seconds'] ?? 60,
+            'max_concurrent_calls' => null,
             'amd_mode' => $data['amd_mode'] ?? 'disabled',
-            'dialing_route' => filled($data['dialing_route'] ?? null) ? trim($data['dialing_route']) : null,
+            'fixed_telephony_route_id' => $data['fixed_telephony_route_id'] ?? null,
+            'mobile_telephony_route_id' => $data['mobile_telephony_route_id'] ?? null,
+            'dialing_route' => null,
         ];
     }
 
-    private function serviceFieldsSchemaPayload(array $fields): ?array
+    private function companyRouteRule(int $companyId): \Closure
     {
-        $usedKeys = [];
-        $allowedTypes = ['text', 'number', 'date', 'cpf', 'cnpj', 'phone', 'email', 'currency'];
-        $payload = collect($fields)
-            ->filter(fn (array $field): bool => filled($field['enabled'] ?? null))
-            ->map(function (array $field) use (&$usedKeys, $allowedTypes): ?array {
-                $key = $this->fieldKey((string) ($field['key'] ?? ''));
+        return function (string $attribute, mixed $value, \Closure $fail) use ($companyId): void {
+            if (blank($value)) {
+                return;
+            }
 
-                if ($key === '' || in_array($key, $usedKeys, true) || blank($field['label'] ?? null)) {
-                    return null;
-                }
+            $isAvailable = TelephonyRoute::query()
+                ->whereKey($value)
+                ->whereHas('companies', fn ($query) => $query->where('companies.id', $companyId))
+                ->exists();
 
-                $usedKeys[] = $key;
-
-                return [
-                    'key' => $key,
-                    'label' => trim((string) $field['label']),
-                    'type' => in_array($field['type'] ?? 'text', $allowedTypes, true) ? $field['type'] : 'text',
-                    'required' => filled($field['required'] ?? null),
-                ];
-            })
-            ->filter()
-            ->values()
-            ->all();
-
-        return $payload ?: null;
-    }
-
-    private function fieldKey(string $key): string
-    {
-        $key = strtolower(trim($key));
-        $key = preg_replace('/[^a-z0-9_]+/', '_', $key) ?: '';
-
-        return trim($key, '_');
+            if (! $isAvailable) {
+                $fail('Selecione uma rota liberada para a empresa.');
+            }
+        };
     }
 
     private function copyName(Campaign $campaign): string

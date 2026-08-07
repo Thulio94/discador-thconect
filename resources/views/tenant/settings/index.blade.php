@@ -52,7 +52,7 @@
                 </div>
             </div>
             <div class="mt-3 grid gap-2 text-sm md:grid-cols-2" style="color: var(--fg-muted);">
-                <p>{{ $operationalParameter->auto_available_after_call ? 'Agente volta para disponivel apos tabular.' : 'Agente fica offline apos tabular.' }}</p>
+                <p>Ao salvar a tabulacao, o agente volta automaticamente para disponivel.</p>
                 <p>{{ $operationalParameter->allow_manual_calls_while_paused ? 'Chamada manual permitida durante pausa.' : 'Chamada manual bloqueada durante pausa.' }}</p>
             </div>
         </x-ui.card>

@@ -7,9 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
+use App\Models\CallCallback;
 use App\Models\Disposition;
 use App\Models\OperationalParameter;
 use App\Models\PauseReason;
+use App\Models\User;
 use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
 use App\Services\Dialer\CallWrapUpService;
@@ -31,21 +33,26 @@ class AgentPanelController extends Controller
     {
         $user = $request->user();
         $this->wrapUps->expireForUser($user);
-        $user->loadMissing(['currentAgentStatus', 'agentPauses', 'calls']);
+        $user->loadMissing('currentAgentStatus');
+        $activeStatus = $user->currentAgentStatus;
         $currentCall = $user->calls()
             ->where('status', 'in_progress')
-            ->with(['campaign', 'contact.contactList'])
+            ->with(['campaign', 'contact.contactList', 'contact.phones', 'contactPhone'])
             ->latest()
             ->first();
         $wrapUpCall = $user->calls()
             ->where('status', 'wrap_up')
-            ->with(['campaign', 'contact.contactList'])
+            ->with(['campaign', 'contact.contactList', 'contact.phones', 'contactPhone'])
             ->latest('ended_at')
             ->first();
         $callContext = $currentCall ?? $wrapUpCall;
 
         return view('tenant.agent.index', [
-            'currentStatus' => $user->currentAgentStatus?->status ?? 'offline',
+            'currentStatus' => $activeStatus?->status ?? 'offline',
+            'statusStartedAt' => $activeStatus?->started_at,
+            'statusElapsedSeconds' => $activeStatus?->started_at
+                ? max(0, (int) $activeStatus->started_at->diffInSeconds(now()))
+                : 0,
             'currentCall' => $currentCall,
             'wrapUpCall' => $wrapUpCall,
             'wrapUpSecondsRemaining' => $wrapUpCall?->wrap_up_expires_at
@@ -63,11 +70,27 @@ class AgentPanelController extends Controller
                 : collect(),
             'recentCalls' => $user->calls()
                 ->where('company_id', $user->company_id)
-                ->with(['campaign', 'disposition'])
+                ->with([
+                    'campaign',
+                    'disposition',
+                    'contact.contactList',
+                    'contact.phones',
+                    'contactPhone',
+                ])
                 ->latest('started_at')
-                ->limit(8)
+                ->limit(25)
                 ->get(),
-            'recentStatuses' => $user->agentStatuses()->latest()->limit(8)->get(),
+            'scheduledCallbacks' => CallCallback::query()
+                ->where('company_id', $user->company_id)
+                ->where('status', 'pending')
+                ->where(function ($query) use ($user): void {
+                    $query->where('type', 'public')
+                        ->orWhere('assigned_user_id', $user->id);
+                })
+                ->with(['campaign', 'contact.contactList', 'contact.phones'])
+                ->orderBy('scheduled_at')
+                ->limit(6)
+                ->get(),
             'pauseReasons' => PauseReason::query()
                 ->where('company_id', $user->company_id)
                 ->where('status', 'active')
@@ -164,6 +187,14 @@ class AgentPanelController extends Controller
         $user = $request->user();
         $this->wrapUps->expireForUser($user);
 
+        $currentStatus = $user->currentAgentStatus()->value('status') ?? 'offline';
+
+        if (! in_array($currentStatus, ['available', 'paused'], true)) {
+            return back()->withErrors([
+                'phone' => 'Para iniciar uma chamada, fique disponivel ou inicie uma pausa no painel do agente.',
+            ]);
+        }
+
         if ($this->wrapUps->hasPendingForUser($user)) {
             return back()->withErrors(['phone' => 'Conclua a tabulacao pendente antes de iniciar outra chamada.']);
         }
@@ -172,16 +203,31 @@ class AgentPanelController extends Controller
         $channel = $data['channel'] ?? 'simulated';
         $parameters = OperationalParameter::forCompany($user->company_id);
 
+        if ($channel === 'manual' && ! preg_match('/^(?:55)?\d{10,11}$/', $phone)) {
+            return back()
+                ->withErrors(['phone' => 'Informe um telefone valido com DDD e numero.'])
+                ->withInput();
+        }
+
         if ($this->isPaused($user->id, $user->company_id) && ! $parameters->allow_manual_calls_while_paused) {
             return back()->withErrors(['phone' => 'Finalize a pausa antes de iniciar chamada manual.']);
         }
+
+        $pauseToResume = $channel === 'manual'
+            ? AgentPause::query()
+                ->where('company_id', $user->company_id)
+                ->where('user_id', $user->id)
+                ->whereNull('ended_at')
+                ->latest('started_at')
+                ->first()
+            : null;
 
         $this->closeOpenRecords($user->id, $user->company_id);
         $user->calls()->where('status', 'in_progress')->update([
             'status' => 'ended',
             'ended_at' => now(),
         ]);
-        $gateway->originate(new DialerCallRequest(
+        $call = $gateway->originate(new DialerCallRequest(
             companyId: $user->company_id,
             userId: $user->id,
             campaignId: null,
@@ -190,6 +236,14 @@ class AgentPanelController extends Controller
             phone: $phone,
             channel: $channel,
         ));
+
+        if ($pauseToResume) {
+            $call->update([
+                'provider_payload' => array_merge($call->provider_payload ?? [], [
+                    'resume_pause' => ['reason' => $pauseToResume->reason],
+                ]),
+            ]);
+        }
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
             'status' => 'in_call',
@@ -222,10 +276,10 @@ class AgentPanelController extends Controller
 
         $gateway->hangup($call);
 
-        $minutes = max(1, (int) ($call->campaign?->wrap_up_minutes ?? 1));
+        $seconds = max(10, (int) ($call->campaign?->wrap_up_seconds ?? 60));
         $call->update([
             'status' => 'wrap_up',
-            'wrap_up_expires_at' => now()->addMinutes($minutes),
+            'wrap_up_expires_at' => now()->addSeconds($seconds),
         ]);
 
         $this->closeOpenRecords($user->id, $user->company_id);
@@ -237,7 +291,7 @@ class AgentPanelController extends Controller
 
         return redirect()
             ->route('tenant.agent.index')
-            ->with('status', sprintf('Chamada encerrada. Escolha uma tabulacao em ate %d minuto(s).', $minutes));
+            ->with('status', sprintf('Chamada encerrada. Escolha uma tabulacao em ate %d segundo(s).', $seconds));
     }
 
     public function endCall(Request $request, DialerGateway $gateway): RedirectResponse
@@ -305,8 +359,23 @@ class AgentPanelController extends Controller
             'service_fields' => $serviceFieldResult->values ?: null,
             'status' => 'ended',
             'ended_at' => now(),
+            'hangup_party' => $call->hangup_party ?? 'agent',
             'wrap_up_expires_at' => null,
         ]);
+
+        if ($disposition->category === 'callback') {
+            CallCallback::updateOrCreate(['source_call_id' => $call->id], [
+                'company_id' => $user->company_id,
+                'contact_id' => $call->contact_id,
+                'contact_phone_id' => $call->contact_phone_id,
+                'campaign_id' => $call->campaign_id,
+                'assigned_user_id' => $data['callback_type'] === 'private' ? $user->id : null,
+                'phone' => $call->phone,
+                'type' => $data['callback_type'],
+                'status' => 'pending',
+                'scheduled_at' => $callbackAt,
+            ]);
+        }
 
         if ($call->contact_id) {
             $contactPayload = $this->contactDispositionPayload($call, $disposition, $callbackAt);
@@ -318,9 +387,39 @@ class AgentPanelController extends Controller
             }
         }
 
-        $this->wrapUps->releaseAgent($user);
+        $this->wrapUps->releaseAgent($user, $call);
 
         return redirect()->route('tenant.agent.index')->with('status', 'Chamada simulada encerrada.');
+    }
+
+    public function leave(Request $request)
+    {
+        $user = $request->user();
+        $this->markCurrentCallsAsConsoleClosed($user);
+        $this->closeOpenRecords($user->id, $user->company_id);
+
+        $user->agentStatuses()->create([
+            'company_id' => $user->company_id,
+            'status' => 'offline',
+            'reason' => 'Saiu do painel do agente',
+            'started_at' => now(),
+        ]);
+
+        return response()->noContent();
+    }
+
+    private function markCurrentCallsAsConsoleClosed(User $user): void
+    {
+        $user->calls()
+            ->whereIn('status', ['in_progress', 'wrap_up'])
+            ->get()
+            ->each(function (Call $call): void {
+                $call->update([
+                    'provider_payload' => array_merge($call->provider_payload ?? [], [
+                        'agent_console_closed' => true,
+                    ]),
+                ]);
+            });
     }
 
     private function closeOpenRecords(int $userId, int $companyId): void

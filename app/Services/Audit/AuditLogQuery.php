@@ -12,6 +12,7 @@ final class AuditLogQuery
     {
         $query = AuditLog::query()
             ->with(['company', 'actor'])
+            ->where('event', 'not like', 'god_mode.%')
             ->when(
                 $tenantCompanyId !== null,
                 fn ($builder) => $builder->where('company_id', $tenantCompanyId),

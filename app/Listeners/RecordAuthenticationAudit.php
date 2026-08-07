@@ -22,9 +22,9 @@ final class RecordAuthenticationAudit
 
         if ($event instanceof Failed) {
             $attemptedEmail = Str::lower(trim((string) ($event->credentials['email'] ?? '')));
-            $user ??= $attemptedEmail !== ''
-                ? User::query()->where('email', $attemptedEmail)->first()
-                : null;
+            $user ??= $attemptedEmail === ''
+                ? null
+                : User::query()->where('email', $attemptedEmail)->first();
         } elseif (! $user) {
             return;
         }
