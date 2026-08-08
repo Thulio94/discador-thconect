@@ -8,7 +8,6 @@ use App\Models\OperationalParameter;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\CallWrapUpService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Jobs\GenerateOperationalAlerts;
 
@@ -22,7 +21,7 @@ final class SupervisionSnapshot
     {
         $this->wrapUps->expireForCompany($companyId);
         if (app()->runningUnitTests()) dispatch_sync(new GenerateOperationalAlerts);
-        return Cache::remember("supervision:snapshot:{$companyId}:{$status}:".($teamId ?? 'all'), 5, fn (): array => $this->build($companyId, $status, $teamId));
+        return $this->build($companyId, $status, $teamId);
     }
 
     private function build(int $companyId, string $status, ?int $teamId): array

@@ -183,7 +183,7 @@ final class ReportDataService
             ->withCount(['calls as calls_count' => fn (Builder $query) => $this->applyCallFiltersToUser($query, $filters)])
             ->orderByDesc('calls_count')->orderBy('name')->paginate(self::PER_PAGE)->withQueryString();
 
-        $rows->getCollection()->each(function (User $user) use ($filters): void {
+        $rows->getCollection()->each(function (User $user) use ($calls, $filters): void {
             $userCalls = (clone $calls)->where('user_id', $user->id);
             $metrics = $this->callMetrics($userCalls);
             $user->setAttribute('report_metrics', $metrics);
