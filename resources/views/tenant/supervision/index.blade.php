@@ -40,7 +40,7 @@
                     'team_id' => $selectedTeamId,
                 ])), JSON_UNESCAPED_SLASHES),
                 selectors: ['#supervision-agents', '#supervision-calls'],
-            intervalSeconds: 20,
+            intervalSeconds: 10,
             })"
             x-init="start(); subscribeToSupervision(@js($realtimeCompanyId), () => poll())"
             x-on:visibilitychange.document="handleVisibilityChange()"

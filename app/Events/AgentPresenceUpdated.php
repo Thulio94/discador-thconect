@@ -4,13 +4,20 @@ namespace App\Events;
 
 use App\Models\AgentStatus;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class AgentPresenceUpdated implements ShouldBroadcastNow
+class AgentPresenceUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit
 {
     use Dispatchable, SerializesModels;
+
+    /**
+     * Status changes are written inside database transactions. Broadcasting only
+     * after the commit prevents supervisors from polling the previous status.
+     */
+    public bool $afterCommit = true;
 
     public function __construct(public AgentStatus $agentStatus) {}
 
