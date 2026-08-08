@@ -25,11 +25,11 @@ class SupervisionController extends Controller
     {
         return view(
             'tenant.supervision.index',
-            $this->snapshot->forCompany(
+            array_merge($this->snapshot->forCompany(
                 $request->user()->company_id,
                 $request->string('status')->toString(),
                 $request->integer('team_id') ?: null,
-            )
+            ), ['realtimeCompanyId' => $request->user()->company_id])
         );
     }
 

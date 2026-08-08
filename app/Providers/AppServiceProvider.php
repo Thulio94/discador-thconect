@@ -6,9 +6,11 @@ use App\Contracts\Dialer\DialerGateway;
 use App\Models\Company;
 use App\Models\CompanyLicense;
 use App\Models\CompanyTelephonyConfiguration;
+use App\Models\AgentStatus;
 use App\Models\OperationalParameter;
 use App\Models\TelephonyRoute;
 use App\Models\User;
+use App\Observers\AgentStatusObserver;
 use App\Observers\AuditableModelObserver;
 use App\Services\Dialer\AsteriskDialerGateway;
 use App\Support\GodMode\GodModeContext;
@@ -62,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('super-admin', fn (User $user): bool => (bool) $user->is_super_admin);
 
         Company::observe(AuditableModelObserver::class);
+        AgentStatus::observe(AgentStatusObserver::class);
         CompanyLicense::observe(AuditableModelObserver::class);
         CompanyTelephonyConfiguration::observe(AuditableModelObserver::class);
         TelephonyRoute::observe(AuditableModelObserver::class);

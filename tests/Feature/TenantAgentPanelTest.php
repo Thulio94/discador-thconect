@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
+use App\Events\AgentPresenceUpdated;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
@@ -20,6 +21,7 @@ use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
@@ -58,6 +60,25 @@ class TenantAgentPanelTest extends TestCase
         $this->assertTrue($agent->company->agentStatuses->contains($status));
         $this->assertSame('available', $agent->currentAgentStatus->status);
         $this->assertMatchesRegularExpression('/^'.now()->format('ymd').'\\d{6}$/', $call->protocol);
+    }
+
+    public function test_agent_presence_is_broadcast_when_status_changes(): void
+    {
+        Event::fake([AgentPresenceUpdated::class]);
+        [$agent] = $this->tenantUser('agent');
+
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        Event::assertDispatched(AgentPresenceUpdated::class, function (AgentPresenceUpdated $event) use ($agent): bool {
+            return $event->agentStatus->company_id === $agent->company_id
+                && $event->agentStatus->user_id === $agent->id
+                && $event->agentStatus->status === 'available';
+        });
     }
 
     public function test_only_available_active_agents_count_for_company_capacity(): void
