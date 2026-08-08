@@ -1013,7 +1013,7 @@ class TenantAgentPanelTest extends TestCase
             ->assertSessionHasErrors('phone');
 
         $this->actingAs($agent)
-            ->post(route('tenant.agent.leave'))
+            ->post(route('tenant.agent.leave'), ['agent_console_leave' => true])
             ->assertNoContent();
 
         $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
@@ -1023,6 +1023,23 @@ class TenantAgentPanelTest extends TestCase
             ->post(route('tenant.agent.calls.store'), ['phone' => '31999990001', 'channel' => 'manual'])
             ->assertRedirect(route('tenant.agent.index'))
             ->assertSessionHasErrors('phone');
+    }
+
+    public function test_agent_leave_without_console_marker_preserves_presence(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->post(route('tenant.agent.leave'))
+            ->assertNoContent();
+
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
     }
 
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void

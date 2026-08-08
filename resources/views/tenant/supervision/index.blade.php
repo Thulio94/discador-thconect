@@ -21,8 +21,8 @@
                 Equipe
                 <select name="team_id" x-on:change="$el.form.requestSubmit()" x-on:blur="$el.form.requestSubmit()" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                     <option value="">Todas as equipes</option>
-                    @foreach ($teams as $team)
-                        <option value="{{ $team->id }}" @selected($selectedTeamId === $team->id)>{{ $team->name }}</option>
+                    @foreach ($teamOptions as $team)
+                        <option value="{{ $team['id'] }}" @selected($selectedTeamId === $team['id'])>{{ $team['name'] }}</option>
                     @endforeach
                 </select>
             </label>

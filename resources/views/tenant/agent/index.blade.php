@@ -618,6 +618,7 @@
 
             const data = new FormData();
             data.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+            data.append('agent_console_leave', '1');
             navigator.sendBeacon(@js(route('tenant.agent.leave')), data);
         });
     </script>

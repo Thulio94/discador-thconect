@@ -394,6 +394,11 @@ class AgentPanelController extends Controller
 
     public function leave(Request $request)
     {
+        // Ignore stale page beacons: only the current agent console explicitly marks a real exit.
+        if (! $request->boolean('agent_console_leave')) {
+            return response()->noContent();
+        }
+
         $user = $request->user();
         $this->markCurrentCallsAsConsoleClosed($user);
         $this->closeOpenRecords($user->id, $user->company_id);

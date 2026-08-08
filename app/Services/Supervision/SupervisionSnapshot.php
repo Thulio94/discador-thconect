@@ -162,10 +162,16 @@ final class SupervisionSnapshot
 
         return [
             'agents' => $agents,
-            'teams' => Team::query()
+            'teamOptions' => Team::query()
                 ->where('company_id', $companyId)
                 ->orderBy('name')
-                ->get(),
+                ->get(['id', 'name'])
+                ->map(fn (Team $team): array => [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                ])
+                ->values()
+                ->all(),
             'selectedStatus' => $status,
             'selectedTeamId' => $teamId,
             'monitoringReady' => $monitoringReady,
