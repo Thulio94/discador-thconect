@@ -996,7 +996,7 @@ class TenantAgentPanelTest extends TestCase
         $this->assertTrue($agent->agentPauses()->whereNull('ended_at')->where('reason', 'Almoco')->exists());
     }
 
-    public function test_manual_call_requires_valid_ddd_number_and_agent_leave_releases_presence(): void
+    public function test_manual_call_requires_valid_ddd_number_and_removed_leave_endpoint_preserves_presence(): void
     {
         [$agent, $company] = $this->tenantUser('agent');
         AgentStatus::create([
@@ -1013,31 +1013,8 @@ class TenantAgentPanelTest extends TestCase
             ->assertSessionHasErrors('phone');
 
         $this->actingAs($agent)
-            ->post(route('tenant.agent.leave'), ['agent_console_leave' => true])
-            ->assertNoContent();
-
-        $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
-
-        $this->actingAs($agent)
-            ->from(route('tenant.agent.index'))
-            ->post(route('tenant.agent.calls.store'), ['phone' => '31999990001', 'channel' => 'manual'])
-            ->assertRedirect(route('tenant.agent.index'))
-            ->assertSessionHasErrors('phone');
-    }
-
-    public function test_agent_leave_without_console_marker_preserves_presence(): void
-    {
-        [$agent, $company] = $this->tenantUser('agent');
-        AgentStatus::create([
-            'company_id' => $company->id,
-            'user_id' => $agent->id,
-            'status' => 'available',
-            'started_at' => now(),
-        ]);
-
-        $this->actingAs($agent)
-            ->post(route('tenant.agent.leave'))
-            ->assertNoContent();
+            ->post('/tenant/agent/leave')
+            ->assertNotFound();
 
         $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
     }

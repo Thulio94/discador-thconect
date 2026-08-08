@@ -392,41 +392,6 @@ class AgentPanelController extends Controller
         return redirect()->route('tenant.agent.index')->with('status', 'Chamada simulada encerrada.');
     }
 
-    public function leave(Request $request)
-    {
-        // Ignore stale page beacons: only the current agent console explicitly marks a real exit.
-        if (! $request->boolean('agent_console_leave')) {
-            return response()->noContent();
-        }
-
-        $user = $request->user();
-        $this->markCurrentCallsAsConsoleClosed($user);
-        $this->closeOpenRecords($user->id, $user->company_id);
-
-        $user->agentStatuses()->create([
-            'company_id' => $user->company_id,
-            'status' => 'offline',
-            'reason' => 'Saiu do painel do agente',
-            'started_at' => now(),
-        ]);
-
-        return response()->noContent();
-    }
-
-    private function markCurrentCallsAsConsoleClosed(User $user): void
-    {
-        $user->calls()
-            ->whereIn('status', ['in_progress', 'wrap_up'])
-            ->get()
-            ->each(function (Call $call): void {
-                $call->update([
-                    'provider_payload' => array_merge($call->provider_payload ?? [], [
-                        'agent_console_closed' => true,
-                    ]),
-                ]);
-            });
-    }
-
     private function closeOpenRecords(int $userId, int $companyId): void
     {
         AgentStatus::query()
