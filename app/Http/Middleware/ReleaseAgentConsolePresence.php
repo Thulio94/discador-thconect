@@ -15,7 +15,12 @@ class ReleaseAgentConsolePresence
     {
         $user = $request->user();
 
-        if (! $user || $user->is_super_admin || $request->routeIs('tenant.agent.*')) {
+        if (
+            ! $user
+            || $user->is_super_admin
+            || $request->routeIs('tenant.agent.*')
+            || $request->routeIs('tenant.notifications.poll', 'tenant.supervision.poll')
+        ) {
             return $next($request);
         }
 

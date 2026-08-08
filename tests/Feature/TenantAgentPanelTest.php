@@ -447,6 +447,29 @@ class TenantAgentPanelTest extends TestCase
         $this->assertNotNull($pause->fresh()->ended_at);
     }
 
+    public function test_background_notification_poll_does_not_release_available_agent_presence(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $agent->role->permissions()->syncWithoutDetaching([
+            Permission::query()->firstOrCreate(
+                ['key' => 'notifications.read'],
+                ['name' => 'Ler notificacoes', 'module' => 'notifications'],
+            )->id,
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.notifications.poll'))
+            ->assertOk();
+
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+    }
+
     public function test_available_status_consumes_a_license_for_every_tenant_user(): void
     {
         [$firstAgent, $company] = $this->tenantUser('agent');

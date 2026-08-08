@@ -601,7 +601,21 @@
     @endforeach
 
     <script>
+        let keepingAgentPresence = false;
+
+        document.addEventListener('submit', (event) => {
+            const action = new URL(event.target.getAttribute('action') || window.location.href, window.location.origin);
+
+            if (action.pathname.startsWith('/tenant/agent')) {
+                keepingAgentPresence = true;
+            }
+        });
+
         window.addEventListener('pagehide', () => {
+            if (keepingAgentPresence) {
+                return;
+            }
+
             const data = new FormData();
             data.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
             navigator.sendBeacon(@js(route('tenant.agent.leave')), data);
