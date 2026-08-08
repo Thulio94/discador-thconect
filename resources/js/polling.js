@@ -74,6 +74,7 @@ export function createPollingRegion(
         timerId: null,
         controller: null,
         inFlight: false,
+        refreshPending: false,
         stopped: false,
 
         start() {
@@ -89,12 +90,18 @@ export function createPollingRegion(
             this.timerId = dependencies.setTimeout(() => this.poll(), delay);
         },
 
-        async poll() {
-            if (
-                this.stopped
-                || this.inFlight
-                || dependencies.visibility() !== 'visible'
-            ) {
+        async poll(force = false) {
+            if (this.stopped) {
+                return;
+            }
+
+            if (this.inFlight) {
+                this.refreshPending ||= force;
+
+                return;
+            }
+
+            if (!force && dependencies.visibility() !== 'visible') {
                 return;
             }
 
@@ -143,6 +150,14 @@ export function createPollingRegion(
             } finally {
                 this.inFlight = false;
                 this.controller = null;
+
+                if (this.refreshPending) {
+                    this.refreshPending = false;
+                    void this.poll(true);
+
+                    return;
+                }
+
                 this.schedule(this.currentDelayMs);
             }
         },

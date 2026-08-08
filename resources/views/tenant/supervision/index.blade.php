@@ -42,7 +42,7 @@
                 selectors: ['#supervision-agents', '#supervision-calls'],
             intervalSeconds: 10,
             })"
-            x-init="start(); subscribeToSupervision(@js($realtimeCompanyId), () => poll())"
+            x-init="start(); subscribeToSupervision(@js($realtimeCompanyId), () => poll(true))"
             x-on:visibilitychange.document="handleVisibilityChange()"
         >
             @include('tenant.supervision._agents')

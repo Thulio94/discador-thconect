@@ -103,6 +103,57 @@ test('pauses while hidden and polls immediately when visible again', async () =>
     assert.equal(fetchCalls, 1);
 });
 
+test('allows a realtime event to refresh a hidden region', async () => {
+    let fetchCalls = 0;
+    const context = harness({
+        fetch: async () => {
+            fetchCalls += 1;
+
+            return successfulResponse();
+        },
+    });
+    const region = createPollingRegion({
+        url: '/poll',
+        selectors: ['#region'],
+    }, context.dependencies);
+
+    context.setVisibility('hidden');
+    await region.poll(true);
+
+    assert.equal(fetchCalls, 1);
+});
+
+test('queues a realtime refresh that arrives during an active request', async () => {
+    let fetchCalls = 0;
+    let resolveFirstFetch;
+    const firstFetch = new Promise((resolve) => {
+        resolveFirstFetch = resolve;
+    });
+    const context = harness({
+        fetch: () => {
+            fetchCalls += 1;
+
+            return fetchCalls === 1 ? firstFetch : Promise.resolve(successfulResponse());
+        },
+    });
+    const region = createPollingRegion({
+        url: '/poll',
+        selectors: ['#region'],
+    }, context.dependencies);
+
+    const initialPoll = region.poll();
+    await region.poll(true);
+    assert.equal(region.refreshPending, true);
+
+    resolveFirstFetch(successfulResponse());
+    await initialPoll;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(fetchCalls, 2);
+    assert.equal(region.refreshPending, false);
+});
+
 test('backs off after temporary failure and resets after success', async () => {
     const responses = [
         { ok: false, status: 500, headers: { get: () => null } },
