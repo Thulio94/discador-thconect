@@ -86,12 +86,14 @@ final class SupervisionSnapshot
                 $activeCall = $user->calls->first();
                 $wrapUpCall = $user->calls->firstWhere('status', 'wrap_up');
                 $statusStartedAt = $user->currentAgentStatus?->started_at;
-                $statusMinutes = $statusStartedAt
-                    ? (int) $statusStartedAt->diffInMinutes(now())
+                $statusSeconds = $statusStartedAt
+                    ? max(0, (int) $statusStartedAt->diffInSeconds(now()))
                     : 0;
-                $callMinutes = $activeCall?->started_at
-                    ? (int) $activeCall->started_at->diffInMinutes(now())
+                $callSeconds = $activeCall?->started_at
+                    ? max(0, (int) $activeCall->started_at->diffInSeconds(now()))
                     : 0;
+                $statusMinutes = intdiv($statusSeconds, 60);
+                $callMinutes = intdiv($callSeconds, 60);
 
                 $user->setAttribute(
                     'supervision_status',
@@ -99,11 +101,11 @@ final class SupervisionSnapshot
                 );
                 $user->setAttribute(
                     'status_duration_label',
-                    $this->durationLabel($statusMinutes)
+                    $this->durationLabel($statusSeconds)
                 );
                 $user->setAttribute(
                     'active_call_duration_label',
-                    $activeCall ? $this->durationLabel($callMinutes) : null
+                    $activeCall ? $this->durationLabel($callSeconds) : null
                 );
                 $user->setAttribute(
                     'current_campaign_name',
@@ -112,7 +114,7 @@ final class SupervisionSnapshot
                 $user->setAttribute(
                     'wrap_up_duration_label',
                     $wrapUpCall?->wrap_up_expires_at
-                        ? $this->durationLabel(max(0, now()->diffInMinutes($wrapUpCall->wrap_up_expires_at, false)))
+                        ? $this->durationLabel(max(0, now()->diffInSeconds($wrapUpCall->wrap_up_expires_at, false)))
                         : null
                 );
                 $user->setAttribute('operational_alerts', collect([
@@ -208,18 +210,13 @@ final class SupervisionSnapshot
         ];
     }
 
-    private function durationLabel(int $minutes): string
+    private function durationLabel(int $seconds): string
     {
-        if ($minutes < 60) {
-            return $minutes.' min';
-        }
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $remainingSeconds = $seconds % 60;
 
-        $hours = intdiv($minutes, 60);
-        $remainingMinutes = $minutes % 60;
-
-        return $remainingMinutes > 0
-            ? $hours.'h '.$remainingMinutes.' min'
-            : $hours.'h';
+        return sprintf('%02d:%02d:%02d', $hours, $minutes, $remainingSeconds);
     }
 
 }
