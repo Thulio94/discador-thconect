@@ -44,13 +44,15 @@ class PollingMarkupTest extends TestCase
             ->assertDontSee(route('tenant.notifications.poll'), false);
     }
 
-    public function test_polling_source_uses_abort_and_visibility_without_blocking_browser_apis(): void
+    public function test_polling_source_uses_abort_visibility_and_an_isolated_display_clock(): void
     {
         $source = file_get_contents(resource_path('js/polling.js'));
 
         $this->assertStringContainsString('AbortController', $source);
         $this->assertStringContainsString('visibility', $source);
-        $this->assertStringNotContainsString('setInterval(', $source);
+        $this->assertStringContainsString('clockEnabled', $source);
+        $this->assertStringContainsString('dependencies.setInterval', $source);
+        $this->assertStringNotContainsString('setInterval(() => this.poll', $source);
         $this->assertStringNotContainsString('alert(', $source);
         $this->assertStringNotContainsString('confirm(', $source);
     }

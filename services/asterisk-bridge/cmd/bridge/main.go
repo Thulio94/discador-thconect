@@ -44,14 +44,14 @@ type routeConfig struct {
 }
 
 type originateRequest struct {
-	CompanyID int    `json:"company_id"`
-	CallID    int    `json:"call_id"`
-	ActionID  string `json:"action_id"`
-	Phone     string `json:"phone"`
-	Channel   string `json:"channel"`
-	Context   string `json:"context"`
-	Extension string `json:"extension"`
-	CallerID  string `json:"caller_id"`
+	CompanyID     int    `json:"company_id"`
+	CallID        int    `json:"call_id"`
+	ActionID      string `json:"action_id"`
+	Phone         string `json:"phone"`
+	Channel       string `json:"channel"`
+	Context       string `json:"context"`
+	Extension     string `json:"extension"`
+	CallerID      string `json:"caller_id"`
 	RecordingFile string `json:"recording_file"`
 }
 
@@ -66,8 +66,10 @@ type superviseRequest struct {
 	CompanyID           int    `json:"company_id"`
 	CallID              int    `json:"call_id"`
 	AgentChannel        string `json:"agent_channel"`
+	AgentExtension      string `json:"agent_extension"`
 	SupervisorExtension string `json:"supervisor_extension"`
 	Mode                string `json:"mode"`
+	Persistent          bool   `json:"persistent"`
 }
 
 type actionRef struct {
@@ -85,14 +87,14 @@ type bridge struct {
 }
 
 type routeManager struct {
-	bridge  *bridge
-	config  routeConfig
-	stop    chan struct{}
-	done    chan struct{}
-	mu      sync.Mutex
-	conn    net.Conn
-	actions map[string]actionRef
-	ids     map[string]int
+	bridge     *bridge
+	config     routeConfig
+	stop       chan struct{}
+	done       chan struct{}
+	mu         sync.Mutex
+	conn       net.Conn
+	actions    map[string]actionRef
+	ids        map[string]int
 	recordings map[int]string
 }
 
@@ -264,8 +266,8 @@ func (b *bridge) supervise(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
-	if request.CompanyID < 1 || request.CallID < 1 || request.AgentChannel == "" || request.SupervisorExtension == "" {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "company_id, call_id, agent_channel and supervisor_extension are required"})
+	if request.CompanyID < 1 || request.SupervisorExtension == "" || (request.AgentChannel == "" && request.AgentExtension == "") {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "company_id, supervisor_extension and an agent channel or extension are required"})
 		return
 	}
 	if request.Mode != "listen" && request.Mode != "whisper" && request.Mode != "barge" {
@@ -394,6 +396,10 @@ func (m *routeManager) supervise(request superviseRequest) error {
 		return errors.New("supervisor channel template must contain {extension}")
 	}
 	supervisorChannel := strings.ReplaceAll(channelTemplate, "{extension}", request.SupervisorExtension)
+	agentTarget, err := supervisionTarget(request)
+	if err != nil {
+		return err
+	}
 
 	options := "q"
 	switch request.Mode {
@@ -407,9 +413,25 @@ func (m *routeManager) supervise(request superviseRequest) error {
 		"Action":      "Originate",
 		"Channel":     supervisorChannel,
 		"Application": "ChanSpy",
-		"Data":        request.AgentChannel + "," + options,
+		"Data":        agentTarget + "," + options,
 		"Async":       "true",
 	})
+}
+
+func supervisionTarget(request superviseRequest) (string, error) {
+	if request.Persistent {
+		extension, err := strconv.Atoi(request.AgentExtension)
+		if err != nil || extension < 1000 || extension > 10000 {
+			return "", errors.New("agent extension must be numeric and between 1000 and 10000")
+		}
+
+		return "PJSIP/" + request.AgentExtension, nil
+	}
+	if request.AgentChannel == "" {
+		return "", errors.New("agent channel is required")
+	}
+
+	return request.AgentChannel, nil
 }
 
 func (m *routeManager) sendAction(fields map[string]string) error {
@@ -473,12 +495,12 @@ func (m *routeManager) processEvent(message map[string]string) {
 	if event == "Hangup" {
 		if recording, ok := m.recordingFor(callID); ok {
 			go m.bridge.sendWebhook(map[string]any{
-				"company_id": m.config.CompanyID,
-				"call_id": callID,
-				"event": "recording_ready",
-				"recording_path": "recordings/" + filepath.Base(recording.file),
+				"company_id":       m.config.CompanyID,
+				"call_id":          callID,
+				"event":            "recording_ready",
+				"recording_path":   "recordings/" + filepath.Base(recording.file),
 				"recording_format": strings.TrimPrefix(filepath.Ext(recording.file), "."),
-				"recording_size": recording.size,
+				"recording_size":   recording.size,
 			})
 		}
 	}
@@ -493,9 +515,13 @@ func (m *routeManager) recordingFor(callID int) (recordingInfo, bool) {
 	m.mu.Lock()
 	file := m.recordings[callID]
 	m.mu.Unlock()
-	if file == "" { return recordingInfo{}, false }
+	if file == "" {
+		return recordingInfo{}, false
+	}
 	info, err := os.Stat(filepath.Join("/recordings", filepath.Base(file)))
-	if err != nil || info.Size() == 0 { return recordingInfo{}, false }
+	if err != nil || info.Size() == 0 {
+		return recordingInfo{}, false
+	}
 	return recordingInfo{file: file, size: info.Size()}, true
 }
 

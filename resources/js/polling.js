@@ -3,6 +3,9 @@ function browserDependencies() {
         fetch: (...args) => window.fetch(...args),
         setTimeout: (...args) => window.setTimeout(...args),
         clearTimeout: (timerId) => window.clearTimeout(timerId),
+        setInterval: (...args) => window.setInterval(...args),
+        clearInterval: (timerId) => window.clearInterval(timerId),
+        now: () => Date.now(),
         visibility: () => document.visibilityState,
         AbortController: window.AbortController,
         parse(html, selectors) {
@@ -72,17 +75,65 @@ export function createPollingRegion(
         currentDelayMs: intervalMs,
         maxDelayMs: 60000,
         timerId: null,
+        heartbeatTimerId: null,
+        clockTimerId: null,
         controller: null,
         inFlight: false,
         refreshPending: false,
         stopped: false,
+        heartbeatEnabled: config.heartbeat ?? false,
+        nextPollAt: null,
+        clockEnabled: config.clock ?? false,
+        nowSeconds: Math.floor(dependencies.now() / 1000),
 
         start() {
+            if (this.clockEnabled && this.clockTimerId === null) {
+                this.clockTimerId = dependencies.setInterval(() => {
+                    this.nowSeconds = Math.floor(dependencies.now() / 1000);
+                }, 1000);
+            }
+
+            if (this.heartbeatEnabled && this.heartbeatTimerId === null) {
+                this.nextPollAt = dependencies.now() + this.intervalMs;
+                this.heartbeatTimerId = dependencies.setInterval(() => {
+                    if (
+                        !this.stopped
+                        && dependencies.visibility() === 'visible'
+                        && dependencies.now() >= this.nextPollAt
+                    ) {
+                        void this.poll();
+                    }
+                }, this.intervalMs);
+            }
+
             this.schedule(this.intervalMs);
+        },
+
+        formatElapsed(startedAtSeconds, endedAtSeconds = null) {
+            const startedAt = Number(startedAtSeconds);
+            const endedAt = endedAtSeconds === null
+                ? this.nowSeconds
+                : Number(endedAtSeconds);
+            const seconds = Number.isFinite(startedAt) && Number.isFinite(endedAt)
+                ? Math.max(0, Math.floor(endedAt - startedAt))
+                : 0;
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = seconds % 60;
+
+            return [hours, minutes, remainingSeconds]
+                .map((value) => String(value).padStart(2, '0'))
+                .join(':');
         },
 
         schedule(delay) {
             if (this.stopped || dependencies.visibility() !== 'visible') {
+                return;
+            }
+
+            if (this.heartbeatEnabled) {
+                this.nextPollAt = dependencies.now() + delay;
+
                 return;
             }
 
@@ -182,6 +233,14 @@ export function createPollingRegion(
         destroy() {
             this.stopped = true;
             this.clearTimer();
+            if (this.heartbeatTimerId !== null) {
+                dependencies.clearInterval(this.heartbeatTimerId);
+                this.heartbeatTimerId = null;
+            }
+            if (this.clockTimerId !== null) {
+                dependencies.clearInterval(this.clockTimerId);
+                this.clockTimerId = null;
+            }
             this.controller?.abort();
         },
     };

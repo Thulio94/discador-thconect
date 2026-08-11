@@ -43,9 +43,9 @@ class AsteriskBridgeClient
     }
 
     /** @param array<string, mixed> $payload */
-    public function supervise(array $payload): void
+    public function supervise(array $payload, ?AsteriskNode $node = null): void
     {
-        $this->request()->post('/v1/calls/supervise', $payload)->throw();
+        $this->request($node)->post('/v1/calls/supervise', $payload)->throw();
     }
 
     private function request(?AsteriskNode $node = null): PendingRequest

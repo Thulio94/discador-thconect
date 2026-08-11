@@ -59,7 +59,9 @@
                 $startedAt = $call->started_at;
                 $finishedAt = $call->ended_at ?? now();
                 $seconds = $startedAt ? max(0, (int) $startedAt->diffInSeconds($finishedAt)) : 0;
-                $duration = sprintf('%02d:%02d', intdiv($seconds, 60), $seconds % 60);
+                $duration = sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+                $startedAtUnix = $startedAt?->timestamp;
+                $endedAtUnix = $call->ended_at?->timestamp;
                 $callLabel = $call->end_reason ? ($endReasonLabels[$call->end_reason] ?? str_replace('_', ' ', ucfirst($call->end_reason))) : $state['label'];
                 if (filled($call->amd_result) && ! in_array(strtolower($call->amd_result), ['human', 'humano'], true)) {
                     $callLabel = 'AMD / Caixa postal';
@@ -72,7 +74,7 @@
                     <p class="mt-0.5 truncate text-[10px]" style="color: var(--fg-muted);">{{ $call->campaign?->name ?: 'Discagem manual' }}</p>
                 </div>
                 <p class="truncate font-mono text-xs font-semibold" style="color: var(--accent-cyan);">{{ $call->phone ?: 'Numero nao identificado' }}</p>
-                <p class="text-right font-mono text-[10px]" style="color: var(--fg-muted);">{{ $duration }}</p>
+                <p class="text-right font-mono text-[10px]" style="color: var(--fg-muted);" x-text="formatElapsed(@js($startedAtUnix), @js($endedAtUnix))">{{ $duration }}</p>
             </div>
         @empty
             <p class="px-4 py-12 text-center text-sm" style="color: var(--fg-muted);">Nenhuma ligacao registrada ainda.</p>

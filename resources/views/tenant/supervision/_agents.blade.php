@@ -106,9 +106,7 @@
                     'offline' => ['label' => 'Offline', 'color' => 'var(--status-neutral)'],
                 ][$agent->supervision_status] ?? ['label' => 'Indisponivel', 'color' => 'var(--status-neutral)'];
                 $monitoringAvailable = $monitoringReady
-                    && $activeCall?->status === 'in_progress'
-                    && $activeCall?->channel === 'asterisk_ami'
-                    && filled($activeCall?->telephony_channel)
+                    && in_array($agent->supervision_status, ['available', 'paused', 'in_call', 'wrap_up'], true)
                     && $agent->user_type === 'agent';
                 $searchText = mb_strtolower($agent->name.' '.$agent->extension.' '.$teamsText);
                 $sortPayload = $sortingAgents->firstWhere('id', $agent->id);
@@ -126,7 +124,7 @@
                 <div class="min-w-0">
                     <span class="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold" style="border: 1px solid color-mix(in srgb, {{ $status['color'] }} 32%, var(--border)); background: color-mix(in srgb, {{ $status['color'] }} 12%, var(--surface)); color: {{ $status['color'] }};">
                         <span class="truncate">{{ $status['label'] }}</span>
-                        <span class="font-mono text-[9px]">{{ $agent->status_duration_label }}</span>
+                        <span class="font-mono text-[9px]" x-text="formatElapsed(@js($agent->status_started_at_unix))">{{ $agent->status_duration_label }}</span>
                     </span>
                     @if (count($agent->operational_alerts))
                         <p class="mt-1 truncate text-[9px] font-semibold" style="color: var(--status-danger);">{{ implode(' · ', $agent->operational_alerts) }}</p>
@@ -145,11 +143,11 @@
                                 x-on:click="spyAgent = @js([
                                     'name' => $agent->name,
                                     'extension' => $agent->extension,
-                                    'phone' => $activeCall->phone ?: 'Numero nao identificado',
+                                    'phone' => $activeCall?->phone ?: 'Aguardando chamadas',
                                     'url' => route('tenant.supervision.monitor', $agent),
                                 ])"
                             @endif
-                            title="{{ $monitoringAvailable ? 'Abrir modo Spy' : ($monitoringReason ?? 'Sem chamada monitoravel') }}"
+                            title="{{ $monitoringAvailable ? 'Iniciar acompanhamento continuo do ramal' : ($monitoringReason ?? 'Agente offline') }}"
                         ><x-ui.icon name="view" class="h-3 w-3" /> Ouvir</button>
                     @else
                         <span class="text-[10px]" style="color: var(--fg-muted);">—</span>
@@ -162,11 +160,11 @@
                     <p><span class="font-semibold">Nome:</span> {{ $agent->name }}</p>
                     <p><span class="font-semibold">Ramal:</span> {{ $agent->extension }}</p>
                     <p><span class="font-semibold">Status:</span> <span style="color: {{ $status['color'] }};">{{ $status['label'] }}</span></p>
-                    <p><span class="font-semibold">Tempo no status:</span> {{ $agent->status_duration_label }}</p>
+                    <p><span class="font-semibold">Tempo no status:</span> <span class="font-mono" x-text="formatElapsed(@js($agent->status_started_at_unix))">{{ $agent->status_duration_label }}</span></p>
                     <p class="sm:col-span-2"><span class="font-semibold">Equipes:</span> {{ $teamsText }}</p>
                     <p class="sm:col-span-2"><span class="font-semibold">Campanha atual:</span> {{ $agent->current_campaign_name ?? 'Sem campanha' }}</p>
                     @if ($activeCall)
-                        <p class="sm:col-span-2"><span class="font-semibold">Tempo em chamada:</span> {{ $agent->active_call_duration_label }} · {{ $activeCall->phone }}</p>
+                        <p class="sm:col-span-2"><span class="font-semibold">Tempo em chamada:</span> <span class="font-mono" x-text="formatElapsed(@js($agent->active_call_started_at_unix))">{{ $agent->active_call_duration_label }}</span> · {{ $activeCall->phone }}</p>
                     @endif
                     @if (count($agent->operational_alerts))
                         <p class="sm:col-span-2" style="color: var(--status-danger);"><span class="font-semibold">Alertas:</span> {{ implode(', ', $agent->operational_alerts) }}</p>

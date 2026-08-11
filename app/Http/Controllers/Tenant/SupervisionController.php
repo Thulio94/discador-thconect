@@ -63,6 +63,12 @@ class SupervisionController extends Controller
             'mode' => ['required', Rule::in(['listen', 'whisper', 'barge'])],
         ]);
 
+        $agentStatus = $agent->currentAgentStatus()->value('status') ?? 'offline';
+
+        if (! in_array($agentStatus, ['available', 'paused', 'in_call', 'wrap_up'], true)) {
+            return back()->withErrors(['monitoring' => 'O agente precisa estar conectado para iniciar o Modo Spy.']);
+        }
+
         $call = Call::query()
             ->where('company_id', $supervisor->company_id)
             ->where('user_id', $agent->id)
@@ -72,26 +78,28 @@ class SupervisionController extends Controller
             ->latest('started_at')
             ->first();
 
-        if (! $call) {
-            return back()->withErrors(['monitoring' => 'O agente nao possui uma chamada AMI ativa com canal identificado para monitoria.']);
-        }
-
-        $monitoringReady = $supervisor->company?->telephonyRoutes()
+        $route = $supervisor->company?->telephonyRoutes()
+            ->with('asteriskNode')
             ->get()
-            ->contains(fn ($route): bool => $route->isReady() && $route->connection_status === 'online');
+            ->first(fn ($route): bool => $route->isReady() && $route->connection_status === 'online');
 
-        if (! $monitoringReady) {
+        if (! $route) {
             return back()->withErrors(['monitoring' => 'A rota Asterisk desta empresa precisa estar conectada e sincronizada antes de usar a monitoria.']);
         }
 
         try {
+            // Rehydrate the bridge's in-memory route after deploys or restarts
+            // before opening the long-lived ChanSpy session.
+            $bridge->synchronize($route, $supervisor->company_id);
             $bridge->supervise([
                 'company_id' => $supervisor->company_id,
-                'call_id' => $call->id,
-                'agent_channel' => $call->telephony_channel,
+                'call_id' => $call?->id ?? 0,
+                'agent_channel' => $call?->telephony_channel ?? '',
+                'agent_extension' => $agent->extension,
                 'supervisor_extension' => $supervisor->extension,
                 'mode' => $data['mode'],
-            ]);
+                'persistent' => true,
+            ], $route->asteriskNode);
 
             $labels = [
                 'listen' => 'Ouvir',
@@ -107,15 +115,17 @@ class SupervisionController extends Controller
                 subject: $agent,
                 companyId: $supervisor->company_id,
                 metadata: [
-                    'call_id' => $call->id,
+                    'call_id' => $call?->id,
                     'mode' => $data['mode'],
                     'supervisor_extension' => $supervisor->extension,
+                    'agent_extension' => $agent->extension,
+                    'persistent' => true,
                 ],
             );
 
             return redirect()
                 ->route('tenant.supervision.index')
-                ->with('status', sprintf('%s solicitado para a chamada de %s.', $label, $agent->name));
+                ->with('status', sprintf('%s continuo iniciado para %s. Atenda o ramal do supervisor para acompanhar as chamadas.', $label, $agent->name));
         } catch (Throwable $exception) {
             report($exception);
 

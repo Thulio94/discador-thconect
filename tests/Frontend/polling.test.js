@@ -14,13 +14,21 @@ function successfulResponse() {
 function harness(overrides = {}) {
     const scheduled = [];
     const cleared = [];
+    const intervals = [];
+    const clearedIntervals = [];
     let visibilityState = 'visible';
+    let currentTime = 1_000_000;
 
     return {
         scheduled,
         cleared,
+        intervals,
+        clearedIntervals,
         setVisibility(value) {
             visibilityState = value;
+        },
+        setTime(value) {
+            currentTime = value;
         },
         dependencies: {
             fetch: overrides.fetch ?? (async () => successfulResponse()),
@@ -34,6 +42,13 @@ function harness(overrides = {}) {
                 return scheduled.length;
             },
             clearTimeout: (id) => cleared.push(id),
+            setInterval: (callback, delay) => {
+                intervals.push({ callback, delay });
+
+                return intervals.length;
+            },
+            clearInterval: (id) => clearedIntervals.push(id),
+            now: () => currentTime,
             visibility: () => visibilityState,
             warn: () => {},
             AbortController: overrides.AbortController ?? AbortController,
@@ -121,6 +136,62 @@ test('allows a realtime event to refresh a hidden region', async () => {
     await region.poll(true);
 
     assert.equal(fetchCalls, 1);
+});
+
+test('runs one supervision clock and formats elapsed time as hh:mm:ss', () => {
+    const context = harness();
+    const region = createPollingRegion({
+        url: '/poll',
+        selectors: ['#region'],
+        clock: true,
+    }, context.dependencies);
+
+    region.start();
+    assert.equal(context.intervals.length, 1);
+    assert.equal(context.intervals[0].delay, 1000);
+    assert.equal(region.formatElapsed(900), '00:01:40');
+
+    context.setTime(3_701_000);
+    context.intervals[0].callback();
+    assert.equal(region.formatElapsed(0), '01:01:41');
+    assert.equal(region.formatElapsed(0, 61), '00:01:01');
+
+    region.destroy();
+    assert.deepEqual(context.clearedIntervals, [1]);
+});
+
+test('keeps supervision polling alive with a guarded heartbeat', async () => {
+    let fetchCalls = 0;
+    const context = harness({
+        fetch: async () => {
+            fetchCalls += 1;
+
+            return successfulResponse();
+        },
+    });
+    const region = createPollingRegion({
+        url: '/poll',
+        selectors: ['#region'],
+        heartbeat: true,
+    }, context.dependencies);
+
+    region.start();
+    assert.equal(context.scheduled.length, 0);
+    assert.equal(context.intervals.length, 1);
+    assert.equal(context.intervals[0].delay, 10000);
+
+    context.setTime(1_010_000);
+    await context.intervals[0].callback();
+    await Promise.resolve();
+    assert.equal(fetchCalls, 1);
+
+    context.setTime(1_020_000);
+    await context.intervals[0].callback();
+    await Promise.resolve();
+    assert.equal(fetchCalls, 2);
+
+    region.destroy();
+    assert.deepEqual(context.clearedIntervals, [1]);
 });
 
 test('queues a realtime refresh that arrives during an active request', async () => {

@@ -103,8 +103,16 @@ final class SupervisionSnapshot
                     $this->durationLabel($statusSeconds)
                 );
                 $user->setAttribute(
+                    'status_started_at_unix',
+                    $statusStartedAt?->timestamp
+                );
+                $user->setAttribute(
                     'active_call_duration_label',
                     $activeCall ? $this->durationLabel($callSeconds) : null
+                );
+                $user->setAttribute(
+                    'active_call_started_at_unix',
+                    $activeCall?->started_at?->timestamp
                 );
                 $user->setAttribute(
                     'current_campaign_name',
