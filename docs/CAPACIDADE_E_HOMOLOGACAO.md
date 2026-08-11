@@ -79,10 +79,23 @@ O Docker Desktop valida integracao funcional, mas nao homologa 500 canais nem su
 ## Comandos operacionais
 
 ```bash
+php artisan dialer:smoke-load --agents=5,10 --calls-per-agent=10
 php artisan calls:archive-old
 php artisan reports:purge-expired-assets
 php artisan queue:monitor redis:telephony,redis:imports,redis:reports --max=100
 php artisan schedule:list
 ```
+
+### Teste pequeno e reversivel
+
+`dialer:smoke-load` exercita o orquestrador, o MariaDB, a selecao de mailing,
+os bloqueios de capacidade e a corrida de tentativas usando o gateway simulado.
+O comando aceita no maximo 10 agentes e 10 tentativas por agente, cria uma
+empresa temporaria dentro de uma transacao e sempre executa rollback ao final.
+Nenhuma rota telefonica e associada ao ensaio e nenhuma chamada real e enviada.
+
+O resultado deve apresentar uma chamada ativa vencedora por agente e as demais
+tentativas como canceladas por atendimento em outro canal. Este smoke test nao
+substitui a homologacao SIPp com canais, audio, AMD e gravacao reais.
 
 Antes de producao, configure backups, restauracao testada, lifecycle S3, TLS, secrets externos e alertas Grafana.
