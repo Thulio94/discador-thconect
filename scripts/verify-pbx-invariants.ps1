@@ -62,6 +62,7 @@ Assert-Match $appDockerfile 'chmod -R u\+rwX,g\+rwX storage bootstrap/cache' 'A 
 Assert-Match $appEntrypoint 'mkdir -p storage/app storage/framework/cache' 'O entrypoint de producao precisa preparar volumes Laravel vazios.'
 Assert-Match $appEntrypoint 'if \[ "\$\{1:-\}" = "php-fpm" \]; then' 'O PHP-FPM precisa iniciar seu processo mestre com as permissoes apropriadas.'
 Assert-Match $appEntrypoint 'RUN_MIGRATIONS_ON_BOOT' 'O bootstrap de banco de producao precisa ser executado antes do PHP-FPM.'
+Assert-Match $appEntrypoint 'INITIAL_ADMIN_SYNC_PASSWORD' 'A sincronizacao unica da senha inicial precisa ser controlada por flag explicita.'
 Assert-Match $productionCompose 'RUN_MIGRATIONS_ON_BOOT:\s*"false"' 'O PHP-FPM de producao nao pode executar migracoes durante o boot.'
 Assert-Match $nginxDockerfile 'COPY public /var/www/html/public' 'A imagem Nginx precisa incluir os arquivos publicos do Laravel.'
 Assert-Match $nginxDockerfile 'COPY --from=assets /app/public/build /var/www/html/public/build' 'A imagem Nginx precisa incluir os assets compilados do Vite.'

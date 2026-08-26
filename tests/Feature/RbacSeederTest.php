@@ -12,6 +12,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\SuperAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class RbacSeederTest extends TestCase
@@ -106,6 +107,29 @@ class RbacSeederTest extends TestCase
         $this->assertSame('1000', $admin->extension);
         $this->assertSame('active', $admin->status);
         $this->assertTrue(Gate::forUser($admin)->allows('super-admin'));
+    }
+
+    public function test_super_admin_password_is_updated_only_when_explicit_sync_is_enabled(): void
+    {
+        $admin = User::factory()->create([
+            'email' => 'admin@discador.local',
+            'password' => Hash::make('previous-password'),
+            'is_super_admin' => true,
+            'user_type' => 'super_admin',
+            'status' => 'active',
+        ]);
+
+        putenv('INITIAL_ADMIN_PASSWORD=updated-password');
+        putenv('INITIAL_ADMIN_SYNC_PASSWORD=false');
+        $this->seed(SuperAdminSeeder::class);
+        $this->assertTrue(Hash::check('previous-password', $admin->fresh()->password));
+
+        putenv('INITIAL_ADMIN_SYNC_PASSWORD=true');
+        $this->seed(SuperAdminSeeder::class);
+        $this->assertTrue(Hash::check('updated-password', $admin->fresh()->password));
+
+        putenv('INITIAL_ADMIN_PASSWORD');
+        putenv('INITIAL_ADMIN_SYNC_PASSWORD');
     }
 
     public function test_demo_tenant_seeder_creates_license_roles_users_and_team(): void
