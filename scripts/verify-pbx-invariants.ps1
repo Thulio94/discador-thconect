@@ -33,6 +33,7 @@ $gateway = Read-RepoFile 'app/Services/Dialer/AsteriskDialerGateway.php'
 $bridge = Read-RepoFile 'services/asterisk-bridge/cmd/bridge/main.go'
 $appDockerfile = Read-RepoFile '.docker/app/Dockerfile.production'
 $appEntrypoint = Read-RepoFile '.docker/entrypoint.production.sh'
+$nginxDockerfile = Read-RepoFile '.docker/nginx/Dockerfile.production'
 $localCompose = Read-RepoFile 'docker-compose.yml'
 $productionCompose = Read-RepoFile 'docker-compose.production.yml'
 
@@ -59,6 +60,8 @@ Assert-Match $appEntrypoint 'mkdir -p storage/app storage/framework/cache' 'O en
 Assert-Match $appEntrypoint 'if \[ "\$\{1:-\}" = "php-fpm" \]; then' 'O PHP-FPM precisa iniciar seu processo mestre com as permissoes apropriadas.'
 Assert-Match $appEntrypoint 'RUN_MIGRATIONS_ON_BOOT' 'O bootstrap de banco de producao precisa ser executado antes do PHP-FPM.'
 Assert-Match $productionCompose 'RUN_MIGRATIONS_ON_BOOT:\s*"true"' 'A aplicacao de producao precisa habilitar o bootstrap do banco.'
+Assert-Match $nginxDockerfile 'COPY public /var/www/html/public' 'A imagem Nginx precisa incluir os arquivos publicos do Laravel.'
+Assert-Match $nginxDockerfile 'COPY --from=assets /app/public/build /var/www/html/public/build' 'A imagem Nginx precisa incluir os assets compilados do Vite.'
 
 Assert-Match $localCompose 'discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect' 'Volume local de gravacoes nao esta montado no Asterisk.'
 Assert-Match $productionCompose 'pbx_recordings:/var/spool/asterisk/monitor/thconect' 'Volume de gravacoes de producao nao esta montado no Asterisk.'
