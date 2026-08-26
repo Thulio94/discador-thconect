@@ -8,7 +8,9 @@ services:
       - ${ENV_FILE:-.env.production}
     working_dir: /var/www/html
     environment:
-      RUN_MIGRATIONS_ON_BOOT: "true"
+      # O banco do piloto ja foi inicializado. Migracoes devem ser executadas
+      # como etapa controlada de deploy, nunca no boot do PHP-FPM.
+      RUN_MIGRATIONS_ON_BOOT: "false"
     volumes:
       - app_storage:/var/www/html/storage
       - pbx_recordings:/var/www/html/storage/app/recordings
