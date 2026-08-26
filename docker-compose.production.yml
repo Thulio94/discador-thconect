@@ -1,6 +1,6 @@
 services:
   app:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     build:
       context: .
       dockerfile: .docker/app/Dockerfile.production
@@ -26,7 +26,7 @@ services:
       start_period: 20s
 
   nginx:
-    image: discador-thconect-nginx:latest
+    image: discador-piloto-nginx:latest
     build:
       context: .
       dockerfile: .docker/nginx/Dockerfile.production
@@ -75,7 +75,7 @@ services:
       retries: 5
 
   queue:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
     command: php artisan queue:work --queue=default,notifications --tries=3 --timeout=90 --memory=256 --max-jobs=500
@@ -91,7 +91,7 @@ services:
     restart: unless-stopped
 
   queue-telephony:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
     command: php artisan queue:work --queue=telephony --tries=3 --timeout=30 --sleep=1 --memory=256 --max-jobs=1000
@@ -106,7 +106,7 @@ services:
     restart: unless-stopped
 
   queue-imports:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
     command: php artisan queue:work --queue=imports --tries=2 --timeout=1800 --memory=384 --max-jobs=20
@@ -121,7 +121,7 @@ services:
     restart: unless-stopped
 
   queue-reports:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
     command: php artisan queue:work --queue=reports --tries=2 --timeout=900 --memory=512 --max-jobs=20
@@ -136,7 +136,7 @@ services:
     restart: unless-stopped
 
   scheduler:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
     command: php artisan schedule:work
@@ -150,7 +150,7 @@ services:
     restart: unless-stopped
 
   reverb:
-    image: discador-thconect-app:latest
+    image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
@@ -165,7 +165,7 @@ services:
     restart: unless-stopped
 
   asterisk:
-    image: discador-thconect-asterisk:latest
+    image: discador-piloto-asterisk:latest
     build:
       context: ./.docker/asterisk
       dockerfile: Dockerfile
@@ -196,7 +196,7 @@ services:
       start_period: 40s
 
   asterisk-bridge:
-    image: discador-thconect-asterisk-bridge:latest
+    image: discador-piloto-asterisk-bridge:latest
     build:
       context: ./services/asterisk-bridge
       dockerfile: Dockerfile
