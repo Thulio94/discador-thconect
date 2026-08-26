@@ -23,8 +23,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      admin-bootstrap:
-        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "php -r '$$socket = @fsockopen(\"127.0.0.1\", 9000, $$errno, $$error, 2); exit($$socket ? 0 : 1);'"]
