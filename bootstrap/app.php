@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // O app so e' acessivel externamente pelo proxy reverso do Easypanel.
+        // Confiar no protocolo encaminhado evita assets HTTP em uma pagina HTTPS.
+        $middleware->trustProxies(at: '*');
+
         $middleware->append(ApplySecurityHeaders::class);
 
         $middleware->alias([
