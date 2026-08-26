@@ -33,7 +33,7 @@ class ReleaseAgentConsolePresence
         $hasActiveCall = Call::query()
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)
-            ->where('status', 'in_progress')
+            ->whereIn('status', Call::ACTIVE_STATUSES)
             ->exists();
 
         if ($hasActiveCall) {

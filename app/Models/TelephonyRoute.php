@@ -14,16 +14,25 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'provider',
     'tech',
     'host',
+    'sip_port',
     'from_domain',
+    'outbound_proxy',
     'transport',
     'authentication_mode',
     'sip_username',
     'sip_password',
+    'from_user',
+    'contact_user',
     'caller_id',
     'dial_prefix',
     'dialplan_context',
     'dialplan_extension',
     'codecs',
+    'dtmf_mode',
+    'caller_id_header',
+    'qualify_frequency',
+    'registration_expiration',
+    'priority',
     'max_concurrent_channels',
     'enabled',
     'connection_status',
@@ -36,6 +45,10 @@ class TelephonyRoute extends Model
     {
         return [
             'sip_password' => 'encrypted',
+            'sip_port' => 'integer',
+            'qualify_frequency' => 'integer',
+            'registration_expiration' => 'integer',
+            'priority' => 'integer',
             'enabled' => 'boolean',
             'last_checked_at' => 'datetime',
         ];
@@ -61,7 +74,7 @@ class TelephonyRoute extends Model
     {
         return $this->enabled
             && filled($this->host)
-            && ($this->authentication_mode !== 'registration' || (filled($this->sip_username) && filled($this->sip_password)))
+            && (! in_array($this->authentication_mode, ['registration', 'digest'], true) || (filled($this->sip_username) && filled($this->sip_password)))
             && filled(config('services.asterisk_bridge.token'))
             && filled(config('services.asterisk_bridge.webhook_secret'));
     }

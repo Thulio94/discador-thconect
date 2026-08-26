@@ -23,12 +23,13 @@ use Illuminate\Notifications\Notifiable;
     'role_id',
     'user_type',
     'extension',
+    'sip_secret',
     'status',
     'is_super_admin',
     'theme_preference',
     'items_per_page',
 ])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'sip_secret'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -185,6 +186,7 @@ class User extends Authenticatable
             'is_super_admin' => 'boolean',
             'items_per_page' => 'integer',
             'password' => 'hashed',
+            'sip_secret' => 'encrypted',
         ];
     }
 }

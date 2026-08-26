@@ -21,9 +21,13 @@ class AgentPresenceUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit
 
     public function __construct(public AgentStatus $agentStatus) {}
 
-    public function broadcastOn(): PrivateChannel
+    /** @return array<int, PrivateChannel> */
+    public function broadcastOn(): array
     {
-        return new PrivateChannel("tenant.{$this->agentStatus->company_id}.supervision");
+        return [
+            new PrivateChannel("tenant.{$this->agentStatus->company_id}.supervision"),
+            new PrivateChannel("tenant.{$this->agentStatus->company_id}.user.{$this->agentStatus->user_id}"),
+        ];
     }
 
     public function broadcastAs(): string

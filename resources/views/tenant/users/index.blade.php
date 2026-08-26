@@ -1,4 +1,5 @@
 <x-app-layout>
+    @php($temporaryCredentials = session('temporary_credentials', []))
     <x-slot name="header">
         <div>
             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Cadastros</p>
@@ -179,7 +180,7 @@
             }">
                 @csrf
                 <input type="hidden" name="confirmed" :value="confirm ? '1' : '0'">
-                <p class="mb-4 text-sm" style="color: var(--fg-muted);">Informe uma base para os nomes e e-mails. O sistema cria os usuarios enumerados, com ramais disponiveis e a senha inicial <strong>password</strong>.</p>
+                <p class="mb-4 text-sm" style="color: var(--fg-muted);">Informe uma base para os nomes e e-mails. O sistema cria os usuarios enumerados, com ramais disponiveis e senhas temporarias fortes e exclusivas.</p>
                 <div class="grid gap-4 md:grid-cols-2">
                     <label class="grid gap-1 text-sm">
                         <span class="font-semibold">Tipo de usuario</span>
@@ -253,7 +254,7 @@
                             </div>
                         </template>
                     </div>
-                    <p class="mt-2 text-xs" style="color: var(--fg-muted);">A senha inicial sera <strong>password</strong>. Usuarios ativos receberao um ramal livre automaticamente.</p>
+                    <p class="mt-2 text-xs" style="color: var(--fg-muted);">As senhas temporarias serao exibidas uma unica vez depois da criacao. Usuarios ativos receberao um ramal livre automaticamente.</p>
                     <span class="mt-2 block text-sm" x-show="quantity > 10" x-text="`... e mais ${quantity - 10} usuario(s) com a mesma regra.`"></span>
                 </section>
 
@@ -265,4 +266,35 @@
             </form>
         </x-ui.modal>
     @endcan
+
+    @if (count($temporaryCredentials) > 0)
+        <x-ui.modal name="temporary-user-credentials" title="Credenciais temporarias" :show="true" max-width="2xl">
+            <div x-data="{ copied: '', copy(value, email) { navigator.clipboard.writeText(value).then(() => { this.copied = email; setTimeout(() => this.copied = '', 1800); }); } }">
+                <p class="text-sm" style="color: var(--fg-muted);">Estas senhas aparecem somente agora. Entregue cada credencial ao respectivo usuario por um canal seguro.</p>
+                <div class="mt-4 overflow-x-auto rounded-lg border" style="border-color: var(--border);">
+                    <table class="w-full min-w-[560px] text-left text-sm">
+                        <thead style="background: var(--surface-muted); color: var(--fg-muted);">
+                            <tr><th class="px-3 py-2">E-mail</th><th class="px-3 py-2">Senha temporaria</th><th class="w-28 px-3 py-2">Acao</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($temporaryCredentials as $credential)
+                                <tr class="border-t" style="border-color: var(--border);">
+                                    <td class="px-3 py-2">{{ $credential['email'] }}</td>
+                                    <td class="px-3 py-2 font-mono">{{ $credential['password'] }}</td>
+                                    <td class="px-3 py-2">
+                                        <x-ui.button type="button" variant="secondary" x-on:click="copy(@js($credential['password']), @js($credential['email']))">
+                                            <span x-text="copied === @js($credential['email']) ? 'Copiado' : 'Copiar'"></span>
+                                        </x-ui.button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-5 flex justify-end">
+                    <x-ui.button type="button" x-data x-on:click="$dispatch('close-modal', 'temporary-user-credentials')">Concluir</x-ui.button>
+                </div>
+            </div>
+        </x-ui.modal>
+    @endif
 </x-app-layout>

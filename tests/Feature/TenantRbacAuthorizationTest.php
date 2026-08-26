@@ -138,6 +138,7 @@ class TenantRbacAuthorizationTest extends TestCase
             'tenant.campaigns.recycle' => 'campaigns.operate',
             'tenant.campaigns.dial' => 'campaigns.operate',
             'tenant.agent.index' => 'agent.access',
+            'tenant.agent.state' => 'agent.access',
             'tenant.agent.status' => 'agent.access',
             'tenant.agent.pause' => 'agent.access',
             'tenant.agent.calls.store' => 'agent.access',

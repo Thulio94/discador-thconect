@@ -46,6 +46,7 @@ return [
         'manager_port' => (int) env('ASTERISK_AMI_PORT', 5038),
         'manager_username' => env('ASTERISK_AMI_USERNAME', 'thconect'),
         'manager_secret' => env('ASTERISK_AMI_SECRET'),
+        'webrtc_stun_url' => env('WEBRTC_STUN_URL'),
     ],
 
 ];

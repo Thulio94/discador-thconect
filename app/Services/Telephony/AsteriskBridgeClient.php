@@ -48,6 +48,19 @@ class AsteriskBridgeClient
         $this->request($node)->post('/v1/calls/supervise', $payload)->throw();
     }
 
+    /** @param array<string, mixed> $payload */
+    public function synchronizeAgent(AsteriskNode $node, array $payload, int $userId): void
+    {
+        $this->request($node)->put('/v1/agents/'.$userId, $payload)->throw();
+    }
+
+    public function removeAgent(AsteriskNode $node, int $userId, int $companyId): void
+    {
+        $this->request($node)->delete('/v1/agents/'.$userId, [
+            'company_id' => $companyId,
+        ])->throw();
+    }
+
     private function request(?AsteriskNode $node = null): PendingRequest
     {
         $token = (string) ($node?->bridge_token ?: config('services.asterisk_bridge.token'));
@@ -79,12 +92,20 @@ class AsteriskBridgeClient
             'context' => $route->dialplan_context,
             'extension' => $route->dialplan_extension,
             'sip_host' => $route->host,
+            'sip_port' => $route->sip_port ?: ($route->transport === 'tls' ? 5061 : 5060),
             'from_domain' => $route->from_domain ?: $route->host,
+            'outbound_proxy' => $route->outbound_proxy,
             'sip_username' => $route->sip_username,
             'sip_password' => $route->sip_password,
+            'from_user' => $route->from_user,
+            'contact_user' => $route->contact_user,
             'authentication_mode' => $route->authentication_mode,
             'transport' => $route->transport,
             'codecs' => $route->codecs,
+            'dtmf_mode' => $route->dtmf_mode ?: 'rfc4733',
+            'caller_id_header' => $route->caller_id_header ?: 'none',
+            'qualify_frequency' => $route->qualify_frequency ?? 15,
+            'registration_expiration' => $route->registration_expiration ?? 3600,
         ];
     }
 }

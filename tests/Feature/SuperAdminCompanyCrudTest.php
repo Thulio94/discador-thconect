@@ -201,6 +201,8 @@ class SuperAdminCompanyCrudTest extends TestCase
 
     public function test_super_admin_sees_the_next_payment_date_on_company_card(): void
     {
+        $this->travelTo('2026-08-20 12:00:00');
+
         $company = Company::create(['name' => 'Empresa com Vencimento', 'status' => 'active']);
         $company->licenses()->create([
             'status' => 'active',

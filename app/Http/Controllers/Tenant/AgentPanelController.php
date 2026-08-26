@@ -16,7 +16,9 @@ use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\DialerCallRequest;
+use App\Services\Telephony\AgentWebRtcService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +38,7 @@ class AgentPanelController extends Controller
         $user->loadMissing('currentAgentStatus');
         $activeStatus = $user->currentAgentStatus;
         $currentCall = $user->calls()
-            ->where('status', 'in_progress')
+            ->whereIn('status', Call::ACTIVE_STATUSES)
             ->with(['campaign', 'contact.contactList', 'contact.phones', 'contactPhone'])
             ->latest()
             ->first();
@@ -102,7 +104,47 @@ class AgentPanelController extends Controller
                 ->orderBy('category')
                 ->orderBy('name')
                 ->get(),
+            'agentStateSignature' => $this->stateSignature($user),
         ]);
+    }
+
+    public function state(Request $request): JsonResponse
+    {
+        return response()
+            ->json(['signature' => $this->stateSignature($request->user())])
+            ->header('Cache-Control', 'no-store, private');
+    }
+
+    public function softphoneSession(Request $request, AgentWebRtcService $webRtc): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->status === 'active' && $user->user_type === 'agent' && filled($user->extension), 403);
+
+        try {
+            $session = $webRtc->synchronize($user);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()
+                ->json(['message' => 'Nao foi possivel preparar o audio do agente. Tente novamente ou contate o administrador.'], 503)
+                ->header('Cache-Control', 'no-store, private');
+        }
+
+        $publicUrl = parse_url((string) config('app.url'));
+        $host = $publicUrl['host'] ?? $request->getHost();
+        $port = isset($publicUrl['port']) ? ':'.$publicUrl['port'] : '';
+        $scheme = ($publicUrl['scheme'] ?? 'http') === 'https' ? 'wss' : 'ws';
+
+        return response()->json([
+            'endpoint' => $session['endpoint'],
+            'extension' => $session['extension'],
+            'uri' => 'sip:'.$session['endpoint'].'@'.$host,
+            'password' => $session['password'],
+            'websocket_url' => $scheme.'://'.$host.$port.'/sip-ws',
+            'ice_servers' => filled(config('services.asterisk_bridge.webrtc_stun_url'))
+                ? [['urls' => [(string) config('services.asterisk_bridge.webrtc_stun_url')]]]
+                : [],
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function status(Request $request, AgentCapacityService $capacity): RedirectResponse
@@ -223,7 +265,7 @@ class AgentPanelController extends Controller
             : null;
 
         $this->closeOpenRecords($user->id, $user->company_id);
-        $user->calls()->where('status', 'in_progress')->update([
+        $user->calls()->whereIn('status', Call::ACTIVE_STATUSES)->update([
             'status' => 'ended',
             'ended_at' => now(),
         ]);
@@ -244,6 +286,15 @@ class AgentPanelController extends Controller
                 ]),
             ]);
         }
+
+        if (! in_array($call->status, Call::ACTIVE_STATUSES, true)) {
+            $this->wrapUps->releaseAgent($user, $call);
+
+            return redirect()
+                ->route('tenant.agent.index')
+                ->withErrors(['phone' => 'A chamada nao foi iniciada. Verifique a rota de telefonia e tente novamente.']);
+        }
+
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
             'status' => 'in_call',
@@ -270,7 +321,7 @@ class AgentPanelController extends Controller
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)
             ->where('id', $data['call_id'])
-            ->where('status', 'in_progress')
+            ->whereIn('status', Call::ACTIVE_STATUSES)
             ->with('campaign')
             ->firstOrFail();
 
@@ -333,7 +384,7 @@ class AgentPanelController extends Controller
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)
             ->where('id', $data['call_id'])
-            ->whereIn('status', ['in_progress', 'wrap_up'])
+            ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
             ->with(['campaign', 'contact'])
             ->firstOrFail();
 
@@ -500,5 +551,29 @@ class AgentPanelController extends Controller
             ['key' => 'protocolo', 'label' => 'Protocolo', 'type' => 'text', 'required' => false],
             ['key' => 'valor', 'label' => 'Valor', 'type' => 'number', 'required' => false],
         ];
+    }
+
+    private function stateSignature(User $user): string
+    {
+        $status = $user->agentStatuses()->latest('id')->first(['id', 'status', 'updated_at']);
+        $call = $user->calls()
+            ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
+            ->latest('id')
+            ->first(['id', 'status', 'updated_at']);
+        $latestCall = $user->calls()->latest('updated_at')->first(['id', 'updated_at']);
+        $latestCallback = CallCallback::query()
+            ->where('company_id', $user->company_id)
+            ->where(function ($query) use ($user): void {
+                $query->where('type', 'public')->orWhere('assigned_user_id', $user->id);
+            })
+            ->latest('updated_at')
+            ->first(['id', 'updated_at']);
+
+        return hash('sha256', json_encode([
+            'status' => [$status?->id, $status?->status, $status?->updated_at?->getTimestamp()],
+            'active_call' => [$call?->id, $call?->status, $call?->updated_at?->getTimestamp()],
+            'latest_call' => [$latestCall?->id, $latestCall?->updated_at?->getTimestamp()],
+            'callback' => [$latestCallback?->id, $latestCallback?->updated_at?->getTimestamp()],
+        ], JSON_THROW_ON_ERROR));
     }
 }

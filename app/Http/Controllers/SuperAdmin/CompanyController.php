@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Call;
 use App\Models\Company;
 use App\Models\CompanyLicense;
 use App\Models\TelephonyRoute;
@@ -23,7 +24,7 @@ class CompanyController extends Controller
             ->with(['license', 'resourceLimit', 'telephonyRoutes'])
             ->when(! $showInactive, fn ($query) => $query->where('status', '!=', 'inactive'))
             ->withCount([
-                'calls as active_calls_count' => fn ($query) => $query->where('status', 'in_progress'),
+                'calls as active_calls_count' => fn ($query) => $query->whereIn('status', Call::ACTIVE_STATUSES),
             ])
             ->latest()
             ->paginate(12)

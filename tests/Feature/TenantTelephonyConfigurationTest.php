@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentStatus;
 use App\Models\Call;
+use App\Models\CallEvent;
 use App\Models\Company;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TelephonyRoute;
 use App\Models\User;
+use App\Services\Telephony\AsteriskCallEventService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -95,6 +98,68 @@ class TenantTelephonyConfigurationTest extends TestCase
         $this->assertSame('in_progress', $call->status);
         $this->assertSame('PJSIP/rota-0001', $call->telephony_channel);
         $this->assertNotNull($call->answered_at);
+        $this->assertDatabaseHas('call_events', [
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'answered',
+        ]);
+    }
+
+    public function test_replayed_telephony_event_is_recorded_once(): void
+    {
+        $admin = $this->tenantAdmin();
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990002',
+            'started_at' => now(),
+        ]);
+        $payload = [
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_succeeded',
+            'uniqueid' => '1720000000.2',
+        ];
+
+        app(AsteriskCallEventService::class)->apply($payload);
+        app(AsteriskCallEventService::class)->apply($payload);
+
+        $this->assertSame(1, CallEvent::query()->where('call_id', $call->id)->count());
+        $this->assertSame('ringing', $call->fresh()->status);
+    }
+
+    public function test_failed_originate_releases_agent_instead_of_leaving_in_call(): void
+    {
+        $admin = $this->tenantAdmin();
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990003',
+            'started_at' => now(),
+        ]);
+        AgentStatus::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_failed',
+            'cause' => 'network_congestion',
+            'uniqueid' => '1720000000.3',
+        ]);
+
+        $this->assertSame('cancelled', $call->fresh()->status);
+        $this->assertSame('available', $admin->fresh()->currentAgentStatus->status);
     }
 
     public function test_asterisk_event_rejects_expired_or_replayed_payloads(): void

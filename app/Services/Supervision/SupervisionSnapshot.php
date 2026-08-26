@@ -2,6 +2,7 @@
 
 namespace App\Services\Supervision;
 
+use App\Jobs\GenerateOperationalAlerts;
 use App\Models\Call;
 use App\Models\Company;
 use App\Models\OperationalParameter;
@@ -9,7 +10,6 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\CallWrapUpService;
 use Illuminate\Support\Facades\DB;
-use App\Jobs\GenerateOperationalAlerts;
 
 final class SupervisionSnapshot
 {
@@ -20,7 +20,10 @@ final class SupervisionSnapshot
     public function forCompany(int $companyId, string $status = '', ?int $teamId = null): array
     {
         $this->wrapUps->expireForCompany($companyId);
-        if (app()->runningUnitTests()) dispatch_sync(new GenerateOperationalAlerts);
+        if (app()->runningUnitTests()) {
+            dispatch_sync(new GenerateOperationalAlerts);
+        }
+
         return $this->build($companyId, $status, $teamId);
     }
 
@@ -45,7 +48,7 @@ final class SupervisionSnapshot
         );
 
         $durationExpression = DB::getDriverName() === 'sqlite'
-            ? "AVG(MAX(0, (julianday(COALESCE(ended_at, CURRENT_TIMESTAMP)) - julianday(started_at)) * 86400))"
+            ? 'AVG(MAX(0, (julianday(COALESCE(ended_at, CURRENT_TIMESTAMP)) - julianday(started_at)) * 86400))'
             : 'AVG(GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, COALESCE(ended_at, NOW()))))';
         $todayCallsByUser = Call::query()
             ->where('company_id', $companyId)
@@ -65,7 +68,7 @@ final class SupervisionSnapshot
                 'currentAgentStatus',
                 'assignedTeams:id,name',
                 'calls' => fn ($query) => $query
-                    ->whereIn('status', ['in_progress', 'wrap_up'])
+                    ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
                     ->with('campaign')
                     ->latest(),
             ])
@@ -205,7 +208,7 @@ final class SupervisionSnapshot
                 )->count(),
                 'active_calls' => Call::query()
                     ->where('company_id', $companyId)
-                    ->where('status', 'in_progress')
+                    ->whereIn('status', Call::ACTIVE_STATUSES)
                     ->count(),
             ],
             'recentCalls' => Call::query()
@@ -225,5 +228,4 @@ final class SupervisionSnapshot
 
         return sprintf('%02d:%02d:%02d', $hours, $minutes, $remainingSeconds);
     }
-
 }

@@ -48,7 +48,7 @@ class LicenseUsageService
 
         $activeCalls = Call::query()
             ->whereIn('company_id', $companyIds)
-            ->where('status', 'in_progress')
+            ->whereIn('status', Call::ACTIVE_STATUSES)
             ->selectRaw('company_id, count(*) as aggregate')
             ->groupBy('company_id')
             ->pluck('aggregate', 'company_id');

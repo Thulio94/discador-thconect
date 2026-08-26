@@ -9,7 +9,7 @@ final class CallReportSnapshot
 {
     public function capture(Call $call): void
     {
-        $call->loadMissing(['user', 'campaign', 'contact.contactList', 'telephonyRoute']);
+        $call->loadMissing(['user', 'campaign', 'contact.contactList', 'contact.phones', 'telephonyRoute']);
         $teamNames = $call->user_id
             ? Team::query()->where('company_id', $call->company_id)->whereHas('members', fn ($query) => $query->whereKey($call->user_id))->orderBy('name')->pluck('name')
             : [];
@@ -20,6 +20,14 @@ final class CallReportSnapshot
             'campaign_name' => $call->campaign?->name,
             'contact_name' => $call->contact?->name,
             'list_name' => $call->contact?->contactList?->name,
+            'contact_phones' => $call->contact?->phones
+                ?->map(fn ($phone): array => [
+                    'phone' => $phone->phone,
+                    'is_primary' => (bool) $phone->is_primary,
+                ])
+                ->values()
+                ->all() ?? [],
+            'contact_extra' => $call->contact?->extra ?? [],
             'team_names' => $teamNames,
             'route_name' => $call->telephonyRoute?->name,
         ]]);

@@ -8,6 +8,12 @@
             'offline' => ['label' => 'Offline', 'color' => 'var(--fg-muted)', 'tone' => null],
         ];
         $currentStatusMeta = $statusMeta[$currentStatus] ?? $statusMeta['offline'];
+        $currentCallState = match ($currentCall?->status) {
+            'dialing' => ['label' => 'Discando', 'color' => 'var(--status-info)'],
+            'ringing' => ['label' => 'Chamando', 'color' => 'var(--status-warning)'],
+            'in_progress' => ['label' => 'Em atendimento', 'color' => 'var(--status-success)'],
+            default => null,
+        };
         $canMakeManualCall = in_array($currentStatus, ['available', 'paused'], true);
         $callForDisposition = $wrapUpCall ?? $currentCall;
         $activeContact = $callForDisposition?->contact;
@@ -41,7 +47,44 @@
         </div>
     </x-slot>
 
-    <div class="agent-panel grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] gap-4">
+    <div
+        x-data="agentConsoleSync({
+            url: @js(route('tenant.agent.state')),
+            signature: @js($agentStateSignature),
+            intervalSeconds: 5,
+            subscribe: (callback) => subscribeToAgentConsole(@js(auth()->user()->company_id), @js(auth()->id()), callback),
+        })"
+        x-init="start()"
+        x-on:visibilitychange.document="handleVisibilityChange()"
+        x-on:beforeunload.window="destroy()"
+    >
+        <div
+            class="mb-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm"
+            style="border-color: var(--border); background: var(--surface);"
+            x-data="agentSoftphone({
+                sessionUrl: @js(route('tenant.agent.softphone.session')),
+                csrfToken: @js(csrf_token()),
+                statusUrl: @js(route('tenant.agent.status')),
+                currentStatus: @js($currentStatus),
+                acceptIncoming: @js(in_array($currentStatus, ['available', 'paused', 'in_call'], true)),
+            })"
+            x-init="start()"
+            x-on:beforeunload.window="stop()"
+        >
+            <div class="min-w-0">
+                <p class="font-semibold">Audio do ramal</p>
+                <p class="text-xs" style="color: var(--fg-muted);" x-text="({ preparing: 'Preparando microfone...', registered: 'Conectado e pronto para chamadas', reconnecting: 'Reconectando o ramal...', failed: 'Ramal desconectado', 'microphone-denied': 'Microfone bloqueado no navegador', unsupported: 'Navegador sem suporte a WebRTC', 'playback-blocked': 'Reproducao de audio bloqueada', offline: 'Audio desconectado' })[state] ?? 'Verificando audio'"></p>
+            </div>
+            <span class="h-3 w-3 shrink-0 rounded-full" x-bind:style="`background: ${registered ? 'var(--status-success)' : state === 'preparing' || state === 'reconnecting' ? 'var(--status-warning)' : 'var(--status-danger)'}`"></span>
+            <audio data-agent-remote-audio autoplay playsinline class="hidden"></audio>
+        </div>
+
+        <div x-show="pending" x-cloak class="mb-4 flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 8%, var(--surface));">
+            <span>O atendimento recebeu uma atualizacao. Seus dados preenchidos foram preservados.</span>
+            <button type="button" class="th-focus shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold" style="border-color: var(--border); color: var(--primary);" x-on:click="applyPending()">Atualizar agora</button>
+        </div>
+
+        <div class="agent-panel grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] gap-4">
         <x-ui.card :tone="$currentStatusMeta['tone']">
             <div
                 class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
@@ -83,7 +126,7 @@
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="available">
-                            <x-ui.button type="submit">Disponivel</x-ui.button>
+                            <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered">Disponivel</x-ui.button>
                         </form>
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'agent-pause')">
                             Pausar
@@ -110,6 +153,11 @@
                                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                                     {{ $currentCall->campaign?->name ?? 'Chamada manual' }} | {{ $currentCall->channel }}
                                 </p>
+                                @if ($currentCallState)
+                                    <span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" style="border: 1px solid color-mix(in srgb, {{ $currentCallState['color'] }} 35%, var(--border)); background: color-mix(in srgb, {{ $currentCallState['color'] }} 10%, var(--surface)); color: {{ $currentCallState['color'] }};">
+                                        {{ $currentCallState['label'] }}
+                                    </span>
+                                @endif
                                 <div class="mt-3 flex items-center gap-2 text-xs" style="color: var(--fg-muted);">
                                     <span>Protocolo {{ $currentCall->protocol }}</span>
                                     <button type="button" class="th-focus rounded border px-2 py-1 font-semibold" style="border-color: var(--border); color: var(--primary);" x-data x-on:click="navigator.clipboard.writeText(@js($currentCall->protocol)); window.dispatchEvent(new CustomEvent('toast', { detail: { title: 'Protocolo copiado', message: 'O protocolo foi copiado para a area de transferencia.', severity: 'success' } }))">Copiar</button>
@@ -146,7 +194,7 @@
                                 @csrf
                                 <input type="hidden" name="channel" value="manual">
                                 <input name="phone" inputmode="tel" autocomplete="tel" x-model="phone" x-on:input="phone = formatPhone($event.target.value)" class="rounded-lg border px-3 py-2 text-sm" placeholder="(31) 99999-0001" aria-label="Telefone para chamada manual">
-                                <x-ui.button type="submit">Ligar</x-ui.button>
+                                <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered">Ligar</x-ui.button>
                             </form>
                         @elseif (! $wrapUpCall)
                             <span class="text-sm font-semibold" style="color: var(--fg-muted);">Chamadas bloqueadas enquanto estiver offline.</span>
@@ -299,7 +347,7 @@
                     </div>
 
                     @if ($callForDisposition && $dispositions->isNotEmpty())
-                        <form method="POST" action="{{ route('tenant.agent.calls.end') }}" class="mt-4 grid gap-4">
+                        <form method="POST" action="{{ route('tenant.agent.calls.end') }}" class="mt-4 grid gap-4" x-data="{ dirty: false }" x-on:input="dirty = true" x-bind:data-dirty="dirty ? 'true' : 'false'" data-agent-live-form>
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="call_id" value="{{ $callForDisposition->id }}">
@@ -462,8 +510,8 @@
                                 </td>
                                 <td class="whitespace-nowrap px-4 py-3">{{ $recentCall->started_at?->format('d/m/Y H:i') ?? 'Sem data' }}</td>
                                 <td class="px-4 py-3">
-                                    <p class="font-medium">{{ $recentCall->campaign?->name ?? 'Chamada manual' }}</p>
-                                    <p class="text-xs" style="color: var(--fg-muted);">{{ $recentCall->contact?->contactList?->name ?? 'Sem lista' }}</p>
+                                    <p class="font-medium">{{ $recentCall->campaign?->name ?? data_get($recentCall->report_snapshot, 'campaign_name') ?? 'Chamada manual' }}</p>
+                                    <p class="text-xs" style="color: var(--fg-muted);">{{ $recentCall->contact?->contactList?->name ?? data_get($recentCall->report_snapshot, 'list_name') ?? 'Sem lista' }}</p>
                                 </td>
                                 <td class="px-4 py-3">
                                     <p>{{ $recentCall->disposition_name ?? 'Sem tabulacao' }}</p>
@@ -473,7 +521,7 @@
                                         </p>
                                     @endif
                                 </td>
-                                <td class="whitespace-nowrap px-4 py-3 font-mono">{{ $duration === null ? '--:--' : sprintf('%02d:%02d', intdiv($duration, 60), $duration % 60) }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 font-mono">{{ $duration === null ? '--:--:--' : sprintf('%02d:%02d:%02d', intdiv($duration, 3600), intdiv($duration % 3600, 60), $duration % 60) }}</td>
                                 <td class="px-4 py-3 text-right">
                                     <button type="button" class="th-focus inline-flex h-9 w-9 items-center justify-center rounded-lg border" style="border-color: var(--border); color: var(--fg-muted);" x-data x-on:click="$dispatch('open-modal', 'call-mailing-{{ $recentCall->id }}')" aria-label="Ver dados do mailing">
                                         <x-ui.icon name="view" />
@@ -514,24 +562,33 @@
 
     @foreach ($recentCalls as $recentCall)
         @php
+            $historySnapshot = $recentCall->report_snapshot ?? [];
+            $historyContactName = $recentCall->contact?->name ?? data_get($historySnapshot, 'contact_name');
+            $historyCampaignName = $recentCall->campaign?->name ?? data_get($historySnapshot, 'campaign_name');
+            $historyListName = $recentCall->contact?->contactList?->name ?? data_get($historySnapshot, 'list_name');
+            $historyPhones = $recentCall->contact
+                ? $recentCall->contact->phones->map(fn ($phone) => ['phone' => $phone->phone, 'is_primary' => (bool) $phone->is_primary])
+                : collect(data_get($historySnapshot, 'contact_phones', []));
+            $historyExtra = $recentCall->contact?->extra ?? data_get($historySnapshot, 'contact_extra', []);
+            $hasMailingSnapshot = filled($historyContactName) || $historyPhones->isNotEmpty() || filled($historyExtra);
             $historyMailingCopy = collect([
-                'Contato: '.($recentCall->contact?->name ?? 'Nao informado'),
+                'Contato: '.($historyContactName ?? 'Nao informado'),
                 'Telefone da ligacao: '.($recentCall->phone ?? 'Nao informado'),
                 'Protocolo: '.($recentCall->protocol ?? 'Nao informado'),
-                'Campanha: '.($recentCall->campaign?->name ?? 'Sem campanha'),
-                'Lista: '.($recentCall->contact?->contactList?->name ?? 'Sem lista'),
+                'Campanha: '.($historyCampaignName ?? 'Sem campanha'),
+                'Lista: '.($historyListName ?? 'Sem lista'),
             ]);
 
-            foreach ($recentCall->contact?->phones ?? [] as $phone) {
-                $historyMailingCopy->push('Telefone cadastrado: '.$phone->phone.($phone->is_primary ? ' (Principal)' : ''));
+            foreach ($historyPhones as $phone) {
+                $historyMailingCopy->push('Telefone cadastrado: '.$phone['phone'].($phone['is_primary'] ? ' (Principal)' : ''));
             }
 
-            foreach (($recentCall->contact?->extra ?? []) as $label => $value) {
+            foreach ($historyExtra as $label => $value) {
                 $historyMailingCopy->push(str_replace('_', ' ', $label).': '.(is_scalar($value) ? $value : json_encode($value)));
             }
         @endphp
         <x-ui.modal name="call-mailing-{{ $recentCall->id }}" title="Dados do mailing da ligacao" max-width="3xl">
-            @if ($recentCall->contact)
+            @if ($recentCall->contact || $hasMailingSnapshot)
                 <div class="grid gap-5">
                     <div class="flex justify-end">
                         <button type="button" class="th-focus rounded-lg border px-3 py-1.5 text-xs font-semibold" style="border-color: var(--border); color: var(--primary);" x-data x-on:click="navigator.clipboard.writeText(@js($historyMailingCopy->implode('\\n'))); window.dispatchEvent(new CustomEvent('toast', { detail: { title: 'Dados copiados', message: 'Os dados do mailing foram copiados.', severity: 'success' } }))">Copiar todos os dados</button>
@@ -539,7 +596,7 @@
                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div class="rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
                             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Contato</p>
-                            <p class="mt-1 font-semibold">{{ $recentCall->contact->name ?? 'Sem nome' }}</p>
+                            <p class="mt-1 font-semibold">{{ $historyContactName ?? 'Sem nome' }}</p>
                         </div>
                         <div class="rounded-lg border p-3" style="border-color: var(--border);">
                             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Telefone da ligacao</p>
@@ -551,32 +608,32 @@
                         </div>
                         <div class="rounded-lg border p-3" style="border-color: var(--border);">
                             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Campanha</p>
-                            <p class="mt-1 font-semibold">{{ $recentCall->campaign?->name ?? 'Sem campanha' }}</p>
+                            <p class="mt-1 font-semibold">{{ $historyCampaignName ?? 'Sem campanha' }}</p>
                         </div>
                         <div class="rounded-lg border p-3" style="border-color: var(--border);">
                             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Lista</p>
-                            <p class="mt-1 font-semibold">{{ $recentCall->contact->contactList?->name ?? 'Sem lista' }}</p>
+                            <p class="mt-1 font-semibold">{{ $historyListName ?? 'Sem lista' }}</p>
                         </div>
                     </div>
 
-                    @if ($recentCall->contact->phones->isNotEmpty())
+                    @if ($historyPhones->isNotEmpty())
                         <div>
                             <p class="text-sm font-semibold">Telefones cadastrados</p>
                             <div class="mt-2 flex flex-wrap gap-2">
-                                @foreach ($recentCall->contact->phones as $phone)
+                                @foreach ($historyPhones as $phone)
                                     <span class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border);">
-                                        {{ $phone->phone }}{{ $phone->is_primary ? ' | Principal' : '' }}
+                                        {{ $phone['phone'] }}{{ $phone['is_primary'] ? ' | Principal' : '' }}
                                     </span>
                                 @endforeach
                             </div>
                         </div>
                     @endif
 
-                    @if (filled($recentCall->contact->extra))
+                    @if (filled($historyExtra))
                         <div>
                             <p class="text-sm font-semibold">Informacoes importadas</p>
                             <div class="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                @foreach ($recentCall->contact->extra as $label => $value)
+                                @foreach ($historyExtra as $label => $value)
                                     <div class="rounded-lg border p-3" style="border-color: var(--border);">
                                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">{{ str_replace('_', ' ', $label) }}</p>
                                         <p class="mt-1 break-words text-sm">{{ is_scalar($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE) }}</p>
@@ -599,5 +656,7 @@
             @endif
         </x-ui.modal>
     @endforeach
+
+    </div>
 
 </x-app-layout>

@@ -44,6 +44,27 @@ class PollingMarkupTest extends TestCase
             ->assertDontSee(route('tenant.notifications.poll'), false);
     }
 
+    public function test_agent_panel_configures_private_realtime_sync_with_a_lightweight_fallback(): void
+    {
+        $agent = $this->tenantUser('agent');
+        $agent->role->permissions()->attach(Permission::query()->firstOrCreate(
+            ['key' => 'agent.access'],
+            ['name' => 'Acessar', 'module' => 'agent'],
+        ));
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('agentConsoleSync(', false)
+            ->assertSee('\/tenant\/agent\/state', false)
+            ->assertSee('subscribeToAgentConsole', false);
+
+        $this->actingAs($agent)
+            ->getJson(route('tenant.agent.state'))
+            ->assertOk()
+            ->assertJsonStructure(['signature']);
+    }
+
     public function test_polling_source_uses_abort_visibility_and_an_isolated_display_clock(): void
     {
         $source = file_get_contents(resource_path('js/polling.js'));

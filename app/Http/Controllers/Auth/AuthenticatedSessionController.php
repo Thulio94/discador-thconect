@@ -43,7 +43,7 @@ class AuthenticatedSessionController extends Controller
 
         if ($user?->company_id && ! $user->is_super_admin) {
             $user->calls()
-                ->whereIn('status', ['in_progress', 'wrap_up'])
+                ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
                 ->get()
                 ->each(function (Call $call): void {
                     $call->update([

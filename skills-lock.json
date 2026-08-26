@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "voip-engineering": {
+      "source": "apolo-next/carrier-voice-handbook",
+      "sourceType": "github",
+      "skillPath": "skill/voip-engineering/skills/voip-engineering/SKILL.md",
+      "computedHash": "5896bb432b6d17ebba57a1b179bbd09b8537ed20243805fd775c78a5e648001e"
+    }
+  }
+}

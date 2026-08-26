@@ -93,6 +93,7 @@ class SupervisionController extends Controller
             $bridge->synchronize($route, $supervisor->company_id);
             $bridge->supervise([
                 'company_id' => $supervisor->company_id,
+                'route_id' => $route->id,
                 'call_id' => $call?->id ?? 0,
                 'agent_channel' => $call?->telephony_channel ?? '',
                 'agent_extension' => $agent->extension,

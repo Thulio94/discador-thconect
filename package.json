@@ -4,6 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
+        "code:index": "node scripts/code-index.mjs build",
+        "code:search": "node scripts/code-index.mjs search",
         "dev": "vite",
         "test:frontend": "node --test tests/Frontend/*.test.js"
     },
@@ -20,6 +22,7 @@
     },
     "dependencies": {
         "axios": "^1.17.0",
+        "jssip": "^3.13.8",
         "laravel-echo": "^2.3.7",
         "pusher-js": "^8.5.0"
     }

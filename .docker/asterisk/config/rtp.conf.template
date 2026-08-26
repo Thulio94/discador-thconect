@@ -1,5 +1,6 @@
 [general]
 rtpstart=${ASTERISK_RTP_START}
 rtpend=${ASTERISK_RTP_END}
+strictrtp=yes
+probation=4
 icesupport=no
-stunaddr=

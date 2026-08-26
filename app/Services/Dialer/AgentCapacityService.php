@@ -4,10 +4,10 @@ namespace App\Services\Dialer;
 
 use App\Models\Call;
 use App\Models\Campaign;
-use App\Models\CompanyLicense;
-use App\Models\User;
 use App\Models\ChannelReservation;
+use App\Models\CompanyLicense;
 use App\Models\SystemCapacitySetting;
+use App\Models\User;
 
 class AgentCapacityService
 {
@@ -85,7 +85,7 @@ class AgentCapacityService
             })
             ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
             ->whereDoesntHave('calls', function ($query): void {
-                $query->where('status', 'in_progress')
+                $query->whereIn('status', Call::ACTIVE_STATUSES)
                     ->orWhere('status', 'wrap_up')
                     ->orWhere(function ($query): void {
                         $query->where('status', 'ended')
@@ -110,7 +110,7 @@ class AgentCapacityService
     {
         return Call::query()
             ->where('company_id', $companyId)
-            ->where('status', 'in_progress')
+            ->whereIn('status', Call::ACTIVE_STATUSES)
             ->count();
     }
 
@@ -122,8 +122,11 @@ class AgentCapacityService
         $settings = SystemCapacitySetting::current();
         $used = ChannelReservation::query()->whereIn('status', ['reserved', 'active'])->where('expires_at', '>', now())->count();
         $percent = $settings->max_channels > 0 ? ($used / $settings->max_channels) * 100 : 100;
-        if ($percent >= $settings->critical_percent) $capacity = max(1, (int) floor($capacity * 0.25));
-        elseif ($percent >= $settings->warning_percent) $capacity = max(1, (int) floor($capacity * 0.5));
+        if ($percent >= $settings->critical_percent) {
+            $capacity = max(1, (int) floor($capacity * 0.25));
+        } elseif ($percent >= $settings->warning_percent) {
+            $capacity = max(1, (int) floor($capacity * 0.5));
+        }
         $globalLimit = $campaign->company?->license?->max_concurrent_calls;
         if ($globalLimit === null) {
             return $capacity;

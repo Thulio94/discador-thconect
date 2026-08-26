@@ -7,8 +7,9 @@ use App\Models\Campaign;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
-use App\Services\Users\ExtensionAllocator;
 use App\Services\Capacity\ResourceLimitService;
+use App\Services\Telephony\AgentWebRtcService;
+use App\Services\Users\ExtensionAllocator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,8 +22,6 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    private const INITIAL_PASSWORD = 'password';
-
     public function index(Request $request): View
     {
         $companyId = $request->user()->company_id;
@@ -76,14 +75,15 @@ class UserController extends Controller
 
         $data = $request->validate($this->rules($companyId), $this->validationMessages());
         $this->ensureMembershipRules($data);
+        $temporaryPassword = Str::random(20);
 
-        $user = DB::transaction(function () use ($companyId, $data, $extensions): User {
+        $user = DB::transaction(function () use ($companyId, $data, $extensions, $temporaryPassword): User {
             return User::query()->create([
                 'company_id' => $companyId,
                 'role_id' => $data['role_id'],
                 'name' => $data['name'],
                 'email' => $data['email'],
-                'password' => Hash::make(self::INITIAL_PASSWORD),
+                'password' => Hash::make($temporaryPassword),
                 'user_type' => $data['user_type'],
                 'extension' => $data['status'] === 'active' ? $extensions->allocate() : null,
                 'status' => $data['status'],
@@ -96,11 +96,15 @@ class UserController extends Controller
         return redirect()
             ->route('tenant.users.index')
             ->with('status', $user->extension
-                ? "Usuario criado com sucesso. Ramal telefonico: {$user->extension}. Senha inicial: ".self::INITIAL_PASSWORD.'.'
-                : 'Usuario criado inativo, sem ramal reservado. Senha inicial: '.self::INITIAL_PASSWORD.'.');
+                ? "Usuario criado com sucesso. Ramal telefonico: {$user->extension}."
+                : 'Usuario criado inativo, sem ramal reservado.')
+            ->with('temporary_credentials', [[
+                'email' => $user->email,
+                'password' => $temporaryPassword,
+            ]]);
     }
 
-    public function update(Request $request, User $user, ExtensionAllocator $extensions): RedirectResponse
+    public function update(Request $request, User $user, ExtensionAllocator $extensions, AgentWebRtcService $webRtc): RedirectResponse
     {
         abort_unless($user->company_id === $request->user()->company_id, 404);
 
@@ -141,6 +145,10 @@ class UserController extends Controller
 
         $user->refresh();
 
+        if ($user->status !== 'active' || $user->user_type !== 'agent') {
+            $this->removeWebRtcEndpoint($webRtc, $user);
+        }
+
         $this->syncTeams($user, $data['team_ids'] ?? []);
         $this->syncCampaigns($user, $data['campaign_ids'] ?? []);
 
@@ -159,7 +167,7 @@ class UserController extends Controller
                 : $statusMessage);
     }
 
-    public function destroy(Request $request, User $user): RedirectResponse
+    public function destroy(Request $request, User $user, AgentWebRtcService $webRtc): RedirectResponse
     {
         abort_unless($user->company_id === $request->user()->company_id, 404);
 
@@ -170,13 +178,14 @@ class UserController extends Controller
         }
 
         $user->update(['status' => 'inactive', 'extension' => null]);
+        $this->removeWebRtcEndpoint($webRtc, $user);
 
         return redirect()
             ->route('tenant.users.index')
             ->with('status', 'Usuario inativado com sucesso.');
     }
 
-    public function regenerateExtension(Request $request, User $user, ExtensionAllocator $extensions): RedirectResponse
+    public function regenerateExtension(Request $request, User $user, ExtensionAllocator $extensions, AgentWebRtcService $webRtc): RedirectResponse
     {
         abort_unless($user->company_id === $request->user()->company_id, 404);
 
@@ -185,6 +194,8 @@ class UserController extends Controller
                 'extension' => 'Reative o usuario antes de gerar um ramal.',
             ]);
         }
+
+        $this->removeWebRtcEndpoint($webRtc, $user);
 
         $extension = DB::transaction(function () use ($user, $extensions): string {
             $user = User::query()->lockForUpdate()->findOrFail($user->id);
@@ -220,15 +231,18 @@ class UserController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($companyId, $data, $emails, $extensions): void {
+        $temporaryCredentials = [];
+
+        DB::transaction(function () use ($companyId, $data, $emails, $extensions, &$temporaryCredentials): void {
             foreach ($emails as $index => $email) {
                 $sequence = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+                $temporaryPassword = Str::random(20);
                 $user = User::query()->create([
                     'company_id' => $companyId,
                     'role_id' => $data['role_id'],
                     'name' => trim($data['name_prefix']).' '.$sequence,
                     'email' => $email,
-                    'password' => Hash::make(self::INITIAL_PASSWORD),
+                    'password' => Hash::make($temporaryPassword),
                     'user_type' => $data['user_type'],
                     'extension' => $data['status'] === 'active' ? $extensions->allocate() : null,
                     'status' => $data['status'],
@@ -236,12 +250,17 @@ class UserController extends Controller
 
                 $this->syncTeams($user, $data['team_ids'] ?? []);
                 $this->syncCampaigns($user, $data['campaign_ids'] ?? []);
+                $temporaryCredentials[] = [
+                    'email' => $email,
+                    'password' => $temporaryPassword,
+                ];
             }
         });
 
         return redirect()
             ->route('tenant.users.index')
-            ->with('status', "{$data['quantity']} usuarios criados com sucesso. Senha inicial: ".self::INITIAL_PASSWORD.'.');
+            ->with('status', "{$data['quantity']} usuarios criados com sucesso.")
+            ->with('temporary_credentials', $temporaryCredentials);
     }
 
     public function export(Request $request)
@@ -351,6 +370,16 @@ class UserController extends Controller
                 ->mapWithKeys(fn ($campaignId): array => [(int) $campaignId => ['company_id' => $user->company_id]])
                 ->all()
         );
+    }
+
+    private function removeWebRtcEndpoint(AgentWebRtcService $webRtc, User $user): void
+    {
+        try {
+            $webRtc->remove($user);
+        } catch (\Throwable $exception) {
+            report($exception);
+            $user->forceFill(['sip_secret' => null])->saveQuietly();
+        }
     }
 
     private function bulkRules(int $companyId): array

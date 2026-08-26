@@ -40,7 +40,7 @@ class TenantUserCrudTest extends TestCase
     {
         [$admin, $role, $team] = $this->tenantAdmin();
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->post(route('tenant.users.store'), [
                 'name' => 'Agente',
                 'email' => 'agente@demo.test',
@@ -58,7 +58,12 @@ class TenantUserCrudTest extends TestCase
         $this->assertSame($admin->company_id, $agent->company_id);
         $this->assertGreaterThanOrEqual(1000, (int) $agent->extension);
         $this->assertLessThanOrEqual(10000, (int) $agent->extension);
-        $this->assertTrue(Hash::check('password', $agent->password));
+        $credentials = $response->getSession()->get('temporary_credentials');
+        $this->assertCount(1, $credentials);
+        $this->assertSame($agent->email, $credentials[0]['email']);
+        $this->assertSame(20, strlen($credentials[0]['password']));
+        $this->assertTrue(Hash::check($credentials[0]['password'], $agent->password));
+        $this->assertFalse(Hash::check('password', $agent->password));
         $this->assertSame('agent', $agent->teams()->first()->pivot->membership_type);
     }
 
@@ -146,7 +151,7 @@ class TenantUserCrudTest extends TestCase
     {
         [$admin, $role, $team] = $this->tenantAdmin();
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->post(route('tenant.users.bulk.store'), [
                 'name_prefix' => 'Agente Vendas',
                 'email_base' => 'vendas.lote@demo.test',
@@ -158,7 +163,15 @@ class TenantUserCrudTest extends TestCase
                 'team_ids' => [$team->id],
             ])
             ->assertRedirect(route('tenant.users.index'))
-            ->assertSessionHas('status', '3 usuarios criados com sucesso. Senha inicial: password.');
+            ->assertSessionHas('status', '3 usuarios criados com sucesso.');
+
+        $credentials = $response->getSession()->get('temporary_credentials');
+        $this->assertCount(3, $credentials);
+        $this->assertCount(3, array_unique(array_column($credentials, 'password')));
+        foreach ($credentials as $credential) {
+            $this->assertSame(20, strlen($credential['password']));
+            $this->assertTrue(Hash::check($credential['password'], User::where('email', $credential['email'])->sole()->password));
+        }
 
         $this->assertDatabaseHas('users', ['name' => 'Agente Vendas 01', 'email' => 'vendas.lote+001@demo.test']);
         $this->assertDatabaseHas('users', ['name' => 'Agente Vendas 03', 'email' => 'vendas.lote+003@demo.test']);

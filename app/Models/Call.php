@@ -5,12 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 #[Fillable(['company_id', 'user_id', 'campaign_id', 'telephony_route_id', 'channel_reservation_id', 'contact_id', 'contact_phone_id', 'disposition_id', 'disposition_code', 'disposition_name', 'disposition_notes', 'callback_type', 'callback_at', 'service_fields', 'report_snapshot', 'direction', 'status', 'end_reason', 'hangup_party', 'channel', 'telephony_action_id', 'telephony_uniqueid', 'telephony_channel', 'amd_result', 'provider_payload', 'recording_path', 'recording_disk', 'recording_format', 'recording_size', 'recording_available_at', 'phone', 'protocol', 'started_at', 'answered_at', 'ended_at', 'wrap_up_expires_at'])]
 class Call extends Model
 {
+    public const ACTIVE_STATUSES = ['dialing', 'ringing', 'in_progress'];
+
     protected static function booted(): void
     {
         static::creating(function (Call $call): void {
@@ -90,5 +93,10 @@ class Call extends Model
     public function channelReservation(): BelongsTo
     {
         return $this->belongsTo(ChannelReservation::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(CallEvent::class)->orderBy('occurred_at')->orderBy('id');
     }
 }

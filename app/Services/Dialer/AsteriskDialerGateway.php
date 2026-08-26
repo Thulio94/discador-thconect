@@ -7,6 +7,7 @@ use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\TelephonyRoute;
 use App\Models\Company;
+use App\Models\User;
 use App\Exceptions\CapacityExceededException;
 use App\Services\Capacity\ChannelCapacityService;
 use App\Services\Reports\CallReportSnapshot;
@@ -31,7 +32,7 @@ class AsteriskDialerGateway implements DialerGateway
                 ->where('company_id', $request->companyId)
                 ->find($request->campaignId)
             : null;
-        $route = $this->routeForPhone($campaign, $request->phone);
+        $route = $this->routeForPhone($campaign, $request->phone, $request->companyId);
 
         if (! $route?->isReady() || $route->connection_status !== 'online') {
             return $this->simulated->originate($request);
@@ -73,8 +74,16 @@ class AsteriskDialerGateway implements DialerGateway
         $this->snapshots->capture($call);
 
         try {
+            $agentExtension = $request->userId
+                ? User::query()
+                    ->where('company_id', $request->companyId)
+                    ->whereKey($request->userId)
+                    ->value('extension')
+                : null;
+
             $this->bridge->originate([
                 'company_id' => $request->companyId,
+                'route_id' => $route->id,
                 'call_id' => $call->id,
                 'action_id' => $actionId,
                 'phone' => $route->formattedPhone($request->phone),
@@ -82,6 +91,8 @@ class AsteriskDialerGateway implements DialerGateway
                 'context' => $route->dialplan_context,
                 'extension' => $route->dialplan_extension,
                 'caller_id' => $route->caller_id,
+                'agent_extension' => $agentExtension,
+                'agent_endpoint' => 't'.$request->companyId.'-e'.$agentExtension,
                 'recording_file' => sprintf('call-%d.wav', $call->id),
             ], $route->asteriskNode);
         } catch (Throwable $exception) {
@@ -118,6 +129,7 @@ class AsteriskDialerGateway implements DialerGateway
             $call->loadMissing('telephonyRoute.asteriskNode');
             $this->bridge->hangup([
                 'company_id' => $call->company_id,
+                'route_id' => $call->telephony_route_id,
                 'call_id' => $call->id,
                 'channel' => $call->telephony_channel,
                 'uniqueid' => $call->telephony_uniqueid,
@@ -136,10 +148,17 @@ class AsteriskDialerGateway implements DialerGateway
         return $call;
     }
 
-    private function routeForPhone(?Campaign $campaign, string $phone): ?TelephonyRoute
+    private function routeForPhone(?Campaign $campaign, string $phone, int $companyId): ?TelephonyRoute
     {
         if (! $campaign) {
-            return null;
+            return Company::query()
+                ->find($companyId)?->telephonyRoutes()
+                ->with('asteriskNode')
+                ->where('enabled', true)
+                ->where('connection_status', 'online')
+                ->orderBy('priority')
+                ->orderBy('telephony_routes.id')
+                ->first();
         }
 
         $digits = preg_replace('/\D+/', '', $phone) ?: '';

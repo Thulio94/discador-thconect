@@ -4,7 +4,7 @@ webenabled = no
 port = 5038
 bindaddr = 0.0.0.0
 
-[thconect]
+[${ASTERISK_AMI_USERNAME}]
 secret = ${ASTERISK_AMI_SECRET}
-read = all
-write = all
+read = system,call,log,verbose,command,agent,user,reporting,cdr,dialplan
+write = system,call,command,originate,agent,user

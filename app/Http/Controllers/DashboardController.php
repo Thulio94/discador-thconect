@@ -36,7 +36,7 @@ class DashboardController extends Controller
             'licenseOverview' => $user->is_super_admin && ! $isGodMode ? $usage->overview() : null,
             'activeCallsCount' => Call::query()
                 ->when($user->company_id, fn ($query) => $query->where('company_id', $user->company_id))
-                ->where('status', 'in_progress')
+                ->whereIn('status', Call::ACTIVE_STATUSES)
                 ->count(),
         ]);
     }
@@ -71,7 +71,7 @@ class DashboardController extends Controller
 
         $activeCall = $user->calls()
             ->where('company_id', $user->company_id)
-            ->where('status', 'in_progress')
+            ->whereIn('status', Call::ACTIVE_STATUSES)
             ->latest('started_at')
             ->first();
 

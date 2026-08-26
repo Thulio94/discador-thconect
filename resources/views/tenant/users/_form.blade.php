@@ -19,7 +19,7 @@
         <div class="grid gap-1 text-sm">
             <span class="font-semibold">Ramal telefonico</span>
             <span class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt); color: var(--fg-muted);">{{ $user?->extension ?? ($user?->status === 'inactive' ? 'Sem ramal: usuario inativo' : 'Sera gerado automaticamente') }}</span>
-            <span class="text-xs" style="color: var(--fg-muted);">{{ $user ? 'Ao inativar, o ramal e liberado. Ao reativar, o sistema reserva outro numero disponivel.' : 'Usuarios ativos recebem um numero unico entre 1000 e 10000. A senha inicial e password.' }}</span>
+            <span class="text-xs" style="color: var(--fg-muted);">{{ $user ? 'Ao inativar, o ramal e liberado. Ao reativar, o sistema reserva outro numero disponivel.' : 'Usuarios ativos recebem um numero unico entre 1000 e 10000. Uma senha temporaria forte sera gerada e exibida uma unica vez.' }}</span>
         </div>
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Tipo</span>

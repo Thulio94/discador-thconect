@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Events\AgentPresenceUpdated;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
-use App\Events\AgentPresenceUpdated;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
@@ -745,6 +745,40 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('Plano Atual')
             ->assertSee('Fibra 500 MB')
             ->assertSee('Solicitou nova proposta');
+    }
+
+    public function test_agent_history_uses_the_call_snapshot_when_live_mailing_was_removed(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'ended',
+            'channel' => 'simulated',
+            'phone' => '31999994444',
+            'started_at' => now()->subMinute(),
+            'ended_at' => now(),
+            'report_snapshot' => [
+                'contact_name' => 'Cliente preservado',
+                'campaign_name' => 'Campanha historica',
+                'list_name' => 'Lista historica',
+                'contact_phones' => [
+                    ['phone' => '31999994444', 'is_primary' => true],
+                    ['phone' => '3133334444', 'is_primary' => false],
+                ],
+                'contact_extra' => ['contrato' => 'Plano legado'],
+            ],
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('Campanha historica')
+            ->assertSee('Lista historica')
+            ->assertSee('Cliente preservado')
+            ->assertSee('3133334444')
+            ->assertSee('Plano legado');
     }
 
     public function test_agent_can_change_status_to_available_and_pause(): void

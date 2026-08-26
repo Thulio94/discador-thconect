@@ -5,6 +5,7 @@ namespace App\Services\Dialer;
 use App\Contracts\Dialer\DialerGateway;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
+use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\CompanyLicense;
 use App\Models\User;
@@ -131,7 +132,7 @@ class SimulatedDialerService
                     ->whereIn('team_user.team_id', $teamIds);
             })
             ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
-            ->whereDoesntHave('calls', fn ($query) => $query->where('status', 'in_progress'))
+            ->whereDoesntHave('calls', fn ($query) => $query->whereIn('status', Call::ACTIVE_STATUSES))
             ->distinct('users.id')
             ->orderBy('users.id');
     }
@@ -145,7 +146,7 @@ class SimulatedDialerService
             ->where('user_type', 'agent')
             ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
             ->whereDoesntHave('calls', function ($query): void {
-                $query->where('status', 'in_progress')
+                $query->whereIn('status', Call::ACTIVE_STATUSES)
                     ->orWhere(function ($query): void {
                         $query->where('status', 'ended')
                             ->whereNull('disposition_id');

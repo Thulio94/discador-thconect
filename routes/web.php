@@ -2,12 +2,12 @@
 
 use App\Http\Controllers\Bridge\AsteriskEventController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\LandingController;
 use App\Http\Controllers\InternalMetricsController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
-use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\CapacityController;
+use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\GodModeController;
 use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\SuperAdmin\TelephonyRouteController;
@@ -99,6 +99,8 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::patch('campaigns/{campaign}/dial', [CampaignController::class, 'dial'])->middleware(['can:tenant.campaigns.operate', 'god-mode.telephony-safe'])->name('campaigns.dial');
 
         Route::get('agent', [AgentPanelController::class, 'index'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.index');
+        Route::get('agent/state', [AgentPanelController::class, 'state'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-state'])->name('agent.state');
+        Route::post('agent/softphone/session', [AgentPanelController::class, 'softphoneSession'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-softphone'])->name('agent.softphone.session');
         Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.status');
         Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.pause');
         Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.store');
