@@ -6,6 +6,14 @@ if [ -z "${APP_KEY:-}" ]; then
     exit 1
 fi
 
+if [ "$(id -u)" = "0" ]; then
+    # Named Docker volumes start owned by root; prepare only Laravel runtime paths.
+    mkdir -p storage/app storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+    chown -R www-data:www-data storage bootstrap/cache
+    chmod -R u+rwX,g+rwX storage bootstrap/cache
+    exec gosu www-data "$0" "$@"
+fi
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache

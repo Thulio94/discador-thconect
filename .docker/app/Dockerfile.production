@@ -36,6 +36,11 @@ FROM base AS runtime
 
 WORKDIR /var/www/html
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . ./
 COPY --from=vendor /app/vendor ./vendor
 COPY --from=assets /app/public/build ./public/build
@@ -46,8 +51,6 @@ RUN chmod +x /usr/local/bin/discador-entrypoint-production \
     && mkdir -p storage/app storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R u+rwX,g+rwX storage bootstrap/cache
-
-USER www-data
 
 ENTRYPOINT ["discador-entrypoint-production"]
 CMD ["php-fpm"]
