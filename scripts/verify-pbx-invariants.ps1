@@ -32,6 +32,7 @@ $entrypoint = Read-RepoFile '.docker/asterisk/entrypoint.sh'
 $gateway = Read-RepoFile 'app/Services/Dialer/AsteriskDialerGateway.php'
 $bridge = Read-RepoFile 'services/asterisk-bridge/cmd/bridge/main.go'
 $appDockerfile = Read-RepoFile '.docker/app/Dockerfile.production'
+$appEntrypoint = Read-RepoFile '.docker/entrypoint.production.sh'
 $localCompose = Read-RepoFile 'docker-compose.yml'
 $productionCompose = Read-RepoFile 'docker-compose.production.yml'
 
@@ -54,6 +55,8 @@ Assert-Match $gateway '\$request->companyId.*-e.*\$agentExtension' 'O endpoint W
 Assert-Match $bridge 'request\.AgentEndpoint != technicalEndpoint\(request\.CompanyID, request\.AgentExtension\)' 'O bridge nao valida empresa e ramal do endpoint.'
 Assert-Match $bridge '"Timeout":\s*"45000"' 'O Originate AMI precisa de timeout finito.'
 Assert-Match $appDockerfile 'chmod -R u\+rwX,g\+rwX storage bootstrap/cache' 'A imagem de producao precisa permitir que o Laravel grave em storage e bootstrap/cache.'
+Assert-Match $appEntrypoint 'mkdir -p storage/app storage/framework/cache' 'O entrypoint de producao precisa preparar volumes Laravel vazios.'
+Assert-Match $appEntrypoint 'if \[ "\$\{1:-\}" = "php-fpm" \]; then' 'O PHP-FPM precisa iniciar seu processo mestre com as permissoes apropriadas.'
 
 Assert-Match $localCompose 'discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect' 'Volume local de gravacoes nao esta montado no Asterisk.'
 Assert-Match $productionCompose 'pbx_recordings:/var/spool/asterisk/monitor/thconect' 'Volume de gravacoes de producao nao esta montado no Asterisk.'
