@@ -57,6 +57,8 @@ Assert-Match $bridge '"Timeout":\s*"45000"' 'O Originate AMI precisa de timeout 
 Assert-Match $appDockerfile 'chmod -R u\+rwX,g\+rwX storage bootstrap/cache' 'A imagem de producao precisa permitir que o Laravel grave em storage e bootstrap/cache.'
 Assert-Match $appEntrypoint 'mkdir -p storage/app storage/framework/cache' 'O entrypoint de producao precisa preparar volumes Laravel vazios.'
 Assert-Match $appEntrypoint 'if \[ "\$\{1:-\}" = "php-fpm" \]; then' 'O PHP-FPM precisa iniciar seu processo mestre com as permissoes apropriadas.'
+Assert-Match $appEntrypoint 'RUN_MIGRATIONS_ON_BOOT' 'O bootstrap de banco de producao precisa ser executado antes do PHP-FPM.'
+Assert-Match $productionCompose 'RUN_MIGRATIONS_ON_BOOT:\s*"true"' 'A aplicacao de producao precisa habilitar o bootstrap do banco.'
 
 Assert-Match $localCompose 'discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect' 'Volume local de gravacoes nao esta montado no Asterisk.'
 Assert-Match $productionCompose 'pbx_recordings:/var/spool/asterisk/monitor/thconect' 'Volume de gravacoes de producao nao esta montado no Asterisk.'

@@ -12,6 +12,12 @@ if [ "$(id -u)" = "0" ]; then
     chown -R www-data:www-data storage bootstrap/cache
     chmod -R u+rwX,g+rwX storage bootstrap/cache
 
+    if [ "${RUN_MIGRATIONS_ON_BOOT:-false}" = "true" ]; then
+        php artisan migrate --force
+        php artisan db:seed --class=PermissionSeeder --force
+        php artisan db:seed --class=SuperAdminSeeder --force
+    fi
+
     # PHP-FPM starts a privileged master process and drops its pool workers to www-data.
     if [ "${1:-}" = "php-fpm" ]; then
         php artisan config:cache

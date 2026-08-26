@@ -7,7 +7,8 @@ services:
     env_file:
       - ${ENV_FILE:-.env.production}
     working_dir: /var/www/html
-    command: ["sh", "-lc", "php artisan migrate --force && php artisan db:seed --class=PermissionSeeder --force && php artisan db:seed --class=SuperAdminSeeder --force && exec php-fpm"]
+    environment:
+      RUN_MIGRATIONS_ON_BOOT: "true"
     volumes:
       - app_storage:/var/www/html/storage
       - pbx_recordings:/var/www/html/storage/app/recordings
