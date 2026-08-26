@@ -8,9 +8,6 @@
             Discador THCONECT
         </h1>
 
-        <p class="mt-2 text-sm leading-5" style="color: var(--fg-muted);">
-            Acesse o painel administrativo do discador.
-        </p>
     </div>
 
     <x-auth-session-status class="mt-6 rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700" :status="session('status')" />
@@ -46,27 +43,6 @@
                 autocomplete="current-password"
             />
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <label for="remember_me" class="inline-flex items-center" style="color: var(--fg-muted);">
-                <input
-                    id="remember_me"
-                    type="checkbox"
-                    class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:ring-blue-500"
-                    name="remember"
-                >
-                <span class="ms-2">Lembrar acesso</span>
-            </label>
-
-            @if (Route::has('password.request'))
-                <a
-                    class="font-medium text-blue-600 underline-offset-4 hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    href="{{ route('password.request') }}"
-                >
-                    Esqueceu sua senha?
-                </a>
-            @endif
         </div>
 
         <button
