@@ -18,12 +18,14 @@ if [ "$(id -u)" = "0" ]; then
         php artisan db:seed --class=SuperAdminSeeder --force
     fi
 
-    if [ "${INITIAL_ADMIN_SYNC_PASSWORD:-false}" = "true" ]; then
-        php artisan db:seed --class=SuperAdminSeeder --force
-    fi
-
     # PHP-FPM starts a privileged master process and drops its pool workers to www-data.
     if [ "${1:-}" = "php-fpm" ]; then
+        # Only the web process may perform the one-time credential bootstrap.
+        # Queue workers, scheduler and Reverb share this image and must never race it.
+        if [ "${INITIAL_ADMIN_SYNC_PASSWORD:-false}" = "true" ]; then
+            php artisan db:seed --class=SuperAdminSeeder --force
+        fi
+
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
