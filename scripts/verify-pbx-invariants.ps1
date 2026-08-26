@@ -65,6 +65,7 @@ Assert-Match $appEntrypoint 'RUN_MIGRATIONS_ON_BOOT' 'O bootstrap de banco de pr
 Assert-Match $productionCompose 'RUN_MIGRATIONS_ON_BOOT:\s*"false"' 'O PHP-FPM de producao nao pode executar migracoes durante o boot.'
 Assert-Match $productionCompose 'admin-bootstrap:' 'A sincronizacao da senha inicial precisa executar em um job isolado.'
 Assert-Match $productionCompose 'INITIAL_ADMIN_SYNC_PASSWORD' 'O job isolado precisa usar a flag explicita de sincronizacao.'
+Assert-Match $productionCompose 'admin-bootstrap:\s*\r?\n\s*condition:\s*service_completed_successfully' 'A aplicacao precisa aguardar o bootstrap administrativo terminar com sucesso.'
 Assert-Match $nginxDockerfile 'COPY public /var/www/html/public' 'A imagem Nginx precisa incluir os arquivos publicos do Laravel.'
 Assert-Match $nginxDockerfile 'COPY --from=assets /app/public/build /var/www/html/public/build' 'A imagem Nginx precisa incluir os assets compilados do Vite.'
 Assert-Match $nginxDockerfile 'COPY postcss\.config\.js' 'A imagem Nginx precisa incluir a configuracao PostCSS no build do Vite.'
