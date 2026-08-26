@@ -12,6 +12,10 @@ services:
     volumes:
       - app_storage:/var/www/html/storage
       - pbx_recordings:/var/www/html/storage/app/recordings
+    networks:
+      default:
+        aliases:
+          - pilot-app
     depends_on:
       mysql:
         condition: service_healthy
@@ -157,6 +161,10 @@ services:
     working_dir: /var/www/html
     volumes:
       - app_storage:/var/www/html/storage
+    networks:
+      default:
+        aliases:
+          - pilot-reverb
     depends_on:
       app:
         condition: service_healthy
@@ -186,6 +194,10 @@ services:
     volumes:
       - pbx_runtime:/etc/asterisk/pjsip.d
       - pbx_recordings:/var/spool/asterisk/monitor/thconect
+    networks:
+      default:
+        aliases:
+          - pilot-asterisk
     restart: unless-stopped
     stop_grace_period: 30s
     healthcheck:

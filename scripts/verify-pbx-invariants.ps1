@@ -66,6 +66,9 @@ Assert-Match $nginxDockerfile 'COPY --from=assets /app/public/build /var/www/htm
 Assert-Match $databaseConfig "env\('REDIS_CLIENT', 'predis'\)" 'A imagem de producao precisa usar o cliente Redis incluido pelo Composer.'
 Assert-Match $productionCompose 'image: discador-piloto-asterisk:latest' 'O piloto precisa usar imagem Asterisk isolada do PABX legado.'
 Assert-NotMatch $productionCompose 'image: discador-thconect-asterisk:latest' 'O piloto nao pode reutilizar a tag de imagem do PABX legado.'
+Assert-Match $productionCompose 'pilot-app' 'O piloto precisa usar alias interno exclusivo para o Laravel.'
+Assert-Match $productionCompose 'pilot-reverb' 'O piloto precisa usar alias interno exclusivo para o Reverb.'
+Assert-Match $productionCompose 'pilot-asterisk' 'O piloto precisa usar alias interno exclusivo para o Asterisk.'
 
 Assert-Match $localCompose 'discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect' 'Volume local de gravacoes nao esta montado no Asterisk.'
 Assert-Match $productionCompose 'pbx_recordings:/var/spool/asterisk/monitor/thconect' 'Volume de gravacoes de producao nao esta montado no Asterisk.'
