@@ -34,6 +34,7 @@ $bridge = Read-RepoFile 'services/asterisk-bridge/cmd/bridge/main.go'
 $appDockerfile = Read-RepoFile '.docker/app/Dockerfile.production'
 $appEntrypoint = Read-RepoFile '.docker/entrypoint.production.sh'
 $nginxDockerfile = Read-RepoFile '.docker/nginx/Dockerfile.production'
+$databaseConfig = Read-RepoFile 'config/database.php'
 $localCompose = Read-RepoFile 'docker-compose.yml'
 $productionCompose = Read-RepoFile 'docker-compose.production.yml'
 
@@ -62,6 +63,7 @@ Assert-Match $appEntrypoint 'RUN_MIGRATIONS_ON_BOOT' 'O bootstrap de banco de pr
 Assert-Match $productionCompose 'RUN_MIGRATIONS_ON_BOOT:\s*"true"' 'A aplicacao de producao precisa habilitar o bootstrap do banco.'
 Assert-Match $nginxDockerfile 'COPY public /var/www/html/public' 'A imagem Nginx precisa incluir os arquivos publicos do Laravel.'
 Assert-Match $nginxDockerfile 'COPY --from=assets /app/public/build /var/www/html/public/build' 'A imagem Nginx precisa incluir os assets compilados do Vite.'
+Assert-Match $databaseConfig "env\('REDIS_CLIENT', 'predis'\)" 'A imagem de producao precisa usar o cliente Redis incluido pelo Composer.'
 
 Assert-Match $localCompose 'discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect' 'Volume local de gravacoes nao esta montado no Asterisk.'
 Assert-Match $productionCompose 'pbx_recordings:/var/spool/asterisk/monitor/thconect' 'Volume de gravacoes de producao nao esta montado no Asterisk.'
