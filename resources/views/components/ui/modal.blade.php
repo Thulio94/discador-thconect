@@ -20,36 +20,40 @@
 @endphp
 
 <div
-    x-data="{ show: {{ $show ? 'true' : 'false' }} }"
-    x-on:open-modal.window="$event.detail === '{{ $name }}' ? show = true : null"
-    x-on:close-modal.window="$event.detail === '{{ $name }}' ? show = false : null"
-    x-on:keydown.escape.window="show = false"
+    x-data="modalState(@js($name), {{ $show ? 'true' : 'false' }})"
+    x-on:open-modal.window="openModal($event.detail)"
+    x-on:close-modal.window="closeModal($event.detail)"
+    x-on:keydown.escape.window="close()"
     x-show="show"
     x-cloak
-    class="fixed inset-0 z-[80] overflow-y-auto px-4 py-6 sm:px-0"
+    x-bind:data-modal-open="show ? 'true' : 'false'"
+    data-ui-modal
+    class="fixed inset-0 z-[80] overflow-y-auto px-4 py-6 sm:px-6"
+    x-on:click.self="close()"
 >
     <div
         x-show="show"
         x-transition.opacity
-        class="fixed inset-0"
+        class="fixed inset-0 z-0"
         style="background: color-mix(in srgb, #020617 48%, transparent);"
-        x-on:click="show = false"
+        x-on:click="close()"
     ></div>
 
     <div
         x-show="show"
         x-transition
-        class="relative mx-auto mb-6 w-full transform overflow-visible rounded-lg border shadow-xl {{ $maxWidthClass }}"
+        x-on:click.stop
+        class="relative z-10 mx-auto my-auto w-full transform overflow-y-auto rounded-lg border shadow-xl {{ $maxWidthClass }} max-h-[calc(100dvh-3rem)]"
         style="background: var(--surface); border-color: var(--border); color: var(--fg);"
     >
         @if ($title)
-            <header class="flex items-center justify-between gap-4 border-b px-6 py-4" style="border-color: var(--border);">
+            <header class="sticky top-0 z-10 flex items-center justify-between gap-4 border-b px-6 py-4" style="border-color: var(--border); background: var(--surface);">
                 <h2 class="text-base font-semibold">{{ $title }}</h2>
                 <button
                     type="button"
                     class="th-focus inline-flex h-9 w-9 items-center justify-center rounded-lg border"
                     style="border-color: var(--border); color: var(--fg-muted);"
-                    x-on:click="show = false"
+                    x-on:click="close()"
                     aria-label="Fechar"
                 >
                     <x-ui.icon name="cancel" />

@@ -89,7 +89,11 @@ class CoreRoutesTest extends TestCase
         $this->actingAs($superAdmin)
             ->get(route('super-admin.companies.index'))
             ->assertOk()
-            ->assertSee('Empresas');
+            ->assertSee('Empresas')
+            ->assertSee('data-ui-modal', false)
+            ->assertSee('x-on:keydown.escape.window="close()"', false)
+            ->assertSee('x-on:click.self="close()"', false)
+            ->assertSee('max-h-[calc(100dvh-3rem)]', false);
     }
 
     public function test_super_admin_can_view_system_status(): void
