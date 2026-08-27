@@ -35,10 +35,6 @@ services:
     image: discador-piloto-app:latest
     env_file:
       - ${ENV_FILE:-.env.production}
-    environment:
-      INITIAL_ADMIN_EMAIL: "${INITIAL_ADMIN_EMAIL:-}"
-      INITIAL_ADMIN_PASSWORD: "${INITIAL_ADMIN_PASSWORD:-}"
-      INITIAL_ADMIN_SYNC_PASSWORD: "${INITIAL_ADMIN_SYNC_PASSWORD:-false}"
     command:
       - sh
       - -ec
