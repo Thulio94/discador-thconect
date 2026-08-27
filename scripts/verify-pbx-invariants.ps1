@@ -62,6 +62,8 @@ Assert-Match $appDockerfile 'chmod -R u\+rwX,g\+rwX storage bootstrap/cache' 'A 
 Assert-Match $appEntrypoint 'mkdir -p storage/app storage/framework/cache' 'O entrypoint de producao precisa preparar volumes Laravel vazios.'
 Assert-Match $appEntrypoint 'if \[ "\$\{1:-\}" = "php-fpm" \]; then' 'O PHP-FPM precisa iniciar seu processo mestre com as permissoes apropriadas.'
 Assert-Match $appEntrypoint 'RUN_MIGRATIONS_ON_BOOT' 'O bootstrap de banco de producao precisa ser executado antes do PHP-FPM.'
+Assert-Match $appEntrypoint 'INITIAL_ADMIN_SYNC_PASSWORD' 'A sincronizacao explicita do super admin precisa ocorrer antes do PHP-FPM aceitar trafego.'
+Assert-Match $appEntrypoint 'attempt=1' 'A sincronizacao inicial precisa tolerar a disponibilidade tardia do banco no boot.'
 Assert-Match $productionCompose 'RUN_MIGRATIONS_ON_BOOT:\s*"false"' 'O PHP-FPM de producao nao pode executar migracoes durante o boot.'
 Assert-Match $productionCompose 'admin-bootstrap:' 'A sincronizacao da senha inicial precisa executar em um job isolado.'
 Assert-Match $productionCompose 'INITIAL_ADMIN_SYNC_PASSWORD' 'O job isolado precisa usar a flag explicita de sincronizacao.'

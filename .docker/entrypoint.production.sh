@@ -20,6 +20,20 @@ if [ "$(id -u)" = "0" ]; then
 
     # PHP-FPM starts a privileged master process and drops its pool workers to www-data.
     if [ "${1:-}" = "php-fpm" ]; then
+        if [ "${INITIAL_ADMIN_SYNC_PASSWORD:-false}" = "true" ]; then
+            attempt=1
+
+            # The database DNS entry can take a few seconds to become reachable after Compose starts.
+            until php artisan db:seed --class=SuperAdminSeeder --force; do
+                if [ "$attempt" -ge 30 ]; then
+                    exit 1
+                fi
+
+                attempt=$((attempt + 1))
+                sleep 2
+            done
+        fi
+
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
