@@ -19,11 +19,34 @@ class SuperAdminSeeder extends Seeder
             throw new RuntimeException('INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD forte sao obrigatorios em producao.');
         }
 
-        $admin = User::query()->firstOrNew(['email' => $email]);
+        $admin = User::query()->where('email', $email)->first();
+
+        if ($admin && (! $admin->is_super_admin || $admin->company_id !== null)) {
+            throw new RuntimeException('INITIAL_ADMIN_EMAIL ja pertence a um usuario empresarial.');
+        }
+
+        if (! $admin && $synchronizePassword) {
+            $centralAdmins = User::query()
+                ->where('is_super_admin', true)
+                ->where('user_type', 'super_admin')
+                ->whereNull('company_id')
+                ->orderBy('id')
+                ->limit(2)
+                ->get();
+
+            if ($centralAdmins->count() > 1) {
+                throw new RuntimeException('Ha mais de um super admin central; informe um e-mail existente.');
+            }
+
+            $admin = $centralAdmins->first();
+        }
+
+        $admin ??= new User;
 
         if (! $admin->exists) {
             $admin->fill([
                 'name' => (string) env('INITIAL_ADMIN_NAME', 'Super Admin'),
+                'email' => $email,
                 'password' => Hash::make($password),
                 'is_super_admin' => true,
                 'user_type' => 'super_admin',
@@ -38,6 +61,7 @@ class SuperAdminSeeder extends Seeder
 
         if ($synchronizePassword) {
             $admin->forceFill([
+                'email' => $email,
                 'password' => Hash::make($password),
                 'is_super_admin' => true,
                 'user_type' => 'super_admin',

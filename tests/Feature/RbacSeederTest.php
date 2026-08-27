@@ -132,6 +132,61 @@ class RbacSeederTest extends TestCase
         putenv('INITIAL_ADMIN_SYNC_PASSWORD');
     }
 
+    public function test_explicit_sync_renames_the_existing_central_super_admin(): void
+    {
+        $admin = User::factory()->create([
+            'email' => 'admin@discador.local',
+            'password' => Hash::make('previous-password'),
+            'company_id' => null,
+            'is_super_admin' => true,
+            'user_type' => 'super_admin',
+            'extension' => '1000',
+            'status' => 'active',
+        ]);
+
+        putenv('INITIAL_ADMIN_EMAIL=renamed-admin@example.test');
+        putenv('INITIAL_ADMIN_PASSWORD=updated-password');
+        putenv('INITIAL_ADMIN_SYNC_PASSWORD=true');
+
+        try {
+            $this->seed(SuperAdminSeeder::class);
+
+            $renamed = User::where('email', 'renamed-admin@example.test')->sole();
+            $this->assertSame($admin->id, $renamed->id);
+            $this->assertSame('1000', $renamed->extension);
+            $this->assertTrue(Hash::check('updated-password', $renamed->password));
+            $this->assertDatabaseMissing('users', ['email' => 'admin@discador.local']);
+        } finally {
+            putenv('INITIAL_ADMIN_EMAIL');
+            putenv('INITIAL_ADMIN_PASSWORD');
+            putenv('INITIAL_ADMIN_SYNC_PASSWORD');
+        }
+    }
+
+    public function test_initial_admin_email_cannot_promote_a_tenant_user(): void
+    {
+        $company = Company::create(['name' => 'Tenant protegido']);
+        User::factory()->create([
+            'email' => 'tenant-user@example.test',
+            'company_id' => $company->id,
+            'is_super_admin' => false,
+            'user_type' => 'company_admin',
+        ]);
+
+        putenv('INITIAL_ADMIN_EMAIL=tenant-user@example.test');
+        putenv('INITIAL_ADMIN_PASSWORD=updated-password');
+        putenv('INITIAL_ADMIN_SYNC_PASSWORD=true');
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->seed(SuperAdminSeeder::class);
+        } finally {
+            putenv('INITIAL_ADMIN_EMAIL');
+            putenv('INITIAL_ADMIN_PASSWORD');
+            putenv('INITIAL_ADMIN_SYNC_PASSWORD');
+        }
+    }
+
     public function test_demo_tenant_seeder_creates_license_roles_users_and_team(): void
     {
         $this->seed(PermissionSeeder::class);
