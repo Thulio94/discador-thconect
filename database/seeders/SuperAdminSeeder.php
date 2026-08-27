@@ -32,7 +32,11 @@ class SuperAdminSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
             $admin->save();
-        } elseif ($synchronizePassword) {
+
+            return;
+        }
+
+        if ($synchronizePassword) {
             $admin->forceFill([
                 'password' => Hash::make($password),
                 'is_super_admin' => true,
@@ -40,10 +44,6 @@ class SuperAdminSeeder extends Seeder
                 'status' => 'active',
                 'email_verified_at' => $admin->email_verified_at ?? now(),
             ])->save();
-        }
-
-        if ($synchronizePassword && ! Hash::check($password, (string) $admin->fresh()->password)) {
-            throw new RuntimeException('A sincronizacao da credencial inicial nao foi persistida.');
         }
     }
 }

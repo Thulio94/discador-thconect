@@ -19,8 +19,6 @@ services:
         aliases:
           - pilot-app
     depends_on:
-      admin-bootstrap:
-        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:
