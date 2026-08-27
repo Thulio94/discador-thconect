@@ -83,6 +83,20 @@ class TenantMiddlewareTest extends TestCase
             ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none');
     }
 
+    public function test_production_csp_keeps_alpine_interactions_available(): void
+    {
+        config()->set('app.env', 'production');
+
+        Route::get('/_test/production-csp', fn () => 'ok');
+
+        $this->get('/_test/production-csp')
+            ->assertOk()
+            ->assertHeader(
+                'Content-Security-Policy',
+                "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; connect-src 'self' wss:"
+            );
+    }
+
     private function tenantUserWithLicense(): User
     {
         $company = Company::create(['name' => 'Tenant A']);
