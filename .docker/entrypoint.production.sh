@@ -20,10 +20,6 @@ if [ "$(id -u)" = "0" ]; then
 
     # PHP-FPM starts a privileged master process and drops its pool workers to www-data.
     if [ "${1:-}" = "php-fpm" ]; then
-        if [ "${INITIAL_ADMIN_SYNC_PASSWORD:-false}" = "true" ]; then
-            php artisan db:seed --class=SuperAdminSeeder --force
-        fi
-
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
