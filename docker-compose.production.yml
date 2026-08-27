@@ -39,10 +39,8 @@ services:
       - sh
       - -ec
       - |
-        printf 'Initial admin credential synchronization: %s\n' "$$INITIAL_ADMIN_SYNC_PASSWORD"
-        if [ "$$INITIAL_ADMIN_SYNC_PASSWORD" = "true" ]; then
-          php artisan db:seed --class=SuperAdminSeeder --force
-        fi
+        printf 'Initial admin credential synchronization: one-time forced run\n'
+        INITIAL_ADMIN_SYNC_PASSWORD=true php artisan db:seed --class=SuperAdminSeeder --force
     working_dir: /var/www/html
     volumes:
       - app_storage:/var/www/html/storage
