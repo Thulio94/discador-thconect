@@ -4,6 +4,9 @@ services:
     build:
       context: .
       dockerfile: .docker/app/Dockerfile.production
+    # The one-shot migration container must not run the PHP-FPM entrypoint.
+    # Its only responsibility is schema and permission bootstrap for a new DB.
+    entrypoint: []
     env_file:
       - .env
     command:
