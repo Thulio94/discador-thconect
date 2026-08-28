@@ -47,7 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'metrics.token' => VerifyMetricsToken::class,
         ]);
 
-        $middleware->validateCsrfTokens(except: ['bridge/events']);
+        $middleware->validateCsrfTokens(except: ['bridge/events', 'internal/deployment-bootstrap']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
