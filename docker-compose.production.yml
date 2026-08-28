@@ -10,7 +10,7 @@ services:
     environment:
       # No piloto, a aplicacao inicializa o banco novo antes do PHP-FPM.
       # Em ambientes escalados, use um job de deploy unico para esta etapa.
-      RUN_MIGRATIONS_ON_BOOT: "true"
+      RUN_MIGRATIONS_ON_BOOT: "${RUN_MIGRATIONS_ON_BOOT:-true}"
     volumes:
       - app_storage:/var/www/html/storage
       - pbx_recordings:/var/www/html/storage/app/recordings
