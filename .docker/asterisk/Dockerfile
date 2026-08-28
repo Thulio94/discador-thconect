@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim AS build
 
-ARG ASTERISK_VERSION=22.10.1
-ARG ASTERISK_SHA256=0953564c44fa49827f3c9d70ca6e80db83828c9848440852c6be44c961855353
+ARG ASTERISK_VERSION=22.11.0
+ARG ASTERISK_SHA256=3bd5ee040509a3d3cd9b1ba9520c18e6ec0a7e7981ca68c457dcd36ba3c54d94
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
