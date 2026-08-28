@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: .docker/app/Dockerfile.production
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command:
       - sh
       - -ec
@@ -26,7 +26,7 @@ services:
       context: .
       dockerfile: .docker/app/Dockerfile.production
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     working_dir: /var/www/html
     environment:
       # O banco do piloto ja foi inicializado. Migracoes devem ser executadas
@@ -57,7 +57,7 @@ services:
   admin-bootstrap:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command:
       - sh
       - -ec
@@ -100,7 +100,7 @@ services:
   mysql:
     image: mariadb:11.4
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     volumes:
       - mysql_data:/var/lib/mysql
       - ./.docker/mysql/performance.cnf:/etc/mysql/conf.d/zz-discador-performance.cnf:ro
@@ -114,7 +114,7 @@ services:
   redis:
     image: redis:7-alpine
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: sh -c 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
     volumes:
       - redis_data:/data
@@ -128,7 +128,7 @@ services:
   queue:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: php artisan queue:work --queue=default,notifications --tries=3 --timeout=90 --memory=256 --max-jobs=500
     working_dir: /var/www/html
     volumes:
@@ -144,7 +144,7 @@ services:
   queue-telephony:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: php artisan queue:work --queue=telephony --tries=3 --timeout=30 --sleep=1 --memory=256 --max-jobs=1000
     working_dir: /var/www/html
     volumes:
@@ -159,7 +159,7 @@ services:
   queue-imports:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: php artisan queue:work --queue=imports --tries=2 --timeout=1800 --memory=384 --max-jobs=20
     working_dir: /var/www/html
     volumes:
@@ -174,7 +174,7 @@ services:
   queue-reports:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: php artisan queue:work --queue=reports --tries=2 --timeout=900 --memory=512 --max-jobs=20
     working_dir: /var/www/html
     volumes:
@@ -189,7 +189,7 @@ services:
   scheduler:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: php artisan schedule:work
     working_dir: /var/www/html
     volumes:
@@ -203,7 +203,7 @@ services:
   reverb:
     image: discador-piloto-app:latest
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     working_dir: /var/www/html
     volumes:
@@ -225,7 +225,7 @@ services:
       context: ./.docker/asterisk
       dockerfile: Dockerfile
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     environment:
       ASTERISK_AMI_USERNAME: "${ASTERISK_AMI_USERNAME:-thconect}"
       ASTERISK_AMI_SECRET: "${ASTERISK_AMI_SECRET}"
@@ -261,7 +261,7 @@ services:
       dockerfile: Dockerfile
     user: "0:0"
     env_file:
-      - ${ENV_FILE:-.env.production}
+      - .env
     environment:
       BRIDGE_PORT: "8090"
       BRIDGE_SHARED_TOKEN: "${ASTERISK_BRIDGE_TOKEN}"
