@@ -11,7 +11,7 @@ class DeploymentBootstrapTest extends TestCase
     {
         config()->set('deployment.bootstrap_token', null);
 
-        $this->postJson('/internal/deployment-bootstrap')
+        $this->postJson('/api/internal/deployment-bootstrap')
             ->assertNotFound();
     }
 
@@ -19,7 +19,7 @@ class DeploymentBootstrapTest extends TestCase
     {
         config()->set('deployment.bootstrap_token', 'expected-token');
 
-        $this->postJson('/internal/deployment-bootstrap', [], [
+        $this->postJson('/api/internal/deployment-bootstrap', [], [
             'X-Deployment-Bootstrap-Token' => 'wrong-token',
         ])->assertNotFound();
     }
@@ -32,7 +32,7 @@ class DeploymentBootstrapTest extends TestCase
             ->times(3)
             ->andReturn(0);
 
-        $this->postJson('/internal/deployment-bootstrap', [], [
+        $this->postJson('/api/internal/deployment-bootstrap', [], [
             'X-Deployment-Bootstrap-Token' => 'expected-token',
         ])->assertOk()
             ->assertJson(['message' => 'Bootstrap do banco concluido.']);

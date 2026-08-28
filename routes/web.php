@@ -3,7 +3,6 @@
 use App\Http\Controllers\Bridge\AsteriskEventController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InternalMetricsController;
-use App\Http\Controllers\Internal\DeploymentBootstrapController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogController;
@@ -34,10 +33,6 @@ Route::post('/bridge/events', AsteriskEventController::class)
     ->name('bridge.events');
 
 Route::get('/internal/metrics', InternalMetricsController::class)->middleware('metrics.token')->name('internal.metrics');
-
-Route::post('/internal/deployment-bootstrap', DeploymentBootstrapController::class)
-    ->middleware('throttle:1,1')
-    ->name('internal.deployment-bootstrap');
 
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'tenant.active', 'agent.console.presence'])
