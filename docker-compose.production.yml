@@ -1,28 +1,4 @@
 services:
-  migrate:
-    image: discador-piloto-app:latest
-    build:
-      context: .
-      dockerfile: .docker/app/Dockerfile.production
-    # The one-shot migration container must not run the PHP-FPM entrypoint.
-    # Its only responsibility is schema and permission bootstrap for a new DB.
-    entrypoint: []
-    env_file:
-      - .env
-    command:
-      - sh
-      - -ec
-      - |
-        php artisan migrate --force
-        php artisan db:seed --class=PermissionSeeder --force
-    working_dir: /var/www/html
-    volumes:
-      - app_storage:/var/www/html/storage
-    depends_on:
-      mysql:
-        condition: service_healthy
-    restart: "no"
-
   app:
     image: discador-piloto-app:latest
     build:
@@ -32,9 +8,9 @@ services:
       - .env
     working_dir: /var/www/html
     environment:
-      # O banco do piloto ja foi inicializado. Migracoes devem ser executadas
-      # como etapa controlada de deploy, nunca no boot do PHP-FPM.
-      RUN_MIGRATIONS_ON_BOOT: "false"
+      # No piloto, a aplicacao inicializa o banco novo antes do PHP-FPM.
+      # Em ambientes escalados, use um job de deploy unico para esta etapa.
+      RUN_MIGRATIONS_ON_BOOT: "true"
     volumes:
       - app_storage:/var/www/html/storage
       - pbx_recordings:/var/www/html/storage/app/recordings
@@ -43,8 +19,6 @@ services:
         aliases:
           - pilot-app
     depends_on:
-      migrate:
-        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:
@@ -56,28 +30,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-
-  admin-bootstrap:
-    image: discador-piloto-app:latest
-    env_file:
-      - .env
-    command:
-      - sh
-      - -ec
-      - |
-        printf 'Initial admin credential synchronization: %s\n' "$$INITIAL_ADMIN_SYNC_PASSWORD"
-        if [ "$$INITIAL_ADMIN_SYNC_PASSWORD" = "true" ]; then
-          php artisan db:seed --class=SuperAdminSeeder --force
-        fi
-    working_dir: /var/www/html
-    volumes:
-      - app_storage:/var/www/html/storage
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      mysql:
-        condition: service_healthy
-    restart: "no"
 
   nginx:
     image: discador-piloto-nginx:latest
