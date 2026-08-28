@@ -3,15 +3,17 @@
 namespace App\Services\Lists;
 
 use App\Models\BlacklistNumber;
-use App\Models\ContactList;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use App\Models\Contact;
+use App\Models\ContactList;
+use App\Services\Telephony\BrazilianPhoneNormalizer;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\ValidationException;
 use SplFileObject;
 
 class CsvContactListImportService
 {
+    public function __construct(private readonly BrazilianPhoneNormalizer $phones) {}
+
     public function import(
         ContactList $list,
         UploadedFile $file,
@@ -36,7 +38,8 @@ class CsvContactListImportService
             ->where('company_id', $list->company_id)
             ->where('status', 'active')
             ->pluck('phone')
-            ->map(fn (string $phone): string => $this->normalizePhone($phone))
+            ->map(fn (string $phone): ?string => $this->phones->normalize($phone))
+            ->filter()
             ->all();
 
         $leadsImported = 0;
@@ -96,9 +99,9 @@ class CsvContactListImportService
                         continue;
                     }
 
-                    $phone = $this->normalizePhone($value);
+                    $phone = $this->phones->normalize($value);
 
-                    if (strlen($phone) < 10) {
+                    if ($phone === null) {
                         $invalid++;
 
                         continue;
@@ -189,10 +192,5 @@ class CsvContactListImportService
     private function isEmptyRow(array $row): bool
     {
         return collect($row)->every(fn ($value): bool => trim((string) $value) === '');
-    }
-
-    private function normalizePhone(string $phone): string
-    {
-        return preg_replace('/\D+/', '', $phone) ?: '';
     }
 }

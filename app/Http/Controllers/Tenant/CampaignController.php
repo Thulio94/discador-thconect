@@ -7,9 +7,9 @@ use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Models\Team;
 use App\Models\TelephonyRoute;
+use App\Services\Capacity\ResourceLimitService;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
-use App\Services\Capacity\ResourceLimitService;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -70,7 +70,9 @@ class CampaignController extends Controller
     {
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId));
-        if (($data['status'] ?? null) === 'active') $limits->assertCampaignCanActivate($companyId);
+        if (($data['status'] ?? null) === 'active') {
+            $limits->assertCampaignCanActivate($companyId);
+        }
         $this->validateListSelection($request, $companyId, $data['list_ids'] ?? []);
 
         $campaign = Campaign::create([
@@ -96,7 +98,9 @@ class CampaignController extends Controller
         abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
         $data = $request->validate($this->rules($campaign->company_id, $campaign));
-        if (($data['status'] ?? null) === 'active' && $campaign->status !== 'active') $limits->assertCampaignCanActivate($campaign->company_id, $campaign->id);
+        if (($data['status'] ?? null) === 'active' && $campaign->status !== 'active') {
+            $limits->assertCampaignCanActivate($campaign->company_id, $campaign->id);
+        }
         $this->validateListSelection($request, $campaign->company_id, $data['list_ids'] ?? []);
 
         $campaign->update([
@@ -180,6 +184,7 @@ class CampaignController extends Controller
             'service_fields_schema' => $campaign->service_fields_schema,
             'dialing_mode' => $campaign->dialing_mode,
             'lead_phone_strategy' => $campaign->lead_phone_strategy ?? 'vertical',
+            'agent_distribution_strategy' => $campaign->agent_distribution_strategy ?? 'least_idle',
             'max_attempts_per_contact' => $campaign->max_attempts_per_contact,
             'retry_delay_minutes' => $campaign->retry_delay_minutes,
             'wrap_up_seconds' => $campaign->wrap_up_seconds ?? 60,
@@ -240,6 +245,7 @@ class CampaignController extends Controller
             'service_script' => ['nullable', 'string', 'max:5000'],
             'dialing_mode' => ['required', Rule::in(['preview', 'manual', 'power', 'predictive'])],
             'lead_phone_strategy' => ['nullable', Rule::in(['vertical', 'horizontal'])],
+            'agent_distribution_strategy' => ['nullable', Rule::in(Campaign::AGENT_DISTRIBUTION_STRATEGIES)],
             'max_attempts_per_contact' => ['nullable', 'integer', 'min:1', 'max:50'],
             'retry_delay_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
             'wrap_up_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
@@ -342,6 +348,7 @@ class CampaignController extends Controller
     private function advancedDialingPayload(array $data): array
     {
         return [
+            'agent_distribution_strategy' => $data['agent_distribution_strategy'] ?? 'least_idle',
             'max_attempts_per_contact' => $data['max_attempts_per_contact'] ?? null,
             'retry_delay_minutes' => $data['retry_delay_minutes'] ?? null,
             'wrap_up_seconds' => $data['wrap_up_seconds'] ?? 60,

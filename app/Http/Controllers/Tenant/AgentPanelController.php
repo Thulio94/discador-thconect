@@ -17,6 +17,7 @@ use App\Services\Dialer\AgentCapacityService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\DialerCallRequest;
 use App\Services\Telephony\AgentWebRtcService;
+use App\Services\Telephony\BrazilianPhoneNormalizer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -219,7 +220,7 @@ class AgentPanelController extends Controller
         return redirect()->route('tenant.agent.index')->with('status', 'Pausa iniciada.');
     }
 
-    public function storeCall(Request $request, DialerGateway $gateway): RedirectResponse
+    public function storeCall(Request $request, DialerGateway $gateway, BrazilianPhoneNormalizer $phones): RedirectResponse
     {
         $data = $request->validate([
             'phone' => ['nullable', 'string', 'max:32'],
@@ -241,15 +242,18 @@ class AgentPanelController extends Controller
             return back()->withErrors(['phone' => 'Conclua a tabulacao pendente antes de iniciar outra chamada.']);
         }
 
-        $phone = preg_replace('/\D+/', '', (string) ($data['phone'] ?? ''));
+        $rawPhone = (string) ($data['phone'] ?? '');
+        $phone = $phones->normalize($rawPhone);
         $channel = $data['channel'] ?? 'simulated';
         $parameters = OperationalParameter::forCompany($user->company_id);
 
-        if ($channel === 'manual' && ! preg_match('/^(?:55)?\d{10,11}$/', $phone)) {
+        if ($channel === 'manual' && $phone === null) {
             return back()
                 ->withErrors(['phone' => 'Informe um telefone valido com DDD e numero.'])
                 ->withInput();
         }
+
+        $phone ??= preg_replace('/\D+/', '', $rawPhone) ?: '';
 
         if ($this->isPaused($user->id, $user->company_id) && ! $parameters->allow_manual_calls_while_paused) {
             return back()->withErrors(['phone' => 'Finalize a pausa antes de iniciar chamada manual.']);

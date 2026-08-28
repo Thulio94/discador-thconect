@@ -10,6 +10,7 @@
         : collect($campaign?->contactLists ?? [])->mapWithKeys(fn ($list) => [$list->id => (int) ($list->pivot->weight ?? 1)])->all();
     $schedule = old('operational_schedule', $campaign?->operational_schedule ?? []);
     $leadPhoneStrategy = old('lead_phone_strategy', $campaign?->lead_phone_strategy ?? 'vertical');
+    $agentDistributionStrategy = old('agent_distribution_strategy', $campaign?->agent_distribution_strategy ?? 'least_idle');
     $amdMode = old('amd_mode', $campaign?->amd_mode ?? 'disabled');
     $days = [
         'monday' => 'Segunda',
@@ -70,6 +71,16 @@
                 <option value="horizontal" @selected($leadPhoneStrategy === 'horizontal')>Horizontal ativado</option>
             </select>
             <span class="text-xs" style="color: var(--fg-muted);">desativado tenta principais primeiro; ativado tenta alternativos do mesmo lead antes de seguir.</span>
+        </label>
+
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Distribuicao entre operadores</span>
+            <select name="agent_distribution_strategy" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <option value="least_idle" @selected($agentDistributionStrategy === 'least_idle')>Mais ocioso</option>
+                <option value="balanced" @selected($agentDistributionStrategy === 'balanced')>Equilibrado</option>
+                <option value="random" @selected($agentDistributionStrategy === 'random')>Aleatorio</option>
+            </select>
+            <span class="text-xs" style="color: var(--fg-muted);">Padrao: entrega para quem esta disponivel ha mais tempo. Equipes apenas definem agentes elegiveis.</span>
         </label>
 
         <label class="grid gap-1 text-sm">
@@ -218,6 +229,10 @@
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Telefones</p>
                 <p class="mt-1 font-semibold">{{ $leadPhoneStrategy === 'horizontal' ? 'Horizontal ativado' : 'Horizontal desativado' }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Distribuicao</p>
+                <p class="mt-1 font-semibold">{{ ['least_idle' => 'Mais ocioso', 'balanced' => 'Equilibrado', 'random' => 'Aleatorio'][$agentDistributionStrategy] ?? 'Mais ocioso' }}</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Status</p>

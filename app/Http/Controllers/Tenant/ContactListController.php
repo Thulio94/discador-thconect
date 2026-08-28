@@ -3,24 +3,27 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ImportContactList;
 use App\Models\BlacklistNumber;
 use App\Models\Campaign;
 use App\Models\ContactList;
-use App\Jobs\ImportContactList;
 use App\Services\Capacity\ResourceLimitService;
 use App\Services\Lists\CsvContactListImportService;
+use App\Services\Telephony\BrazilianPhoneNormalizer;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ContactListController extends Controller
 {
     public function __construct(
         private readonly AppNotificationService $notifications,
         private readonly CsvContactListImportService $csvImportService,
+        private readonly BrazilianPhoneNormalizer $phones,
     ) {}
 
     public function index(Request $request): View
@@ -61,19 +64,22 @@ class ContactListController extends Controller
                 [$list, $summary] = DB::transaction(function () use ($companyId, $data, $request): array {
                     $list = ContactList::create(['company_id' => $companyId, 'name' => $data['name'], 'description' => $data['description'] ?? null, 'status' => $data['status']]);
                     $summary = $this->csvImportService->import($list, $request->file('import_file'), $data['import_columns'] ?? [], $data['separator'] ?? ';', $data['delimiter'] ?? '"')->toSummaryArray();
+
                     return [$list, $summary];
                 });
                 $this->notifyListImport($list, $summary);
+
                 return redirect()->route('tenant.lists.index')->with('status', 'Lista criada com sucesso. '.$this->summaryMessage($summary));
             }
             $companyLimits = $limits->assertImport($companyId);
             $processing = ContactList::query()->where('company_id', $companyId)->whereIn('import_status', ['queued', 'processing'])->count();
             if ($processing >= $companyLimits->max_concurrent_imports) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['import_file' => 'Ja existe uma importacao em andamento. Aguarde a conclusao.']);
+                throw ValidationException::withMessages(['import_file' => 'Ja existe uma importacao em andamento. Aguarde a conclusao.']);
             }
             $list = ContactList::create(['company_id' => $companyId, 'name' => $data['name'], 'description' => $data['description'] ?? null, 'status' => $data['status'], 'import_status' => 'queued']);
             $path = $request->file('import_file')->store("imports/{$companyId}", 'local');
             ImportContactList::dispatch($list->id, $path, $data['import_columns'] ?? [], $data['separator'] ?? ';', $data['delimiter'] ?? '"')->onQueue('imports');
+
             return redirect()->route('tenant.lists.index')->with('status', 'Lista criada. A importacao foi enviada para processamento.');
         } else {
             $list = ContactList::create([
@@ -159,7 +165,8 @@ class ContactListController extends Controller
             ->where('company_id', $list->company_id)
             ->where('status', 'active')
             ->pluck('phone')
-            ->map(fn (string $phone): string => $this->normalizePhone($phone))
+            ->map(fn (string $phone): ?string => $this->phones->normalize($phone))
+            ->filter()
             ->all();
 
         collect(preg_split('/\r\n|\r|\n/', $contacts) ?: [])
@@ -170,9 +177,9 @@ class ContactListController extends Controller
                     ? array_pad(array_map('trim', explode(';', $line, 2)), 2, null)
                     : [null, $line];
 
-                $phone = $this->normalizePhone((string) $phone);
+                $phone = $this->phones->normalize((string) $phone);
 
-                if (strlen($phone) < 10) {
+                if ($phone === null) {
                     $summary['invalid']++;
 
                     return;
@@ -204,11 +211,6 @@ class ContactListController extends Controller
             });
 
         return $summary;
-    }
-
-    private function normalizePhone(string $phone): string
-    {
-        return preg_replace('/\D+/', '', $phone) ?: '';
     }
 
     private function summaryMessage(?array $summary): string

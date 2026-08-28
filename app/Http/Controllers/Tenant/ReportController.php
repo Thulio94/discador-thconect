@@ -6,16 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Jobs\GenerateReportExport;
 use App\Models\Call;
 use App\Models\ReportExport;
-use App\Services\Reports\ReportDataService;
-use App\Services\Reports\SimplePdfReport;
 use App\Services\Capacity\ResourceLimitService;
+use App\Services\Reports\ReportDataService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -57,24 +55,8 @@ class ReportController extends Controller
             'report_type' => ['required', Rule::in(array_keys($catalog))],
             'format' => ['required', Rule::in(['csv', 'xlsx', 'pdf'])],
         ]);
-        $limits->assertExport((int) $request->user()->company_id, $data['format']);
-        $this->validateFilters($request);
-        $filters = $reports->filters($request->all(), (int) $request->user()->company_id);
-        unset($filters['company_id']);
-        $export = ReportExport::create([
-            'company_id' => $request->user()->company_id,
-            'user_id' => $request->user()->id,
-            'report_type' => $data['report_type'],
-            'format' => $data['format'],
-            'status' => 'queued',
-            'progress' => 0,
-            'filters' => $this->serializableFilters($filters),
-            'records_count' => 0,
-        ]);
-        GenerateReportExport::dispatch($export->id)->onQueue('reports');
 
-        return redirect()->route('tenant.reports.index', ['report' => 'exports'])
-            ->with('status', 'Exportação enviada para a fila. O arquivo ficará disponível quando o processamento terminar.');
+        return $this->enqueueExport($request, $reports, $limits, $data['report_type'], $data['format']);
     }
 
     public function download(Request $request, ReportExport $reportExport): StreamedResponse
@@ -98,75 +80,42 @@ class ReportController extends Controller
         ]);
     }
 
-    public function export(Request $request, ReportDataService $reports): StreamedResponse
+    /** Legacy links are kept only to redirect callers into the protected export queue. */
+    public function export(Request $request, ReportDataService $reports, ResourceLimitService $limits): RedirectResponse
     {
-        return $this->legacyDownload($request, $reports, 'csv');
+        return $this->enqueueExport($request, $reports, $limits, 'calls', 'csv');
     }
 
-    public function exportXlsx(Request $request, ReportDataService $reports): StreamedResponse
+    public function exportXlsx(Request $request, ReportDataService $reports, ResourceLimitService $limits): RedirectResponse
     {
-        return $this->legacyDownload($request, $reports, 'xlsx');
+        return $this->enqueueExport($request, $reports, $limits, 'calls', 'xlsx');
     }
 
-    public function exportPdf(Request $request, ReportDataService $reports, SimplePdfReport $pdf): StreamedResponse
+    public function exportPdf(Request $request, ReportDataService $reports, ResourceLimitService $limits): RedirectResponse
     {
+        return $this->enqueueExport($request, $reports, $limits, 'calls', 'pdf');
+    }
+
+    private function enqueueExport(Request $request, ReportDataService $reports, ResourceLimitService $limits, string $reportType, string $format): RedirectResponse
+    {
+        $limits->assertExport((int) $request->user()->company_id, $format);
         $this->validateFilters($request);
         $filters = $reports->filters($request->all(), (int) $request->user()->company_id);
-        [$headings, $rows] = $reports->exportRows('calls', $filters);
-        ReportExport::create([
+        unset($filters['company_id']);
+        $export = ReportExport::create([
             'company_id' => $request->user()->company_id,
             'user_id' => $request->user()->id,
-            'report_type' => 'calls',
-            'format' => 'pdf',
-            'status' => 'completed',
-            'progress' => 100,
-            'filters' => $this->serializableFilters($filters),
-            'records_count' => count($rows),
-            'completed_at' => now(),
-            'expires_at' => now()->addDays(30),
-        ]);
-        $lines = ['Relatório de Ligações', implode(' | ', $headings)];
-        foreach (array_slice($rows, 0, 100) as $row) {
-            $lines[] = implode(' | ', $row);
-        }
-
-        return response()->streamDownload(fn () => print ($pdf->render($lines)), 'relatorios-chamadas.pdf', ['Content-Type' => 'application/pdf']);
-    }
-
-    private function legacyDownload(Request $request, ReportDataService $reports, string $format): StreamedResponse
-    {
-        $this->validateFilters($request);
-        $filters = $reports->filters($request->all(), (int) $request->user()->company_id);
-        [$headings, $rows] = $reports->exportRows('calls', $filters);
-        ReportExport::create([
-            'company_id' => $request->user()->company_id,
-            'user_id' => $request->user()->id,
-            'report_type' => 'calls',
+            'report_type' => $reportType,
             'format' => $format,
-            'status' => 'completed',
-            'progress' => 100,
+            'status' => 'queued',
+            'progress' => 0,
             'filters' => $this->serializableFilters($filters),
-            'records_count' => count($rows),
-            'completed_at' => now(),
-            'expires_at' => now()->addDays(30),
+            'records_count' => 0,
         ]);
-        if ($format === 'xlsx') {
-            return response()->streamDownload(function () use ($headings, $rows): void {
-                $sheet = (new Spreadsheet)->getActiveSheet();
-                $sheet->fromArray($headings, null, 'A1');
-                $sheet->fromArray($rows, null, 'A2');
-                (new Xlsx($sheet->getParent()))->save('php://output');
-            }, 'relatorios-chamadas.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
-        }
+        GenerateReportExport::dispatch($export->id)->onQueue('reports');
 
-        return response()->streamDownload(function () use ($headings, $rows): void {
-            $output = fopen('php://output', 'w');
-            fputcsv($output, $headings);
-            foreach ($rows as $row) {
-                fputcsv($output, $row);
-            }
-            fclose($output);
-        }, 'relatorios-chamadas.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return redirect()->route('tenant.reports.index', ['report' => 'exports'])
+            ->with('status', 'Exportação enviada para a fila. O arquivo ficará disponível quando o processamento terminar.');
     }
 
     private function validateFilters(Request $request): void
@@ -179,7 +128,7 @@ class ReportController extends Controller
         if ($request->filled('date_from') && $request->filled('date_to')) {
             $maxDays = app(ResourceLimitService::class)->limits((int) $request->user()->company_id)->max_report_range_days;
             if (now()->parse($request->string('date_from'))->diffInDays(now()->parse($request->string('date_to'))) > $maxDays) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['date_to' => "A consulta interativa permite no maximo {$maxDays} dias."]);
+                throw ValidationException::withMessages(['date_to' => "A consulta interativa permite no maximo {$maxDays} dias."]);
             }
         }
     }

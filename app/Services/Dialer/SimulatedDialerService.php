@@ -119,8 +119,9 @@ class SimulatedDialerService
     private function availableAgents(Campaign $campaign)
     {
         $teamIds = $campaign->teams()->pluck('teams.id');
+        $assignedAgentIds = $this->assignedAgentIds($campaign);
 
-        return User::query()
+        $agents = User::query()
             ->where('users.company_id', $campaign->company_id)
             ->where('users.status', 'active')
             ->where('users.user_type', 'agent')
@@ -133,12 +134,19 @@ class SimulatedDialerService
             })
             ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
             ->whereDoesntHave('calls', fn ($query) => $query->whereIn('status', Call::ACTIVE_STATUSES))
-            ->distinct('users.id')
-            ->orderBy('users.id');
+            ->distinct('users.id');
+
+        if ($assignedAgentIds->isNotEmpty()) {
+            $agents->whereIn('users.id', $assignedAgentIds);
+        }
+
+        return $this->applyDistributionStrategy($agents, $campaign);
     }
 
     private function lockEligibleAgent(Campaign $campaign, int $agentId): ?User
     {
+        $assignedAgentIds = $this->assignedAgentIds($campaign);
+
         return User::query()
             ->whereKey($agentId)
             ->where('company_id', $campaign->company_id)
@@ -152,6 +160,7 @@ class SimulatedDialerService
                             ->whereNull('disposition_id');
                     });
             })
+            ->when($assignedAgentIds->isNotEmpty(), fn ($query) => $query->whereIn('users.id', $assignedAgentIds))
             ->lockForUpdate()
             ->first();
     }
@@ -220,5 +229,48 @@ class SimulatedDialerService
             ->where('user_id', $agent->id)
             ->whereNull('ended_at')
             ->update(['ended_at' => now()]);
+    }
+
+    private function assignedAgentIds(Campaign $campaign)
+    {
+        return $campaign->users()
+            ->where('users.company_id', $campaign->company_id)
+            ->where('users.user_type', 'agent')
+            ->pluck('users.id');
+    }
+
+    private function applyDistributionStrategy($agents, Campaign $campaign)
+    {
+        $availableSince = AgentStatus::query()
+            ->select('started_at')
+            ->whereColumn('agent_statuses.user_id', 'users.id')
+            ->where('agent_statuses.company_id', $campaign->company_id)
+            ->where('agent_statuses.status', 'available')
+            ->whereNull('agent_statuses.ended_at')
+            ->latest('id')
+            ->limit(1);
+
+        if (($campaign->agent_distribution_strategy ?? 'least_idle') === 'random') {
+            return $agents->orderByRaw('RAND()');
+        }
+
+        if ($campaign->agent_distribution_strategy === 'balanced') {
+            $callsToday = Call::query()
+                ->selectRaw('count(*)')
+                ->whereColumn('calls.user_id', 'users.id')
+                ->where('calls.company_id', $campaign->company_id)
+                ->where('calls.campaign_id', $campaign->id)
+                ->whereDate('calls.started_at', today())
+                ->where('calls.status', '!=', 'cancelled');
+
+            return $agents
+                ->orderBy($callsToday)
+                ->orderBy($availableSince)
+                ->orderBy('users.id');
+        }
+
+        return $agents
+            ->orderBy($availableSince)
+            ->orderBy('users.id');
     }
 }

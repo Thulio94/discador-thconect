@@ -8,9 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['company_id', 'name', 'description', 'service_script', 'service_fields_schema', 'dialing_mode', 'lead_phone_strategy', 'max_attempts_per_contact', 'retry_delay_minutes', 'wrap_up_minutes', 'wrap_up_seconds', 'max_concurrent_calls', 'amd_mode', 'dialing_route', 'fixed_telephony_route_id', 'mobile_telephony_route_id', 'status', 'priority', 'operational_schedule', 'starts_at', 'ends_at'])]
+#[Fillable(['company_id', 'name', 'description', 'service_script', 'service_fields_schema', 'dialing_mode', 'lead_phone_strategy', 'agent_distribution_strategy', 'max_attempts_per_contact', 'retry_delay_minutes', 'wrap_up_minutes', 'wrap_up_seconds', 'max_concurrent_calls', 'amd_mode', 'dialing_route', 'fixed_telephony_route_id', 'mobile_telephony_route_id', 'status', 'priority', 'operational_schedule', 'starts_at', 'ends_at'])]
 class Campaign extends Model
 {
+    public const AGENT_DISTRIBUTION_STRATEGIES = ['least_idle', 'balanced', 'random'];
+
+    protected $attributes = [
+        'agent_distribution_strategy' => 'least_idle',
+    ];
+
     protected $casts = [
         'service_fields_schema' => 'array',
         'operational_schedule' => 'array',

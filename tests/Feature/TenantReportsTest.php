@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\GenerateReportExport;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
@@ -10,7 +11,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use PhpOffice\PhpSpreadsheet\IOFactory;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class TenantReportsTest extends TestCase
@@ -63,8 +64,9 @@ class TenantReportsTest extends TestCase
             ->assertViewHas('reportData', fn (array $data) => $data['metrics']['total'] === 2 && $data['rows']->total() === 2);
     }
 
-    public function test_immediate_csv_export_contains_the_expanded_call_history(): void
+    public function test_legacy_csv_export_is_queued_instead_of_running_during_the_http_request(): void
     {
+        Queue::fake();
         [$admin, $company] = $this->tenantUser();
         [$agent] = $this->tenantUser($company, 'Agente Exportacao', 'agent');
         $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha Exportacao', 'dialing_mode' => 'preview', 'status' => 'active']);
@@ -86,31 +88,38 @@ class TenantReportsTest extends TestCase
             ],
         ]);
 
-        $response = $this->actingAs($admin)->get(route('tenant.reports.export'));
-        $response->assertOk()->assertDownload('relatorios-chamadas.csv');
-        $csv = $response->streamedContent();
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.export'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports']));
 
-        $this->assertStringContainsString('Telefone,Lead,Lista,Campanha,Agente,Ramal,Rota,Status', $csv);
-        $this->assertStringContainsString('31999990100', $csv);
-        $this->assertStringContainsString('Campanha Exportacao', $csv);
-        $this->assertStringContainsString('Venda realizada', $csv);
+        $this->assertDatabaseHas('report_exports', [
+            'company_id' => $company->id,
+            'report_type' => 'calls',
+            'format' => 'csv',
+            'status' => 'queued',
+        ]);
+        Queue::assertPushed(GenerateReportExport::class);
     }
 
-    public function test_immediate_xlsx_export_uses_expanded_headings(): void
+    public function test_legacy_xlsx_export_is_queued_instead_of_running_during_the_http_request(): void
     {
+        Queue::fake();
         [$admin, $company] = $this->tenantUser();
         [$agent] = $this->tenantUser($company, 'Agente XLSX', 'agent');
         $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Campanha XLSX', 'dialing_mode' => 'preview', 'status' => 'active']);
         $this->makeCall($company, $agent, $campaign, '31999990200', 'ended');
 
-        $response = $this->actingAs($admin)->get(route('tenant.reports.export-xlsx'));
-        $response->assertOk()->assertDownload('relatorios-chamadas.xlsx');
-        $path = tempnam(sys_get_temp_dir(), 'report-xlsx-');
-        file_put_contents($path, $response->streamedContent());
-        $headings = IOFactory::load($path)->getActiveSheet()->toArray()[0];
-        @unlink($path);
+        $this->actingAs($admin)
+            ->get(route('tenant.reports.export-xlsx'))
+            ->assertRedirect(route('tenant.reports.index', ['report' => 'exports']));
 
-        $this->assertSame(['Telefone', 'Lead', 'Lista', 'Campanha', 'Agente', 'Ramal', 'Rota', 'Status', 'Tabulacao', 'Desligou', 'Inicio', 'Atendimento', 'Termino', 'Duracao', 'Espera', 'Gravacao'], array_map(fn ($heading) => iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string) $heading), $headings));
+        $this->assertDatabaseHas('report_exports', [
+            'company_id' => $company->id,
+            'report_type' => 'calls',
+            'format' => 'xlsx',
+            'status' => 'queued',
+        ]);
+        Queue::assertPushed(GenerateReportExport::class);
     }
 
     private function makeCall(Company $company, User $agent, Campaign $campaign, string $phone, string $status): Call

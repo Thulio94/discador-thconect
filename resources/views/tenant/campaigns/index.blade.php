@@ -69,7 +69,7 @@
                                 @endif
                             </p>
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
-                                Tentativas {{ $campaign->max_attempts_per_contact ?: 'pela tabulacao' }} | Tabulacao {{ $campaign->wrap_up_seconds ?? 60 }}s | AMD {{ ['simulated' => 'simulado', 'asterisk' => 'Asterisk'][(string) $campaign->amd_mode] ?? 'desativado' }} | Fixo {{ $campaign->fixedTelephonyRoute?->name ?: '-' }} | Movel {{ $campaign->mobileTelephonyRoute?->name ?: '-' }}
+                                Distribuicao {{ ['least_idle' => 'mais ocioso', 'balanced' => 'equilibrado', 'random' => 'aleatorio'][(string) ($campaign->agent_distribution_strategy ?? 'least_idle')] ?? 'mais ocioso' }} | Tentativas {{ $campaign->max_attempts_per_contact ?: 'pela tabulacao' }} | Tabulacao {{ $campaign->wrap_up_seconds ?? 60 }}s | AMD {{ ['simulated' => 'simulado', 'asterisk' => 'Asterisk'][(string) $campaign->amd_mode] ?? 'desativado' }} | Fixo {{ $campaign->fixedTelephonyRoute?->name ?: '-' }} | Movel {{ $campaign->mobileTelephonyRoute?->name ?: '-' }}
                             </p>
                             <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
                                 <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
@@ -116,6 +116,7 @@
                         <div><dt class="font-semibold">Nome</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->name }}</dd></div>
                         <div><dt class="font-semibold">Status</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->status }}</dd></div>
                         <div><dt class="font-semibold">Modo de discagem</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->dialing_mode }}</dd></div>
+                        <div><dt class="font-semibold">Distribuicao</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ ['least_idle' => 'Mais ocioso', 'balanced' => 'Equilibrado', 'random' => 'Aleatorio'][(string) ($campaign->agent_distribution_strategy ?? 'least_idle')] ?? 'Mais ocioso' }}</dd></div>
                         <div><dt class="font-semibold">Rota para fixo</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->fixedTelephonyRoute?->name ?: 'Nao configurada' }}</dd></div>
                         <div><dt class="font-semibold">Rota para móvel</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->mobileTelephonyRoute?->name ?: 'Nao configurada' }}</dd></div>
                         <div><dt class="font-semibold">Equipes</dt><dd class="mt-1" style="color: var(--fg-muted);">{{ $campaign->teams->pluck('name')->join(', ') ?: 'Sem equipe' }}</dd></div>

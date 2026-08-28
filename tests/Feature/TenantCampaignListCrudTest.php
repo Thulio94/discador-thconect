@@ -88,13 +88,45 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertFalse($list->contacts()->where('phone', '12345')->exists());
     }
 
+    public function test_contact_list_import_normalizes_country_code_and_legacy_mobile_numbers(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('tenant.lists.store'), [
+                'name' => 'Lista Telefones Brasileiros',
+                'status' => 'active',
+                'contacts' => implode("\n", [
+                    'Celular antigo;(31) 8888-0001',
+                    'Celular E164;+55 (31) 98888-0002',
+                    'Fixo;(31) 3333-4444',
+                    'DDD invalido;(20) 99999-0001',
+                    'Celular invalido;(31) 91111-0001',
+                ]),
+            ])
+            ->assertRedirect(route('tenant.lists.index'))
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '3 contatos importados')
+                && str_contains($message, '2 invalido'));
+
+        $phones = ContactList::query()
+            ->where('company_id', $admin->company_id)
+            ->where('name', 'Lista Telefones Brasileiros')
+            ->sole()
+            ->contacts()
+            ->orderBy('phone')
+            ->pluck('phone')
+            ->all();
+
+        $this->assertSame(['3133334444', '31988880001', '31988880002'], $phones);
+    }
+
     public function test_tenant_admin_can_import_csv_with_multiple_phones_and_selected_extra_columns(): void
     {
         [$admin] = $this->tenantAdmin();
 
         $file = UploadedFile::fake()->createWithContent(
             'leads.csv',
-            "Nome;Telefone 1;Telefone 2;CPF;Ignorar\nMaria;(31) 99999-0001;31 98888-0002;123;fora\nJoao;12345;31977770003;456;fora"
+            "Nome;Telefone 1;Telefone 2;CPF;Ignorar\nMaria;+55 (31) 99999-0001;31 8888-0002;123;fora\nJoao;12345;31977770003;456;fora"
         );
 
         $this->actingAs($admin)
@@ -474,6 +506,8 @@ class TenantCampaignListCrudTest extends TestCase
             ->get(route('tenant.campaigns.index'))
             ->assertOk()
             ->assertSee('Estrategia de telefones do lead')
+            ->assertSee('Distribuicao entre operadores')
+            ->assertSee('Mais ocioso')
             ->assertSee('Horizontal desativado')
             ->assertSee('Horizontal ativado')
             ->assertSee('desativado tenta principais primeiro; ativado tenta alternativos do mesmo lead antes de seguir.');
@@ -483,6 +517,7 @@ class TenantCampaignListCrudTest extends TestCase
                 'name' => 'Campanha Telefones Lead',
                 'dialing_mode' => 'power',
                 'lead_phone_strategy' => 'horizontal',
+                'agent_distribution_strategy' => 'balanced',
                 'status' => 'draft',
                 'team_ids' => [$team->id],
                 'list_ids' => [$list->id],
@@ -493,12 +528,14 @@ class TenantCampaignListCrudTest extends TestCase
         $campaign = Campaign::where('company_id', $admin->company_id)->where('name', 'Campanha Telefones Lead')->sole();
 
         $this->assertSame('horizontal', $campaign->lead_phone_strategy);
+        $this->assertSame('balanced', $campaign->agent_distribution_strategy);
 
         $this->actingAs($admin)
             ->put(route('tenant.campaigns.update', $campaign), [
                 'name' => 'Campanha Telefones Lead Atualizada',
                 'dialing_mode' => 'preview',
                 'lead_phone_strategy' => 'vertical',
+                'agent_distribution_strategy' => 'random',
                 'status' => 'active',
                 'team_ids' => [$team->id],
                 'list_ids' => [$list->id],
@@ -507,6 +544,7 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSessionHas('status');
 
         $this->assertSame('vertical', $campaign->fresh()->lead_phone_strategy);
+        $this->assertSame('random', $campaign->fresh()->agent_distribution_strategy);
 
         $this->actingAs($admin)
             ->post(route('tenant.campaigns.store'), [
@@ -518,6 +556,17 @@ class TenantCampaignListCrudTest extends TestCase
                 'list_ids' => [$list->id],
             ])
             ->assertSessionHasErrors('lead_phone_strategy');
+
+        $this->actingAs($admin)
+            ->post(route('tenant.campaigns.store'), [
+                'name' => 'Campanha Distribuicao Invalida',
+                'dialing_mode' => 'power',
+                'agent_distribution_strategy' => 'por-equipe',
+                'status' => 'draft',
+                'team_ids' => [$team->id],
+                'list_ids' => [$list->id],
+            ])
+            ->assertSessionHasErrors('agent_distribution_strategy');
     }
 
     public function test_campaign_creation_ignores_dynamic_service_fields_sent_manually(): void

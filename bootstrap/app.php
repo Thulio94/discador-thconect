@@ -24,7 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // O app so e' acessivel externamente pelo proxy reverso do Easypanel.
         // Confiar no protocolo encaminhado evita assets HTTP em uma pagina HTTPS.
-        $middleware->trustProxies(at: '*');
+        // Only accept forwarding headers from loopback and private reverse-proxy networks.
+        // Trusting every source lets a direct client forge X-Forwarded-* headers.
+        $trustedProxies = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('TRUSTED_PROXIES', '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16')),
+        )));
+
+        $middleware->trustProxies(at: $trustedProxies);
 
         $middleware->append(ApplySecurityHeaders::class);
 

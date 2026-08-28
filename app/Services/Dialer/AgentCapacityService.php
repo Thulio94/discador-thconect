@@ -72,6 +72,11 @@ class AgentCapacityService
             return 0;
         }
 
+        $assignedAgentIds = $campaign->users()
+            ->where('users.company_id', $campaign->company_id)
+            ->where('users.user_type', 'agent')
+            ->pluck('users.id');
+
         return User::query()
             ->where('users.company_id', $campaign->company_id)
             ->where('users.status', 'active')
@@ -92,6 +97,7 @@ class AgentCapacityService
                             ->whereNull('disposition_id');
                     });
             })
+            ->when($assignedAgentIds->isNotEmpty(), fn ($query) => $query->whereIn('users.id', $assignedAgentIds))
             ->distinct('users.id')
             ->count('users.id');
     }

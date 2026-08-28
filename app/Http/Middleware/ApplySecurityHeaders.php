@@ -20,7 +20,7 @@ class ApplySecurityHeaders
         $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
         $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
 
-        if (app()->environment('production')) {
+        if (config('app.env') === 'production') {
             $response->headers->set(
                 'Content-Security-Policy',
                 // Alpine evaluates the directives rendered by the server (x-show, x-on,
