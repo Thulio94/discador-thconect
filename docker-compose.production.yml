@@ -1,4 +1,25 @@
 services:
+  migrate:
+    image: discador-piloto-app:latest
+    build:
+      context: .
+      dockerfile: .docker/app/Dockerfile.production
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    command:
+      - sh
+      - -ec
+      - |
+        php artisan migrate --force
+        php artisan db:seed --class=PermissionSeeder --force
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
   app:
     image: discador-piloto-app:latest
     build:
@@ -19,6 +40,8 @@ services:
         aliases:
           - pilot-app
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:
@@ -47,6 +70,8 @@ services:
     volumes:
       - app_storage:/var/www/html/storage
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     restart: "no"
