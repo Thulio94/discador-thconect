@@ -24,6 +24,18 @@
 @endphp
 
 <div class="grid gap-4">
+    @if ($errors->any())
+        <div class="rounded-lg border p-4 text-sm" role="alert" style="border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border)); background: color-mix(in srgb, var(--status-danger) 8%, var(--surface));">
+            <p class="font-semibold">A campanha nao foi salva.</p>
+            <p class="mt-1 text-xs" style="color: var(--fg-muted);">Revise os campos destacados e tente novamente.</p>
+            <ul class="mt-3 grid gap-1 text-xs" style="color: var(--status-danger);">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="grid gap-2 sm:grid-cols-4">
         @foreach (['Etapa 1' => 'Basico', 'Etapa 2' => 'Operacao', 'Etapa 3' => 'Publico', 'Etapa 4' => 'Revisao'] as $step => $label)
             <div class="rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
@@ -38,6 +50,9 @@
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Nome</span>
             <input name="name" value="{{ old('name', $campaign?->name) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);" required>
+            @error('name')
+                <span class="text-xs" style="color: var(--status-danger);">{{ $message }}</span>
+            @enderror
         </label>
 
         <label class="grid gap-1 text-sm">
@@ -197,6 +212,9 @@
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Cadastre uma equipe antes.</p>
             @endforelse
+            @error('team_ids')
+                <p class="text-xs" style="color: var(--status-danger);">{{ $message }}</p>
+            @enderror
         </div>
 
         <div>
@@ -215,6 +233,9 @@
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Cadastre uma lista antes.</p>
             @endforelse
+            @error('list_ids')
+                <p class="text-xs" style="color: var(--status-danger);">{{ $message }}</p>
+            @enderror
         </div>
         </div>
     </div>

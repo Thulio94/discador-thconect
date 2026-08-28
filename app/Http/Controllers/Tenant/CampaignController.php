@@ -69,7 +69,7 @@ class CampaignController extends Controller
     public function store(Request $request, ResourceLimitService $limits): RedirectResponse
     {
         $companyId = $request->user()->company_id;
-        $data = $request->validate($this->rules($companyId));
+        $data = $request->validate($this->rules($companyId), $this->validationMessages());
         if (($data['status'] ?? null) === 'active') {
             $limits->assertCampaignCanActivate($companyId);
         }
@@ -97,7 +97,7 @@ class CampaignController extends Controller
     {
         abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
-        $data = $request->validate($this->rules($campaign->company_id, $campaign));
+        $data = $request->validate($this->rules($campaign->company_id, $campaign), $this->validationMessages());
         if (($data['status'] ?? null) === 'active' && $campaign->status !== 'active') {
             $limits->assertCampaignCanActivate($campaign->company_id, $campaign->id);
         }
@@ -376,6 +376,28 @@ class CampaignController extends Controller
                 $fail('Selecione uma rota liberada para a empresa.');
             }
         };
+    }
+
+    private function validationMessages(): array
+    {
+        return [
+            'name.required' => 'Informe o nome da campanha.',
+            'name.unique' => 'Ja existe uma campanha com este nome nesta empresa.',
+            'dialing_mode.required' => 'Selecione o modo de discagem.',
+            'dialing_mode.in' => 'Selecione um modo de discagem valido.',
+            'status.required' => 'Selecione o status da campanha.',
+            'status.in' => 'Selecione um status valido.',
+            'team_ids.required' => 'Selecione ao menos uma equipe para a campanha.',
+            'team_ids.array' => 'Selecione equipes validas para a campanha.',
+            'team_ids.min' => 'Selecione ao menos uma equipe para a campanha.',
+            'team_ids.*.exists' => 'Selecione apenas equipes desta empresa.',
+            'list_ids.required' => 'Selecione ao menos uma lista para a campanha.',
+            'list_ids.array' => 'Selecione listas validas para a campanha.',
+            'list_ids.min' => 'Selecione ao menos uma lista para a campanha.',
+            'wrap_up_seconds.integer' => 'Informe um tempo de tabulacao em segundos.',
+            'wrap_up_seconds.min' => 'O tempo de tabulacao deve ser de pelo menos 10 segundos.',
+            'wrap_up_seconds.max' => 'O tempo de tabulacao deve ser de no maximo 3600 segundos.',
+        ];
     }
 
     private function copyName(Campaign $campaign): string

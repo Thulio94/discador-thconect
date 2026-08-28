@@ -461,6 +461,35 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame(2, $campaign->contactLists()->count());
     }
 
+    public function test_campaign_create_validation_reopens_the_modal_and_explains_missing_team_and_list(): void
+    {
+        [$admin] = $this->tenantAdmin();
+
+        $this->actingAs($admin)
+            ->from(route('tenant.campaigns.index'))
+            ->post(route('tenant.campaigns.store'), [
+                '_campaign_form' => 'create',
+                'name' => 'Campanha sem publico',
+                'dialing_mode' => 'preview',
+                'status' => 'draft',
+            ])
+            ->assertRedirect(route('tenant.campaigns.index'))
+            ->assertSessionHasErrors(['team_ids', 'list_ids']);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('A campanha nao foi salva.')
+            ->assertSee('Selecione ao menos uma equipe para a campanha.')
+            ->assertSee('Selecione ao menos uma lista para a campanha.')
+            ->assertSee("modalState('campaign-create', true)", false);
+
+        $this->assertDatabaseMissing('campaigns', [
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha sem publico',
+        ]);
+    }
+
     public function test_tenant_admin_can_configure_campaign_schedule_and_list_weights(): void
     {
         [$admin, $team] = $this->tenantAdmin();

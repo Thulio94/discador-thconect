@@ -204,10 +204,12 @@
                 @endcan
 
                 @can('tenant.campaigns.update')
-                <x-ui.modal name="campaign-edit-{{ $campaign->id }}" title="Editar campanha" max-width="6xl">
+                <x-ui.modal name="campaign-edit-{{ $campaign->id }}" title="Editar campanha" max-width="6xl" :show="$errors->any() && old('_campaign_form') === 'edit' && (int) old('_campaign_id') === $campaign->id">
                     <form method="POST" action="{{ route('tenant.campaigns.update', $campaign) }}">
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="_campaign_form" value="edit">
+                        <input type="hidden" name="_campaign_id" value="{{ $campaign->id }}">
                         @include('tenant.campaigns._form', ['campaign' => $campaign, 'teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
                         <div class="mt-5 flex justify-end gap-2">
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-edit-{{ $campaign->id }}')">Cancelar</x-ui.button>
@@ -238,14 +240,28 @@
     </x-ui.card>
 
     @can('tenant.campaigns.create')
-    <x-ui.modal name="campaign-create" title="Nova campanha" max-width="6xl">
+    <x-ui.modal name="campaign-create" title="Nova campanha" max-width="6xl" :show="$errors->any() && old('_campaign_form', 'create') === 'create'">
         <form method="POST" action="{{ route('tenant.campaigns.store') }}">
             @csrf
+            <input type="hidden" name="_campaign_form" value="create">
             @include('tenant.campaigns._form', ['teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
             <div class="mt-5 flex justify-end">
                 <x-ui.button type="submit">Criar campanha</x-ui.button>
             </div>
         </form>
     </x-ui.modal>
+    @if ($errors->any() && old('_campaign_form', 'create') === 'create')
+        <script>
+            window.addEventListener('DOMContentLoaded', () => {
+                window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                        title: 'Campanha nao salva',
+                        message: @js($errors->first()),
+                        severity: 'error',
+                    },
+                }));
+            });
+        </script>
+    @endif
     @endcan
 </x-app-layout>
