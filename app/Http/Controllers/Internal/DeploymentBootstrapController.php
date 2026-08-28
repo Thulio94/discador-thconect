@@ -39,6 +39,9 @@ class DeploymentBootstrapController
             return response()->json([
                 'message' => 'Bootstrap do banco falhou.',
                 'exception' => class_basename($exception),
+                'details' => config('deployment.bootstrap_diagnostics')
+                    ? $exception->getMessage()
+                    : null,
             ], 500);
         }
 
