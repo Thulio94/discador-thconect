@@ -88,9 +88,14 @@ final class SupervisionSnapshot
                 $activeCall = $user->calls->first();
                 $wrapUpCall = $user->calls->firstWhere('status', 'wrap_up');
                 $statusStartedAt = $user->currentAgentStatus?->started_at;
+                $currentStatus = $user->currentAgentStatus?->status ?? 'offline';
                 $statusSeconds = $statusStartedAt
                     ? max(0, (int) $statusStartedAt->diffInSeconds(now()))
                     : 0;
+                if ($currentStatus === 'offline') {
+                    $statusSeconds = 0;
+                    $statusStartedAt = null;
+                }
                 $callSeconds = $activeCall?->started_at
                     ? max(0, (int) $activeCall->started_at->diffInSeconds(now()))
                     : 0;
@@ -99,7 +104,7 @@ final class SupervisionSnapshot
 
                 $user->setAttribute(
                     'supervision_status',
-                    $user->currentAgentStatus?->status ?? 'offline'
+                    $currentStatus
                 );
                 $user->setAttribute(
                     'status_duration_label',

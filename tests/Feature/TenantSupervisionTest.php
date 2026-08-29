@@ -207,6 +207,26 @@ class TenantSupervisionTest extends TestCase
             ->assertDontSee('Pausa longa');
     }
 
+    public function test_supervision_never_accumulates_offline_status_time(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        [$offline] = $this->tenantUser('agent', $company, 'Agente Offline Sem Contagem');
+
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $offline->id,
+            'status' => 'offline',
+            'started_at' => now()->subHours(2),
+        ]);
+
+        $this->actingAs($supervisor)
+            ->get(route('tenant.supervision.index', ['status' => 'offline']))
+            ->assertOk()
+            ->assertSee('Agente Offline Sem Contagem')
+            ->assertSee('00:00:00')
+            ->assertDontSee('02:00:');
+    }
+
     public function test_supervision_poll_returns_filtered_tenant_fragments_with_no_store_headers(): void
     {
         [$supervisor, $company] = $this->tenantUser('supervisor');

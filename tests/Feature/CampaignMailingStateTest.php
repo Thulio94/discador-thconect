@@ -16,6 +16,8 @@ use App\Jobs\RunPowerCampaign;
 use App\Models\AgentStatus;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Support\Tenant\PermissionMatrix;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class CampaignMailingStateTest extends TestCase
@@ -73,7 +75,7 @@ class CampaignMailingStateTest extends TestCase
         $this->assertDatabaseHas('mailing_recycles', ['campaign_id' => $campaign->id, 'contact_list_id' => $list->id, 'affected_count' => 1]);
     }
 
-    public function test_pbx_team_cannot_be_attached_to_a_dialer_campaign_and_aggressiveness_is_capped_by_license(): void
+    public function test_aggressiveness_is_capped_by_license(): void
     {
         $company = Company::create(['name' => 'Empresa proteção', 'status' => 'active']);
         $company->licenses()->create([
@@ -82,22 +84,7 @@ class CampaignMailingStateTest extends TestCase
             'ends_at' => today()->addDay(),
             'max_calls_per_available_agent' => 5,
         ]);
-        $pbx = Team::create([
-            'company_id' => $company->id,
-            'name' => 'PABX',
-            'slug' => 'pbx',
-            'status' => 'active',
-            'operational_type' => 'pbx',
-        ]);
-
         $guard = app(CampaignOperationalGuard::class);
-
-        try {
-            $guard->assertTeamsMatchMode($company->id, 'power', [$pbx->id]);
-            $this->fail('A equipe PABX não pode ser usada por uma campanha.');
-        } catch (ValidationException) {
-            $this->addToAssertionCount(1);
-        }
 
         $this->assertSame(5, $guard->effectiveAggressiveness($company->id, 10));
         $this->assertSame(1, $guard->effectiveAggressiveness($company->id, 0));
@@ -150,68 +137,12 @@ class CampaignMailingStateTest extends TestCase
         $this->assertDatabaseHas('calls', ['campaign_id' => $power->id, 'user_id' => $agent->id]);
     }
 
-    public function test_pbx_agent_can_only_view_its_company_pbx_workspace(): void
+    public function test_discador_does_not_expose_the_pbx_workspace_or_permissions(): void
     {
-        $company = Company::create(['name' => 'Empresa PABX', 'status' => 'active']);
-        $company->licenses()->create([
-            'status' => 'active',
-            'starts_at' => today()->subDay(),
-            'ends_at' => today()->addDay(),
-            'max_calls_per_available_agent' => 3,
-        ]);
-        $role = Role::create(['company_id' => $company->id, 'name' => 'Agente', 'slug' => 'agente-pbx']);
-        $pbxAgent = User::factory()->create([
-            'company_id' => $company->id,
-            'role_id' => $role->id,
-            'user_type' => 'agent',
-            'status' => 'active',
-            'name' => 'Ramal PABX',
-            'extension' => '4001',
-        ]);
-        $campaignAgent = User::factory()->create([
-            'company_id' => $company->id,
-            'role_id' => $role->id,
-            'user_type' => 'agent',
-            'status' => 'active',
-        ]);
-        $pbxTeam = Team::create([
-            'company_id' => $company->id,
-            'name' => 'Operação PABX',
-            'slug' => 'operacao-pbx',
-            'status' => 'active',
-            'operational_type' => 'pbx',
-        ]);
-        $pbxTeam->users()->attach($pbxAgent, ['company_id' => $company->id, 'membership_type' => 'agent']);
-        Call::create([
-            'company_id' => $company->id,
-            'user_id' => $pbxAgent->id,
-            'phone' => '31999990005',
-            'channel' => 'pbx',
-            'direction' => 'outbound',
-            'status' => 'completed',
-            'started_at' => now(),
-        ]);
-
-        $otherCompany = Company::create(['name' => 'Outra Empresa PABX', 'status' => 'active']);
-        Call::create([
-            'company_id' => $otherCompany->id,
-            'phone' => '31999990006',
-            'channel' => 'pbx',
-            'direction' => 'outbound',
-            'status' => 'completed',
-            'started_at' => now(),
-        ]);
-
-        $this->actingAs($pbxAgent)
-            ->get(route('tenant.pbx.index'))
-            ->assertOk()
-            ->assertSee('Operação PABX')
-            ->assertSee('31999990005')
-            ->assertDontSee('31999990006');
-
-        $this->actingAs($campaignAgent)
-            ->get(route('tenant.pbx.index'))
-            ->assertForbidden();
+        $this->assertFalse(Route::has('tenant.pbx.index'));
+        $this->assertArrayNotHasKey('pbx', PermissionMatrix::modules());
+        $this->assertNotContains('pbx.read', PermissionMatrix::keys());
+        $this->assertNotContains('pbx', Team::OPERATIONAL_TYPES);
     }
 
     public function test_team_type_rejects_agents_already_assigned_to_an_incompatible_campaign(): void

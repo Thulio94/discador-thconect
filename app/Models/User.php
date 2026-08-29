@@ -157,21 +157,9 @@ class User extends Authenticatable
                 'notifications.read',
                 'notifications.update',
             ];
-            $isPbxAgent = $this->teams()
-                ->wherePivot('membership_type', 'agent')
-                ->where('teams.operational_type', 'pbx')
-                ->exists();
-
-            if ($isPbxAgent) {
-                $agentPermissions = [...$agentPermissions, 'pbx.read', 'pbx.call'];
-            }
 
             if (! in_array($permissionKey, $agentPermissions, true)) {
                 return false;
-            }
-
-            if ($isPbxAgent && in_array($permissionKey, ['pbx.read', 'pbx.call'], true)) {
-                return true;
             }
         }
 

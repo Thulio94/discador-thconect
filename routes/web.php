@@ -13,7 +13,6 @@ use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\SuperAdmin\TelephonyRouteController;
 use App\Http\Controllers\Tenant\AgentPanelController;
 use App\Http\Controllers\Tenant\CampaignController;
-use App\Http\Controllers\Tenant\PbxController;
 use App\Http\Controllers\Tenant\ContactListController;
 use App\Http\Controllers\Tenant\IntegrationController;
 use App\Http\Controllers\Tenant\NotificationController;
@@ -89,8 +88,6 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::delete('lists/{list}', [ContactListController::class, 'destroy'])->middleware('can:tenant.lists.delete')->name('lists.destroy');
 
         Route::get('campaigns', [CampaignController::class, 'index'])->middleware('can:tenant.campaigns.read')->name('campaigns.index');
-        Route::get('pbx', [PbxController::class, 'index'])->middleware('can:tenant.pbx.read')->name('pbx.index');
-        Route::post('pbx/calls', [PbxController::class, 'call'])->middleware(['can:tenant.pbx.call', 'god-mode.telephony-safe'])->name('pbx.calls.store');
         Route::post('campaigns', [CampaignController::class, 'store'])->middleware('can:tenant.campaigns.create')->name('campaigns.store');
         Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->middleware('can:tenant.campaigns.update')->name('campaigns.update');
         Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])->middleware('can:tenant.campaigns.delete')->name('campaigns.destroy');

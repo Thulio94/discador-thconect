@@ -22,13 +22,6 @@ class PermissionMatrix
             'agent' => ['label' => 'Agente', 'permissions' => self::actions('agent', [
                 'access' => 'Acessar',
             ])],
-            'pbx' => ['label' => 'PABX', 'permissions' => self::actions('pbx', [
-                'read' => 'Ler',
-                'manage' => 'Gerenciar grupos e ramais',
-                'call' => 'Realizar chamadas',
-                'recordings' => 'Acessar gravações',
-                'monitor' => 'Monitorar chamadas',
-            ])],
             'supervision' => ['label' => 'Supervisao', 'permissions' => self::actions('supervision', [
                 'read' => 'Ler',
                 'operate' => 'Operar monitoria',

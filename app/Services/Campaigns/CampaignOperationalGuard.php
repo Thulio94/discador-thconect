@@ -37,10 +37,6 @@ class CampaignOperationalGuard
         }
 
         $teams = $user->teams()->wherePivot('membership_type', 'agent')->get();
-        if ($teams->contains(fn (Team $team) => $team->operational_type === 'pbx') && $campaignIds !== []) {
-            throw ValidationException::withMessages(['campaign_ids' => 'Agentes vinculados ao PABX não podem participar de campanhas.']);
-        }
-
         $campaigns = Campaign::query()
             ->where('company_id', $user->company_id)
             ->whereIn('id', $campaignIds)
@@ -77,18 +73,12 @@ class CampaignOperationalGuard
             ->where('campaign_user.company_id', $companyId)
             ->where('campaigns.company_id', $companyId)
             ->whereIn('campaign_user.user_id', $agentIds)
-            ->when(
-                $operationalType === 'pbx',
-                fn ($query) => $query,
-                fn ($query) => $query->where('campaigns.dialing_mode', '!=', $operationalType),
-            )
+            ->where('campaigns.dialing_mode', '!=', $operationalType)
             ->exists();
 
         if ($hasIncompatibleCampaign) {
             throw ValidationException::withMessages([
-                'agent_ids' => $operationalType === 'pbx'
-                    ? 'Agentes vinculados a campanhas não podem entrar em uma equipe PABX.'
-                    : 'Agentes vinculados a campanhas só podem entrar em equipes do mesmo tipo operacional.',
+                'agent_ids' => 'Agentes vinculados a campanhas só podem entrar em equipes do mesmo tipo operacional.',
             ]);
         }
     }

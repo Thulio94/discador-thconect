@@ -23,7 +23,6 @@
             ['label' => 'Perfis', 'href' => route('tenant.roles.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.roles.*'), 'ability' => 'tenant.roles.read'],
             ['label' => 'Listas', 'href' => route('tenant.lists.index'), 'icon' => 'list', 'active' => request()->routeIs('tenant.lists.*'), 'ability' => 'tenant.lists.read'],
             ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'campaign', 'active' => request()->routeIs('tenant.campaigns.*'), 'ability' => 'tenant.campaigns.read'],
-            ['label' => 'PABX', 'href' => route('tenant.pbx.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.pbx.*'), 'ability' => 'tenant.pbx.read'],
             ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access'],
             ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*'), 'ability' => 'tenant.supervision.read'],
             ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'report', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],

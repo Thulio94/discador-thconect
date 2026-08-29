@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 #[Fillable(['company_id', 'name', 'slug', 'status', 'operational_type', 'allow_agent_campaign_selection'])]
 class Team extends Model
 {
-    public const OPERATIONAL_TYPES = ['power', 'preview', 'pbx'];
+    public const OPERATIONAL_TYPES = ['power', 'preview'];
 
     protected $casts = ['allow_agent_campaign_selection' => 'boolean'];
     public function company(): BelongsTo

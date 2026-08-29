@@ -21,7 +21,7 @@
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Tipo operacional</span>
             <select name="operational_type" class="rounded-lg border px-3 py-2">
-                @foreach (['power' => 'Power', 'preview' => 'Preview', 'pbx' => 'PABX'] as $value => $label)
+                @foreach (['power' => 'Power', 'preview' => 'Preview'] as $value => $label)
                     <option value="{{ $value }}" @selected(old('operational_type', $team?->operational_type ?? 'power') === $value)>{{ $label }}</option>
                 @endforeach
             </select>

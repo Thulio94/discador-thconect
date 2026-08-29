@@ -168,13 +168,5 @@ class TeamController extends Controller
             ]);
         }
 
-        if ($type === 'pbx' && $team->users()
-            ->where('users.user_type', 'agent')
-            ->whereHas('assignedCampaigns')
-            ->exists()) {
-            throw ValidationException::withMessages([
-                'operational_type' => 'Remova os agentes das campanhas antes de transformar a equipe em PABX.',
-            ]);
-        }
     }
 }
