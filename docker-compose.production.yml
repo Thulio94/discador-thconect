@@ -8,9 +8,8 @@ services:
       - .env
     working_dir: /var/www/html
     environment:
-      # No piloto, a aplicacao inicializa o banco novo antes do PHP-FPM.
-      # Em ambientes escalados, use um job de deploy unico para esta etapa.
-      RUN_MIGRATIONS_ON_BOOT: "${RUN_MIGRATIONS_ON_BOOT:-true}"
+      # Migrations e seeders sao executados uma vez pelo admin-bootstrap.
+      RUN_MIGRATIONS_ON_BOOT: "false"
     volumes:
       - app_storage:/var/www/html/storage
       - pbx_recordings:/var/www/html/storage/app/recordings
@@ -23,6 +22,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      admin-bootstrap:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "php -r '$$socket = @fsockopen(\"127.0.0.1\", 9000, $$errno, $$error, 2); exit($$socket ? 0 : 1);'"]
@@ -79,6 +80,27 @@ services:
       interval: 20s
       timeout: 5s
       retries: 5
+
+  admin-bootstrap:
+    image: discador-piloto-app:latest
+    env_file:
+      - .env
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        php artisan migrate --force &&
+        php artisan db:seed --class=PermissionSeeder --force &&
+        php artisan db:seed --class=SuperAdminSeeder --force &&
+        echo "Initial admin credential synchronization: $${INITIAL_ADMIN_SYNC_PASSWORD:-false}"
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+      - pbx_recordings:/var/www/html/storage/app/recordings
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
 
   queue:
     image: discador-piloto-app:latest
