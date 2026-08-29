@@ -6,16 +6,20 @@ use App\Contracts\Dialer\DialerGateway;
 use App\Http\Controllers\Controller;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
+use App\Models\AgentCampaignSession;
 use App\Models\Call;
 use App\Models\CallCallback;
 use App\Models\Disposition;
 use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use App\Models\User;
+use App\Models\Campaign;
 use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\DialerCallRequest;
+use App\Services\Dialer\MailingQueueService;
+use App\Services\Dialer\PreviewLeadService;
 use App\Services\Telephony\AgentWebRtcService;
 use App\Services\Telephony\BrazilianPhoneNormalizer;
 use Illuminate\Contracts\View\View;
@@ -49,6 +53,10 @@ class AgentPanelController extends Controller
             ->latest('ended_at')
             ->first();
         $callContext = $currentCall ?? $wrapUpCall;
+        $eligibleCampaigns = $this->eligibleCampaigns($user);
+        $canSelectCampaign = $this->campaignSelectionRequired($user, $eligibleCampaigns);
+        $selectedCampaign = $user->currentAgentCampaignSession?->campaign
+            ?? ($canSelectCampaign ? null : $eligibleCampaigns->first());
 
         return view('tenant.agent.index', [
             'currentStatus' => $activeStatus?->status ?? 'offline',
@@ -106,6 +114,10 @@ class AgentPanelController extends Controller
                 ->orderBy('name')
                 ->get(),
             'agentStateSignature' => $this->stateSignature($user),
+            'selectedCampaign' => $selectedCampaign,
+            'eligibleCampaigns' => $eligibleCampaigns,
+            'canSelectCampaign' => $canSelectCampaign,
+            'previewReservation' => app(PreviewLeadService::class)->current($user),
         ]);
     }
 
@@ -167,6 +179,10 @@ class AgentPanelController extends Controller
             return back()->withErrors(['status' => $message]);
         }
 
+        if ($data['status'] === 'available' && $this->campaignSelectionRequired($user) && ! $user->currentAgentCampaignSession()->exists()) {
+            return back()->withErrors(['status' => 'Escolha a campanha antes de ficar disponível.']);
+        }
+
         $statusUpdated = DB::transaction(function () use ($capacity, $data, $user): bool {
             if ($data['status'] === 'available' && ! $capacity->canBecomeAvailable($user)) {
                 return false;
@@ -179,6 +195,10 @@ class AgentPanelController extends Controller
                 'started_at' => now(),
             ]);
 
+            if ($data['status'] === 'offline') {
+                $user->currentAgentCampaignSession()->update(['ended_at' => now()]);
+            }
+
             return true;
         });
 
@@ -189,6 +209,90 @@ class AgentPanelController extends Controller
         }
 
         return redirect()->route('tenant.agent.index')->with('status', 'Status atualizado com sucesso.');
+    }
+
+    public function selectCampaign(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'campaign_id' => ['required', Rule::exists('campaigns', 'id')->where('company_id', $request->user()->company_id)],
+        ]);
+        $user = $request->user();
+        $this->wrapUps->expireForUser($user);
+
+        abort_unless($this->campaignSelectionRequired($user), 403);
+
+        if ($user->calls()->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])->exists()) {
+            return back()->withErrors(['campaign_id' => 'Conclua a chamada e a tabulação antes de trocar de campanha.']);
+        }
+
+        $campaign = $this->eligibleCampaigns($user)->firstWhere('id', (int) $data['campaign_id']);
+        abort_unless($campaign, 404);
+
+        DB::transaction(function () use ($user, $campaign): void {
+            $user->currentAgentCampaignSession()->lockForUpdate()->update(['ended_at' => now()]);
+            AgentCampaignSession::create([
+                'company_id' => $user->company_id,
+                'user_id' => $user->id,
+                'campaign_id' => $campaign->id,
+                'started_at' => now(),
+            ]);
+        });
+
+        return redirect()->route('tenant.agent.index')->with('status', 'Campanha selecionada.');
+    }
+
+    public function reservePreview(Request $request, PreviewLeadService $preview): RedirectResponse
+    {
+        $user = $request->user();
+        $this->wrapUps->expireForUser($user);
+        abort_unless($user->currentAgentStatus()->value('status') === 'available', 403);
+
+        $campaign = $user->currentAgentCampaignSession()->with('campaign')->first()?->campaign
+            ?? (! $this->campaignSelectionRequired($user) ? $this->eligibleCampaigns($user)->first() : null);
+        if (! $campaign || $campaign->dialing_mode !== 'preview') {
+            return back()->withErrors(['campaign' => 'Selecione uma campanha Preview para carregar uma ficha.']);
+        }
+
+        $preview->reserve($user, $campaign);
+
+        return redirect()->route('tenant.agent.index')->with('status', 'Ficha Preview reservada para atendimento.');
+    }
+
+    public function startPreviewCall(Request $request, DialerGateway $gateway, PreviewLeadService $preview, MailingQueueService $queue): RedirectResponse
+    {
+        $user = $request->user();
+        $this->wrapUps->expireForUser($user);
+        abort_unless($user->currentAgentStatus()->value('status') === 'available', 403);
+
+        $reservation = $preview->current($user);
+        if (! $reservation) {
+            return back()->withErrors(['campaign' => 'Carregue uma ficha Preview antes de iniciar a ligação.']);
+        }
+
+        $state = $reservation->phoneState()->with(['contact', 'contactPhone'])->firstOrFail();
+        $call = $gateway->originate(new DialerCallRequest(
+            companyId: $user->company_id,
+            userId: $user->id,
+            campaignId: $reservation->campaign_id,
+            contactId: $state->contact_id,
+            contactPhoneId: $state->contact_phone_id,
+            phone: $state->contactPhone->phone,
+            channel: 'preview',
+        ));
+        $queue->markAttempt($state->contact, now()->addMinutes(30), 'dialing', $state->contactPhone, $reservation->campaign);
+
+        if (! in_array($call->status, Call::ACTIVE_STATUSES, true)) {
+            return back()->withErrors(['campaign' => 'A chamada Preview não foi iniciada. Verifique a rota e tente novamente.']);
+        }
+
+        $this->closeOpenRecords($user->id, $user->company_id);
+        $user->agentStatuses()->create([
+            'company_id' => $user->company_id,
+            'status' => 'in_call',
+            'started_at' => now(),
+        ]);
+
+        return redirect()->route('tenant.agent.index')->with('status', 'Chamada Preview iniciada.');
     }
 
     public function pause(Request $request): RedirectResponse
@@ -439,12 +543,56 @@ class AgentPanelController extends Controller
 
             if ($call->contact_phone_id) {
                 $call->contactPhone()->update($this->contactPhoneDispositionPayload($contactPayload));
+
+                if ($call->campaign && $call->contactPhone) {
+                    app(MailingQueueService::class)->recordDisposition(
+                        $call->campaign,
+                        $call->contactPhone,
+                        $disposition->id,
+                        $this->campaignPhoneStateForDisposition($contactPayload),
+                        $contactPayload['next_attempt_at'] ?? null,
+                    );
+                }
             }
         }
 
         $this->wrapUps->releaseAgent($user, $call);
+        app(PreviewLeadService::class)->releaseForCompletion($call->id);
 
         return redirect()->route('tenant.agent.index')->with('status', 'Chamada simulada encerrada.');
+    }
+
+    private function eligibleCampaigns(User $user)
+    {
+        $teamIds = $user->teams()
+            ->wherePivot('membership_type', 'agent')
+            ->where('teams.status', 'active')
+            ->pluck('teams.id');
+
+        return Campaign::query()
+            ->where('company_id', $user->company_id)
+            ->where('status', 'active')
+            ->whereIn('id', function ($query) use ($teamIds): void {
+                $query->select('campaign_team.campaign_id')
+                    ->from('campaign_team')
+                    ->whereIn('campaign_team.team_id', $teamIds);
+            })
+            ->orderByDesc('priority')
+            ->orderBy('last_dispatched_at')
+            ->get();
+    }
+
+    private function campaignSelectionRequired(User $user, mixed $campaigns = null): bool
+    {
+        $campaigns ??= $this->eligibleCampaigns($user);
+        if ($campaigns->count() < 2) {
+            return false;
+        }
+
+        return $user->teams()
+            ->wherePivot('membership_type', 'agent')
+            ->where('teams.allow_agent_campaign_selection', true)
+            ->exists();
     }
 
     private function closeOpenRecords(int $userId, int $companyId): void
@@ -546,6 +694,16 @@ class AgentPanelController extends Controller
         return collect($contactPayload)
             ->only(['status', 'next_attempt_at'])
             ->all();
+    }
+
+    private function campaignPhoneStateForDisposition(array $contactPayload): string
+    {
+        return match ($contactPayload['status'] ?? null) {
+            'pending' => 'pending',
+            'exhausted' => 'failed',
+            'unproductive' => 'no_answer',
+            default => 'delivered',
+        };
     }
 
     private function serviceFieldsSchema(Call $call): array

@@ -12,6 +12,7 @@
     $leadPhoneStrategy = old('lead_phone_strategy', $campaign?->lead_phone_strategy ?? 'vertical');
     $agentDistributionStrategy = old('agent_distribution_strategy', $campaign?->agent_distribution_strategy ?? 'least_idle');
     $amdMode = old('amd_mode', $campaign?->amd_mode ?? 'disabled');
+    $aggressiveness = old('aggressiveness', $campaign?->aggressiveness ?? 1);
     $days = [
         'monday' => 'Segunda',
         'tuesday' => 'Terca',
@@ -72,10 +73,8 @@
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Modo</span>
             <select name="dialing_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-                <option value="preview" @selected(old('dialing_mode', $campaign?->dialing_mode ?? 'preview') === 'preview')>Preview</option>
-                <option value="manual" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'manual')>Manual</option>
-                <option value="power" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'power')>Power</option>
-                <option value="predictive" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'predictive')>Preditivo</option>
+                <option value="power" @selected(old('dialing_mode', $campaign?->dialing_mode ?? 'power') === 'power')>Power</option>
+                <option value="preview" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'preview')>Preview</option>
             </select>
         </label>
 
@@ -86,6 +85,16 @@
                 <option value="horizontal" @selected($leadPhoneStrategy === 'horizontal')>Horizontal ativado</option>
             </select>
             <span class="text-xs" style="color: var(--fg-muted);">desativado tenta principais primeiro; ativado tenta alternativos do mesmo lead antes de seguir.</span>
+        </label>
+
+        <label class="grid gap-1 text-sm">
+            <span class="font-semibold">Agressividade Power</span>
+            <select name="aggressiveness" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                @for ($level = 1; $level <= ($maxCampaignAggressiveness ?? 1); $level++)
+                    <option value="{{ $level }}" @selected((int) $aggressiveness === $level)>{{ $level }} tentativa{{ $level > 1 ? 's' : '' }} por operador disponível</option>
+                @endfor
+            </select>
+            <span class="text-xs" style="color: var(--fg-muted);">Aplicável ao Power e limitado pela proteção definida pelo SuperAdmin.</span>
         </label>
 
         <label class="grid gap-1 text-sm">
@@ -207,7 +216,7 @@
             @forelse ($teams as $team)
                 <label class="mb-2 flex items-center gap-2 rounded-lg border p-3 text-sm" style="border-color: var(--border);">
                     <input type="checkbox" name="team_ids[]" value="{{ $team->id }}" @checked(in_array($team->id, $selectedTeamIds, true))>
-                    <span>{{ $team->name }}</span>
+                    <span>{{ $team->name }} · {{ strtoupper($team->operational_type) }}</span>
                 </label>
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Cadastre uma equipe antes.</p>

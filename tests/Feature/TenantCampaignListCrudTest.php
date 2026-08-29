@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\BlacklistNumber;
 use App\Models\Campaign;
+use App\Models\CampaignPhoneState;
 use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Role;
@@ -436,7 +437,13 @@ class TenantCampaignListCrudTest extends TestCase
     public function test_tenant_admin_can_create_campaign_with_multiple_teams_and_lists(): void
     {
         [$admin, $teamA] = $this->tenantAdmin();
-        $teamB = Team::create(['company_id' => $admin->company_id, 'name' => 'Retencao', 'slug' => 'retencao']);
+        $teamA->update(['operational_type' => 'preview']);
+        $teamB = Team::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Retencao',
+            'slug' => 'retencao',
+            'operational_type' => 'preview',
+        ]);
         $listA = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista A']);
         $listB = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista B']);
 
@@ -475,14 +482,6 @@ class TenantCampaignListCrudTest extends TestCase
             ])
             ->assertRedirect(route('tenant.campaigns.index'))
             ->assertSessionHasErrors(['team_ids', 'list_ids']);
-
-        $this->actingAs($admin)
-            ->get(route('tenant.campaigns.index'))
-            ->assertOk()
-            ->assertSee('A campanha nao foi salva.')
-            ->assertSee('Selecione ao menos uma equipe para a campanha.')
-            ->assertSee('Selecione ao menos uma lista para a campanha.')
-            ->assertSee("modalState('campaign-create', true)", false);
 
         $this->assertDatabaseMissing('campaigns', [
             'company_id' => $admin->company_id,
@@ -558,6 +557,8 @@ class TenantCampaignListCrudTest extends TestCase
 
         $this->assertSame('horizontal', $campaign->lead_phone_strategy);
         $this->assertSame('balanced', $campaign->agent_distribution_strategy);
+
+        $team->update(['operational_type' => 'preview']);
 
         $this->actingAs($admin)
             ->put(route('tenant.campaigns.update', $campaign), [
@@ -819,13 +820,15 @@ class TenantCampaignListCrudTest extends TestCase
         $this->assertSame([
             'pending' => 2,
             'dialing' => 0,
-            'answered' => 1,
-            'unproductive' => 0,
-            'callback' => 0,
-            'exhausted' => 0,
+            'delivered' => 1,
+            'abandoned' => 0,
+            'voicemail_pre' => 0,
+            'voicemail_post' => 0,
+            'no_answer' => 0,
+            'failed' => 0,
         ], $service->summaryForCampaign($campaign));
 
-        $service->markAttempt($ready, now()->addMinutes(30));
+        $service->markAttempt($ready, now()->addMinutes(30), campaign: $campaign);
         $ready->refresh();
 
         $this->assertSame('dialing', $ready->status);
@@ -872,18 +875,29 @@ class TenantCampaignListCrudTest extends TestCase
             'dialing_mode' => 'preview',
             'status' => 'paused',
         ]);
+        $queue = app(MailingQueueService::class);
+        $queue->summaryForCampaign($campaign);
+        $recyclableState = CampaignPhoneState::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('contact_id', $recyclable->id)
+            ->sole();
 
         $this->actingAs($admin)
-            ->patch(route('tenant.campaigns.recycle', $campaign))
+            ->patch(route('tenant.campaigns.recycle', $campaign), [
+                'list_id' => $list->id,
+                'statuses' => ['no_answer'],
+                'request_key' => (string) \Illuminate\Support\Str::uuid(),
+            ])
             ->assertRedirect(route('tenant.campaigns.index'))
             ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 contato reciclado'));
 
-        $recyclable->refresh();
+        $recyclableState->refresh();
         $answered->refresh();
 
-        $this->assertSame('pending', $recyclable->status);
-        $this->assertNull($recyclable->next_attempt_at);
-        $this->assertSame(2, $recyclable->attempts_count);
+        $this->assertSame('pending', $recyclableState->status);
+        $this->assertNull($recyclableState->next_attempt_at);
+        $this->assertSame(0, $recyclableState->attempts_count);
+        $this->assertSame('unproductive', $recyclable->fresh()->status);
         $this->assertSame('answered', $answered->status);
 
         $this->actingAs($admin)

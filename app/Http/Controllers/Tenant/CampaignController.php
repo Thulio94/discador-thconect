@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
+use App\Models\CampaignPhoneState;
 use App\Models\ContactList;
+use App\Models\Disposition;
 use App\Models\Team;
 use App\Models\TelephonyRoute;
 use App\Services\Capacity\ResourceLimitService;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
+use App\Services\Campaigns\CampaignOperationalGuard;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -26,7 +29,7 @@ class CampaignController extends Controller
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in(['draft', 'active', 'paused', 'finished'])],
-            'dialing_mode' => ['nullable', Rule::in(['preview', 'manual', 'power', 'predictive'])],
+            'dialing_mode' => ['nullable', Rule::in(Campaign::DIALING_MODES)],
             'team_id' => ['nullable', Rule::exists('teams', 'id')->where('company_id', $companyId)],
             'list_id' => ['nullable', Rule::exists('contact_lists', 'id')->where('company_id', $companyId)],
         ]);
@@ -62,11 +65,17 @@ class CampaignController extends Controller
                 ->telephonyRoutes()
                 ->orderBy('name')
                 ->get(),
+            'maxCampaignAggressiveness' => max(1, (int) $request->user()->company->license?->max_calls_per_available_agent),
+            'dispositions' => Disposition::query()
+                ->where('company_id', $companyId)
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
             'filters' => $filters,
         ]);
     }
 
-    public function store(Request $request, ResourceLimitService $limits): RedirectResponse
+    public function store(Request $request, ResourceLimitService $limits, CampaignOperationalGuard $guard): RedirectResponse
     {
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId), $this->validationMessages());
@@ -74,6 +83,7 @@ class CampaignController extends Controller
             $limits->assertCampaignCanActivate($companyId);
         }
         $this->validateListSelection($request, $companyId, $data['list_ids'] ?? []);
+        $guard->assertTeamsMatchMode($companyId, $data['dialing_mode'], $data['team_ids'] ?? []);
 
         $campaign = Campaign::create([
             'company_id' => $companyId,
@@ -82,7 +92,7 @@ class CampaignController extends Controller
             'service_script' => $data['service_script'] ?? null,
             'dialing_mode' => $data['dialing_mode'],
             'lead_phone_strategy' => $data['lead_phone_strategy'] ?? 'vertical',
-            ...$this->advancedDialingPayload($data),
+            ...$this->advancedDialingPayload($data, $companyId, $guard),
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
             'operational_schedule' => $this->schedulePayload($data['operational_schedule'] ?? []),
@@ -93,7 +103,7 @@ class CampaignController extends Controller
         return redirect()->route('tenant.campaigns.index')->with('status', 'Campanha criada com sucesso.');
     }
 
-    public function update(Request $request, Campaign $campaign, ResourceLimitService $limits): RedirectResponse
+    public function update(Request $request, Campaign $campaign, ResourceLimitService $limits, CampaignOperationalGuard $guard): RedirectResponse
     {
         abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
@@ -102,6 +112,7 @@ class CampaignController extends Controller
             $limits->assertCampaignCanActivate($campaign->company_id, $campaign->id);
         }
         $this->validateListSelection($request, $campaign->company_id, $data['list_ids'] ?? []);
+        $guard->assertTeamsMatchMode($campaign->company_id, $data['dialing_mode'], $data['team_ids'] ?? []);
 
         $campaign->update([
             'name' => $data['name'],
@@ -109,7 +120,7 @@ class CampaignController extends Controller
             'service_script' => $data['service_script'] ?? null,
             'dialing_mode' => $data['dialing_mode'],
             'lead_phone_strategy' => $data['lead_phone_strategy'] ?? 'vertical',
-            ...$this->advancedDialingPayload($data),
+            ...$this->advancedDialingPayload($data, $campaign->company_id, $guard),
             'status' => $data['status'],
             'priority' => $data['priority'] ?? 1,
             'operational_schedule' => $this->schedulePayload($data['operational_schedule'] ?? []),
@@ -185,6 +196,7 @@ class CampaignController extends Controller
             'dialing_mode' => $campaign->dialing_mode,
             'lead_phone_strategy' => $campaign->lead_phone_strategy ?? 'vertical',
             'agent_distribution_strategy' => $campaign->agent_distribution_strategy ?? 'least_idle',
+            'aggressiveness' => $campaign->aggressiveness,
             'max_attempts_per_contact' => $campaign->max_attempts_per_contact,
             'retry_delay_minutes' => $campaign->retry_delay_minutes,
             'wrap_up_seconds' => $campaign->wrap_up_seconds ?? 60,
@@ -213,7 +225,27 @@ class CampaignController extends Controller
     {
         abort_unless($campaign->company_id === $request->user()->company_id, 404);
 
-        $count = $queue->recycleCampaign($campaign);
+        $data = $request->validate([
+            'list_id' => ['required', Rule::exists('contact_lists', 'id')->where('company_id', $campaign->company_id)],
+            'statuses' => ['required', 'array', 'min:1'],
+            'statuses.*' => [Rule::in(CampaignPhoneState::STATUSES)],
+            'disposition_ids' => ['nullable', 'array'],
+            'disposition_ids.*' => [Rule::exists('dispositions', 'id')->where('company_id', $campaign->company_id)],
+            'request_key' => ['required', 'string', 'size:36'],
+        ]);
+        $list = $campaign->contactLists()
+            ->where('contact_lists.company_id', $campaign->company_id)
+            ->whereKey($data['list_id'])
+            ->firstOrFail();
+
+        $count = $queue->recycleCampaign(
+            $campaign,
+            $list,
+            $data['statuses'],
+            $request->user(),
+            $data['request_key'],
+            $data['disposition_ids'] ?? [],
+        );
 
         return redirect()
             ->route('tenant.campaigns.index')
@@ -223,6 +255,11 @@ class CampaignController extends Controller
     public function dial(Request $request, Campaign $campaign, SimulatedDialerService $dialer): RedirectResponse
     {
         abort_unless($campaign->company_id === $request->user()->company_id, 404);
+
+        if ($campaign->dialing_mode !== 'power') {
+            return redirect()->route('tenant.campaigns.index')
+                ->withErrors(['campaign' => 'Campanhas Preview não fazem discagem automática. O agente deve iniciar a ligação pela ficha.']);
+        }
 
         if (! $dialer->isCampaignInOperationalSchedule($campaign)) {
             return redirect()
@@ -243,9 +280,10 @@ class CampaignController extends Controller
             'name' => ['required', 'string', 'max:255', Rule::unique('campaigns')->where('company_id', $companyId)->ignore($campaign)],
             'description' => ['nullable', 'string', 'max:2000'],
             'service_script' => ['nullable', 'string', 'max:5000'],
-            'dialing_mode' => ['required', Rule::in(['preview', 'manual', 'power', 'predictive'])],
+            'dialing_mode' => ['required', Rule::in(Campaign::DIALING_MODES)],
             'lead_phone_strategy' => ['nullable', Rule::in(['vertical', 'horizontal'])],
             'agent_distribution_strategy' => ['nullable', Rule::in(Campaign::AGENT_DISTRIBUTION_STRATEGIES)],
+            'aggressiveness' => ['nullable', 'integer', 'min:1', 'max:100'],
             'max_attempts_per_contact' => ['nullable', 'integer', 'min:1', 'max:50'],
             'retry_delay_minutes' => ['nullable', 'integer', 'min:0', 'max:10080'],
             'wrap_up_seconds' => ['nullable', 'integer', 'min:10', 'max:3600'],
@@ -345,10 +383,13 @@ class CampaignController extends Controller
         return $payload ?: null;
     }
 
-    private function advancedDialingPayload(array $data): array
+    private function advancedDialingPayload(array $data, int $companyId, CampaignOperationalGuard $guard): array
     {
         return [
             'agent_distribution_strategy' => $data['agent_distribution_strategy'] ?? 'least_idle',
+            'aggressiveness' => $data['dialing_mode'] === 'power'
+                ? $guard->effectiveAggressiveness($companyId, $data['aggressiveness'] ?? null)
+                : null,
             'max_attempts_per_contact' => $data['max_attempts_per_contact'] ?? null,
             'retry_delay_minutes' => $data['retry_delay_minutes'] ?? null,
             'wrap_up_seconds' => $data['wrap_up_seconds'] ?? 60,

@@ -189,6 +189,7 @@ class RunDialerSmokeLoad extends Command
             'name' => 'Campanha carga '.$token,
             'dialing_mode' => 'power',
             'status' => 'active',
+            'aggressiveness' => $callsPerAgent,
         ]);
         $list = ContactList::query()->create([
             'company_id' => $company->id,

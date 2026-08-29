@@ -65,3 +65,16 @@ export function subscribeToAgentConsole(companyId, userId, onUpdated) {
 
     return () => window.Echo.leave(channelName);
 }
+
+export function subscribeToCampaignMetrics(companyId, onUpdated) {
+    if (!window.Echo || !companyId) {
+        return () => {};
+    }
+
+    const channelName = `tenant.${companyId}.campaigns`;
+
+    window.Echo.private(channelName)
+        .listen('.campaign.mailing.updated', onUpdated);
+
+    return () => window.Echo.leave(channelName);
+}

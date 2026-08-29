@@ -9,6 +9,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Capacity\ResourceLimitService;
 use App\Services\Telephony\AgentWebRtcService;
+use App\Services\Campaigns\CampaignOperationalGuard;
 use App\Services\Users\ExtensionAllocator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -364,6 +365,8 @@ class UserController extends Controller
 
             return;
         }
+
+        app(CampaignOperationalGuard::class)->assertCampaignAssignment($user, $campaignIds);
 
         $user->assignedCampaigns()->sync(
             collect($campaignIds)

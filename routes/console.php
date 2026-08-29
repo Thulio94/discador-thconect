@@ -3,6 +3,7 @@
 use App\Jobs\RecordQueueHeartbeat;
 use App\Jobs\ReconcileChannelReservations;
 use App\Jobs\GenerateOperationalAlerts;
+use App\Jobs\DispatchPowerCampaigns;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\SystemStatus\SystemStatusService;
 use Illuminate\Foundation\Inspiring;
@@ -48,4 +49,9 @@ Schedule::job((new GenerateOperationalAlerts)->onQueue('notifications'))
 Schedule::call(fn () => app(CallWrapUpService::class)->expireDue())
     ->name('dialer:expire-call-wrap-ups')
     ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::job((new DispatchPowerCampaigns)->onQueue('telephony'))
+    ->name('dialer:dispatch-power-campaigns')
+    ->everySecond()
     ->withoutOverlapping();

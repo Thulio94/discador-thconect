@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['company_id', 'contact_id', 'phone', 'column_name', 'position', 'is_primary', 'status', 'attempts_count', 'last_attempt_at', 'next_attempt_at'])]
 class ContactPhone extends Model
@@ -25,5 +26,10 @@ class ContactPhone extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function calls(): HasMany
+    {
+        return $this->hasMany(Call::class);
     }
 }

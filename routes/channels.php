@@ -18,3 +18,8 @@ Broadcast::channel('tenant.{companyId}.supervision', function ($user, $companyId
     return $user->is_super_admin
         && app(\App\Support\GodMode\GodModeContext::class)->companyId() === (int) $companyId;
 });
+
+Broadcast::channel('tenant.{companyId}.campaigns', function ($user, $companyId) {
+    return (int) $user->company_id === (int) $companyId
+        && $user->hasPermission('campaigns.read');
+});

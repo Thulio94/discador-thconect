@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Campaigns\CampaignOperationalGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TeamController extends Controller
 {
@@ -62,12 +64,15 @@ class TeamController extends Controller
     {
         $companyId = $request->user()->company_id;
         $data = $request->validate($this->rules($companyId));
+        $operationalType = $data['operational_type'] ?? 'power';
 
         $team = Team::query()->create([
             'company_id' => $companyId,
             'name' => $data['name'],
             'slug' => Str::slug($data['name']),
             'status' => $data['status'],
+            'operational_type' => $operationalType,
+            'allow_agent_campaign_selection' => $request->boolean('allow_agent_campaign_selection'),
         ]);
 
         $this->syncMembers($team, $data['agent_ids'] ?? [], $data['supervisor_ids'] ?? []);
@@ -80,11 +85,15 @@ class TeamController extends Controller
         abort_unless($team->company_id === $request->user()->company_id, 404);
 
         $data = $request->validate($this->rules($team->company_id, $team));
+        $operationalType = $data['operational_type'] ?? $team->operational_type;
+        $this->assertOperationalTypeCanChange($team, $operationalType);
 
         $team->update([
             'name' => $data['name'],
             'slug' => Str::slug($data['name']),
             'status' => $data['status'],
+            'operational_type' => $operationalType,
+            'allow_agent_campaign_selection' => $request->boolean('allow_agent_campaign_selection'),
         ]);
 
         $this->syncMembers($team, $data['agent_ids'] ?? [], $data['supervisor_ids'] ?? []);
@@ -106,6 +115,8 @@ class TeamController extends Controller
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('teams')->where('company_id', $companyId)->ignore($team)],
             'status' => ['required', Rule::in(['active', 'inactive'])],
+            'operational_type' => ['nullable', Rule::in(Team::OPERATIONAL_TYPES)],
+            'allow_agent_campaign_selection' => ['nullable', 'boolean'],
             'agent_ids' => ['array'],
             'agent_ids.*' => [Rule::exists('users', 'id')->where('company_id', $companyId)->where('user_type', 'agent')],
             'supervisor_ids' => ['array'],
@@ -125,6 +136,12 @@ class TeamController extends Controller
             $sync[(int) $id] = ['membership_type' => 'supervisor'];
         }
 
+        app(CampaignOperationalGuard::class)->assertAgentsMatchOperationalType(
+            $team->company_id,
+            $team->operational_type,
+            $agentIds,
+        );
+
         DB::transaction(function () use ($team, $agentIds, $sync): void {
             // An agent has one operational team. Supervisors may belong to several teams.
             if ($agentIds !== []) {
@@ -137,5 +154,27 @@ class TeamController extends Controller
 
             $team->users()->sync($sync);
         });
+    }
+
+    private function assertOperationalTypeCanChange(Team $team, string $type): void
+    {
+        if ($team->operational_type === $type) {
+            return;
+        }
+
+        if ($team->campaigns()->where('dialing_mode', '!=', $type)->exists()) {
+            throw ValidationException::withMessages([
+                'operational_type' => 'Não é possível mudar o tipo enquanto esta equipe estiver vinculada a campanhas incompatíveis.',
+            ]);
+        }
+
+        if ($type === 'pbx' && $team->users()
+            ->where('users.user_type', 'agent')
+            ->whereHas('assignedCampaigns')
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'operational_type' => 'Remova os agentes das campanhas antes de transformar a equipe em PABX.',
+            ]);
+        }
     }
 }

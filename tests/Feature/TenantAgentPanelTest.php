@@ -2825,6 +2825,25 @@ PHP;
         $this->assertSame(1, Call::where('company_id', $company->id)->count());
     }
 
+    public function test_agent_cannot_select_a_campaign_when_its_team_does_not_allow_it(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $firstCampaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $team = $firstCampaign->teams()->sole();
+        $team->update(['allow_agent_campaign_selection' => false]);
+        $secondCampaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Outra campanha Power',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $secondCampaign->teams()->attach($team, ['company_id' => $company->id]);
+
+        $this->actingAs($agent)
+            ->patch(route('tenant.agent.campaign.select'), ['campaign_id' => $secondCampaign->id])
+            ->assertForbidden();
+    }
+
     private function campaignWithAvailableAgents(Company $company, array $agents): Campaign
     {
         $team = Team::create([

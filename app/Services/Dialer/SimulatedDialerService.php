@@ -32,7 +32,7 @@ class SimulatedDialerService
 
     public function runCampaign(Campaign $campaign): int
     {
-        if ($campaign->status !== 'active') {
+        if ($campaign->status !== 'active' || $campaign->dialing_mode !== 'power') {
             return 0;
         }
 
@@ -57,9 +57,9 @@ class SimulatedDialerService
             $campaign->load('teams');
 
             $remaining = $this->capacity->remainingConcurrentCallsForCampaign($campaign);
-            $callsPerAgent = max(
-                1,
-                (int) ($license?->max_calls_per_available_agent ?? 1),
+            $callsPerAgent = min(
+                max(1, (int) ($license?->max_calls_per_available_agent ?? 1)),
+                max(1, (int) ($campaign->aggressiveness ?? $license?->max_calls_per_available_agent ?? 1)),
             );
 
             if ($remaining < 1) {
@@ -147,7 +147,7 @@ class SimulatedDialerService
     {
         $assignedAgentIds = $this->assignedAgentIds($campaign);
 
-        return User::query()
+        $agent = User::query()
             ->whereKey($agentId)
             ->where('company_id', $campaign->company_id)
             ->where('status', 'active')
@@ -163,6 +163,35 @@ class SimulatedDialerService
             ->when($assignedAgentIds->isNotEmpty(), fn ($query) => $query->whereIn('users.id', $assignedAgentIds))
             ->lockForUpdate()
             ->first();
+
+        if (! $agent || ! $this->agentCanReceiveCampaign($agent, $campaign)) {
+            return null;
+        }
+
+        return $agent;
+    }
+
+    private function agentCanReceiveCampaign(User $agent, Campaign $campaign): bool
+    {
+        $team = $agent->teams()
+            ->wherePivot('membership_type', 'agent')
+            ->where('teams.status', 'active')
+            ->first();
+        if (! $team || $team->operational_type !== 'power') {
+            return false;
+        }
+
+        $campaignCount = $team->campaigns()
+            ->where('campaigns.status', 'active')
+            ->where('campaigns.dialing_mode', 'power')
+            ->count();
+        if (! $team->allow_agent_campaign_selection || $campaignCount < 2) {
+            return true;
+        }
+
+        return $agent->currentAgentCampaignSession()
+            ->where('campaign_id', $campaign->id)
+            ->exists();
     }
 
     private function createBatch(Campaign $campaign, User $agent, int $batchSize): int
@@ -197,6 +226,7 @@ class SimulatedDialerService
                 now()->addMinutes(30),
                 status: $isWinner ? 'dialing' : 'pending',
                 contactPhone: $contactPhone,
+                campaign: $campaign,
             );
             $created++;
         }

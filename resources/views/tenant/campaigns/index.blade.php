@@ -27,7 +27,7 @@
             </select>
             <select name="dialing_mode" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                 <option value="">Todos modos</option>
-                @foreach (['preview' => 'Preview', 'manual' => 'Manual', 'power' => 'Power', 'predictive' => 'Preditivo'] as $value => $label)
+                @foreach (['power' => 'Power', 'preview' => 'Preview'] as $value => $label)
                     <option value="{{ $value }}" @selected(($filters['dialing_mode'] ?? '') === $value)>{{ $label }}</option>
                 @endforeach
             </select>
@@ -51,7 +51,9 @@
 
         <div class="mt-5 grid gap-3">
             @forelse ($campaigns as $campaign)
-                @php($summary = $mailingSummaries[$campaign->id] ?? [])
+                @php
+                    $summary = $mailingSummaries[$campaign->id] ?? [];
+                @endphp
                 <div class="rounded-lg border p-4" style="border-color: var(--border);">
                     <div class="flex items-start justify-between gap-4">
                         <div>
@@ -71,13 +73,28 @@
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                 Distribuicao {{ ['least_idle' => 'mais ocioso', 'balanced' => 'equilibrado', 'random' => 'aleatorio'][(string) ($campaign->agent_distribution_strategy ?? 'least_idle')] ?? 'mais ocioso' }} | Tentativas {{ $campaign->max_attempts_per_contact ?: 'pela tabulacao' }} | Tabulacao {{ $campaign->wrap_up_seconds ?? 60 }}s | AMD {{ ['simulated' => 'simulado', 'asterisk' => 'Asterisk'][(string) $campaign->amd_mode] ?? 'desativado' }} | Fixo {{ $campaign->fixedTelephonyRoute?->name ?: '-' }} | Movel {{ $campaign->mobileTelephonyRoute?->name ?: '-' }}
                             </p>
+                            @php
+                                $totalMailing = array_sum($summary);
+                                $mailingLabels = ['pending' => 'Pendentes', 'dialing' => 'Discando', 'delivered' => 'Entregues', 'abandoned' => 'Abandonadas', 'voicemail_pre' => 'Caixa postal pré', 'voicemail_post' => 'Caixa postal pós', 'no_answer' => 'Não atendidas', 'failed' => 'Falhas'];
+                                $mailingColors = ['pending' => '#64748b', 'dialing' => '#2563eb', 'delivered' => '#16a34a', 'abandoned' => '#e11d48', 'voicemail_pre' => '#a855f7', 'voicemail_post' => '#d946ef', 'no_answer' => '#f59e0b', 'failed' => '#ef4444'];
+                            @endphp
+                            <div class="mt-3 flex h-2 overflow-hidden rounded-full" title="Andamento do mailing">
+                                @foreach ($summary as $state => $count)
+                                    @php
+                                        $color = $mailingColors[$state] ?? '#64748b';
+                                    @endphp
+                                    @if ($totalMailing > 0 && $count > 0)
+                                        <span style="width: {{ ($count / $totalMailing) * 100 }}%; background: {{ $color }};"></span>
+                                    @endif
+                                @endforeach
+                            </div>
                             <div class="mt-3 flex flex-wrap gap-2 text-xs" style="color: var(--fg-muted);">
-                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Pendentes {{ $summary['pending'] ?? 0 }}</span>
-                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Discando {{ $summary['dialing'] ?? 0 }}</span>
-                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Atendidos {{ $summary['answered'] ?? 0 }}</span>
-                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Impro {{ $summary['unproductive'] ?? 0 }}</span>
-                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Callback {{ $summary['callback'] ?? 0 }}</span>
-                                <span class="rounded-full px-2 py-1" style="background: var(--bg-subtle);">Esgotados {{ $summary['exhausted'] ?? 0 }}</span>
+                                @foreach ($summary as $state => $count)
+                                    @php
+                                        $color = $mailingColors[$state] ?? '#64748b';
+                                    @endphp
+                                    <span class="rounded-full border px-2 py-1" style="border-color: {{ $color }}; background: var(--surface-alt); color: {{ $color }};">{{ $mailingLabels[$state] ?? $state }} {{ $count }} ({{ $totalMailing ? number_format(($count / $totalMailing) * 100, 2, ',', '.') : '0,00' }}%)</span>
+                                @endforeach
                             </div>
                         </div>
                         <span class="rounded-full px-2 py-1 text-xs" style="background: var(--bg-subtle); color: var(--fg-muted);">{{ $campaign->status }}</span>
@@ -194,7 +211,35 @@
                     <form method="POST" action="{{ route('tenant.campaigns.recycle', $campaign) }}">
                         @csrf
                         @method('PATCH')
-                        <p class="text-sm" style="color: var(--fg-muted);">Contatos improdutivos, callbacks e esgotados voltarao para pendente, sem zerar o historico de tentativas.</p>
+                        <input type="hidden" name="request_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+                        <p class="text-sm" style="color: var(--fg-muted);">Apenas os telefones selecionados retornam para pendente. Chamadas, tentativas e tabulações anteriores são preservadas.</p>
+                        <label class="mt-4 block text-sm font-medium">
+                            Lista da campanha
+                            <select name="list_id" required class="mt-1 w-full rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface);">
+                                @foreach ($campaign->contactLists as $list)
+                                    <option value="{{ $list->id }}">{{ $list->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <fieldset class="mt-4">
+                            <legend class="text-sm font-medium">Resultados a reciclar</legend>
+                            <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                @foreach (['no_answer' => 'Não atendida', 'abandoned' => 'Abandonada', 'voicemail_pre' => 'Caixa postal pré', 'voicemail_post' => 'Caixa postal pós', 'failed' => 'Falha', 'delivered' => 'Finalizada'] as $value => $label)
+                                    <label class="flex items-center gap-2"><input type="checkbox" name="statuses[]" value="{{ $value }}" @checked(in_array($value, ['no_answer', 'abandoned', 'failed'], true))> {{ $label }}</label>
+                                @endforeach
+                            </div>
+                        </fieldset>
+                        @if ($dispositions->isNotEmpty())
+                            <fieldset class="mt-4">
+                                <legend class="text-sm font-medium">Tabulações finalizadas (opcional)</legend>
+                                <p class="mt-1 text-xs" style="color: var(--fg-muted);">Quando marcada, a reciclagem filtra também por estas tabulações.</p>
+                                <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                    @foreach ($dispositions as $disposition)
+                                        <label class="flex items-center gap-2"><input type="checkbox" name="disposition_ids[]" value="{{ $disposition->id }}"> {{ $disposition->name }}</label>
+                                    @endforeach
+                                </div>
+                            </fieldset>
+                        @endif
                         <div class="mt-5 flex justify-end gap-2">
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-recycle-{{ $campaign->id }}')">Cancelar</x-ui.button>
                             <x-ui.button type="submit">Reciclar mailing</x-ui.button>
@@ -244,6 +289,16 @@
         <form method="POST" action="{{ route('tenant.campaigns.store') }}">
             @csrf
             <input type="hidden" name="_campaign_form" value="create">
+            @if ($errors->any() && old('_campaign_form', 'create') === 'create')
+                <div class="mb-4 rounded-lg border p-3 text-sm" role="alert" style="border-color: #ef4444; color: #b91c1c;">
+                    <p class="font-semibold">A campanha nao foi salva.</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
             @include('tenant.campaigns._form', ['teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
             <div class="mt-5 flex justify-end">
                 <x-ui.button type="submit">Criar campanha</x-ui.button>
@@ -264,4 +319,13 @@
         </script>
     @endif
     @endcan
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let refreshTimer;
+            window.subscribeToCampaignMetrics?.({{ auth()->user()->company_id }}, () => {
+                window.clearTimeout(refreshTimer);
+                refreshTimer = window.setTimeout(() => window.location.reload(), 750);
+            });
+        });
+    </script>
 </x-app-layout>

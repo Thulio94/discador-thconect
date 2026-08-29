@@ -109,6 +109,16 @@ class User extends Authenticatable
         return $this->hasMany(AgentPause::class);
     }
 
+    public function agentCampaignSessions(): HasMany
+    {
+        return $this->hasMany(AgentCampaignSession::class);
+    }
+
+    public function currentAgentCampaignSession(): HasOne
+    {
+        return $this->hasOne(AgentCampaignSession::class)->whereNull('ended_at')->latestOfMany();
+    }
+
     public function calls(): HasMany
     {
         return $this->hasMany(Call::class);
@@ -140,13 +150,29 @@ class User extends Authenticatable
             return true;
         }
 
-        if ($this->user_type === 'agent' && ! in_array($permissionKey, [
-            'dashboard.read',
-            'agent.access',
-            'notifications.read',
-            'notifications.update',
-        ], true)) {
-            return false;
+        if ($this->user_type === 'agent') {
+            $agentPermissions = [
+                'dashboard.read',
+                'agent.access',
+                'notifications.read',
+                'notifications.update',
+            ];
+            $isPbxAgent = $this->teams()
+                ->wherePivot('membership_type', 'agent')
+                ->where('teams.operational_type', 'pbx')
+                ->exists();
+
+            if ($isPbxAgent) {
+                $agentPermissions = [...$agentPermissions, 'pbx.read', 'pbx.call'];
+            }
+
+            if (! in_array($permissionKey, $agentPermissions, true)) {
+                return false;
+            }
+
+            if ($isPbxAgent && in_array($permissionKey, ['pbx.read', 'pbx.call'], true)) {
+                return true;
+            }
         }
 
         $role->loadMissing('permissions');

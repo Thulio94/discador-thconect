@@ -142,6 +142,29 @@
             </div>
         </x-ui.card>
 
+        @if ($eligibleCampaigns->isNotEmpty())
+            <x-ui.card>
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Campanha operacional</p>
+                        <p class="mt-1 font-semibold">{{ $selectedCampaign?->name ?? 'Nenhuma campanha selecionada' }}</p>
+                    </div>
+                    @if ($canSelectCampaign)
+                        <form method="POST" action="{{ route('tenant.agent.campaign.select') }}" class="flex flex-wrap items-center gap-2">
+                            @csrf
+                            @method('PATCH')
+                            <select name="campaign_id" class="rounded-lg border px-3 py-2 text-sm" style="border-color: var(--border); background: var(--surface);">
+                                @foreach ($eligibleCampaigns as $campaignOption)
+                                    <option value="{{ $campaignOption->id }}" @selected($selectedCampaign?->id === $campaignOption->id)>{{ $campaignOption->name }} · {{ strtoupper($campaignOption->dialing_mode) }}</option>
+                                @endforeach
+                            </select>
+                            <x-ui.button type="submit" variant="secondary">Selecionar</x-ui.button>
+                        </form>
+                    @endif
+                </div>
+            </x-ui.card>
+        @endif
+
         <div class="agent-workspace">
             <div class="grid min-w-0 gap-4">
                 <x-ui.card>
@@ -165,6 +188,25 @@
                             @elseif ($wrapUpCall)
                                 <h2 class="mt-1 text-2xl font-bold">Atendimento encerrado</h2>
                                 <p class="mt-1 text-sm" style="color: var(--fg-muted);">Aguardando a classificacao do resultado.</p>
+                            @elseif ($previewReservation)
+                                <h2 class="mt-1 text-2xl font-bold">{{ $previewReservation->phoneState->contactPhone->phone }}</h2>
+                                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Ficha Preview: {{ $previewReservation->phoneState->contact->name ?? 'Lead sem nome' }} · {{ $previewReservation->campaign->name }}</p>
+                                <p class="mt-2 text-xs font-semibold" style="color: var(--status-success);">Ficha reservada. Inicie a ligação quando estiver pronto.</p>
+                                <form method="POST" action="{{ route('tenant.agent.preview.call') }}" class="mt-3">
+                                    @csrf
+                                    <x-ui.button type="submit">Ligar para o lead</x-ui.button>
+                                </form>
+                            @elseif ($currentStatus === 'available' && $selectedCampaign?->dialing_mode === 'preview')
+                                <div class="flex items-center justify-between gap-4">
+                                    <div>
+                                        <h2 class="text-2xl font-bold">Aguardando ficha Preview</h2>
+                                        <p class="mt-1 text-sm" style="color: var(--fg-muted);">A campanha Preview nunca inicia uma chamada automaticamente.</p>
+                                    </div>
+                                    <form method="POST" action="{{ route('tenant.agent.preview.reserve') }}">
+                                        @csrf
+                                        <x-ui.button type="submit">Carregar ficha</x-ui.button>
+                                    </form>
+                                </div>
                             @elseif ($currentStatus === 'available')
                                 <div class="flex items-center gap-4">
                                     <span class="grid h-14 w-14 shrink-0 place-items-center rounded-full animate-pulse" style="background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--primary); box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 8%, transparent);"><x-ui.icon name="phone" class="h-6 w-6" /></span>

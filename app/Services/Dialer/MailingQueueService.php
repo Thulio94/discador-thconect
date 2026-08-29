@@ -2,9 +2,14 @@
 
 namespace App\Services\Dialer;
 
+use App\Events\CampaignMailingMetricsUpdated;
 use App\Models\Campaign;
+use App\Models\CampaignPhoneState;
 use App\Models\Contact;
+use App\Models\ContactList;
 use App\Models\ContactPhone;
+use App\Models\MailingRecycle;
+use App\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -14,10 +19,12 @@ class MailingQueueService
     public const STATUSES = [
         'pending',
         'dialing',
-        'answered',
-        'unproductive',
-        'callback',
-        'exhausted',
+        'delivered',
+        'abandoned',
+        'voicemail_pre',
+        'voicemail_post',
+        'no_answer',
+        'failed',
     ];
 
     public function nextContactForCampaign(Campaign $campaign): ?Contact
@@ -43,44 +50,82 @@ class MailingQueueService
             return null;
         }
 
-        $candidate = $this->candidatePhoneQuery($campaign, $listIds)->first();
+        $this->ensureCampaignStates($campaign, $listIds);
+        $candidate = $this->stateCandidatePhoneQuery($campaign, $listIds)->first();
 
         if (! $candidate) {
             return null;
         }
 
-        return $this->contactPhoneFromCandidate($candidate);
+        return ContactPhone::query()
+            ->where('company_id', $campaign->company_id)
+            ->with('contact')
+            ->find($candidate->contact_phone_id);
     }
 
-    private function candidatePhoneQuery(Campaign $campaign, array $listIds): Builder
+    public function stateForCampaignPhone(Campaign $campaign, ContactPhone $phone): CampaignPhoneState
+    {
+        $contact = $phone->contact()->firstOrFail();
+        $listId = (int) $contact->contact_list_id;
+
+        abort_unless($contact->company_id === $campaign->company_id && $phone->company_id === $campaign->company_id, 404);
+        abort_unless($campaign->contactLists()->whereKey($listId)->exists(), 404);
+
+        return CampaignPhoneState::query()->firstOrCreate(
+            ['campaign_id' => $campaign->id, 'contact_phone_id' => $phone->id],
+            [
+                'company_id' => $campaign->company_id,
+                'contact_list_id' => $listId,
+                'contact_id' => $contact->id,
+                'status' => $this->stateStatusFromLegacy((string) ($phone->status ?: $contact->status)),
+                // A contact can have several phones. Only legacy contacts without
+                // a phone row inherit the contact-level counters.
+                'attempts_count' => (int) $phone->attempts_count,
+                'last_attempt_at' => $phone->last_attempt_at,
+                'next_attempt_at' => $phone->next_attempt_at,
+            ],
+        );
+    }
+
+    private function stateCandidatePhoneQuery(Campaign $campaign, array $listIds): Builder
     {
         $now = now();
 
-        $query = DB::table('contacts')
+        $query = DB::table('campaign_phone_states')
             ->select([
-                'contacts.id as contact_id',
-                'contact_phones.id as contact_phone_id',
+                'campaign_phone_states.contact_phone_id',
             ])
             ->join('campaign_contact_list', function ($join) use ($campaign): void {
-                $join->on('campaign_contact_list.contact_list_id', '=', 'contacts.contact_list_id')
+                $join->on('campaign_contact_list.contact_list_id', '=', 'campaign_phone_states.contact_list_id')
                     ->where('campaign_contact_list.campaign_id', $campaign->id)
                     ->where('campaign_contact_list.company_id', $campaign->company_id);
             })
-            ->leftJoin('contact_phones', function ($join): void {
-                $join->on('contact_phones.contact_id', '=', 'contacts.id')
-                    ->whereColumn('contact_phones.company_id', 'contacts.company_id');
-            })
-            ->where('contacts.company_id', $campaign->company_id)
-            ->whereIn('contacts.contact_list_id', $listIds)
-            ->where('contacts.status', 'pending')
+            ->join('contact_phones', 'contact_phones.id', '=', 'campaign_phone_states.contact_phone_id')
+            ->where('campaign_phone_states.company_id', $campaign->company_id)
+            ->where('campaign_phone_states.campaign_id', $campaign->id)
+            ->whereIn('campaign_phone_states.contact_list_id', $listIds)
+            ->where('campaign_phone_states.status', 'pending')
             ->where(function ($query) use ($now): void {
-                $query->whereNull('contacts.next_attempt_at')
-                    ->orWhere('contacts.next_attempt_at', '<=', $now);
+                $query->whereNull('campaign_phone_states.next_attempt_at')
+                    ->orWhere('campaign_phone_states.next_attempt_at', '<=', $now);
+            })
+            // A retry belongs to the lead, not just to the number dialed. While a
+            // phone from the lead is cooling down, do not bypass it through a
+            // sibling number. This also keeps cancelled Power batch entries from
+            // immediately returning through an alternate phone.
+            ->whereNotExists(function ($query) use ($campaign, $now): void {
+                $query->selectRaw('1')
+                    ->from('campaign_phone_states as pending_retry')
+                    ->whereColumn('pending_retry.contact_id', 'campaign_phone_states.contact_id')
+                    ->where('pending_retry.company_id', $campaign->company_id)
+                    ->where('pending_retry.campaign_id', $campaign->id)
+                    ->where('pending_retry.status', 'pending')
+                    ->where('pending_retry.next_attempt_at', '>', $now);
             })
             ->whereNotExists(function ($query) use ($campaign): void {
                 $query->selectRaw('1')
                     ->from('calls')
-                    ->whereColumn('calls.contact_id', 'contacts.id')
+                    ->whereColumn('calls.contact_id', 'campaign_phone_states.contact_id')
                     ->where('calls.company_id', $campaign->company_id)
                     ->where('calls.campaign_id', $campaign->id)
                     ->whereNotNull('calls.user_id')
@@ -97,47 +142,24 @@ class MailingQueueService
                                     });
                             });
                     });
-            })
-            ->where(function ($query) use ($now): void {
-                $query->where(function ($query): void {
-                    $query->whereNull('contact_phones.id')
-                        ->whereNotNull('contacts.phone')
-                        ->whereRaw("TRIM(contacts.phone) <> ''");
-                })->orWhere(function ($query) use ($now): void {
-                    $query->whereNotNull('contact_phones.id')
-                        ->whereNotNull('contact_phones.phone')
-                        ->whereRaw("TRIM(contact_phones.phone) <> ''")
-                        ->whereNotIn('contact_phones.status', ['answered', 'exhausted'])
-                        ->where(function ($query) use ($now): void {
-                            $query->whereNull('contact_phones.next_attempt_at')
-                                ->orWhere('contact_phones.next_attempt_at', '<=', $now);
-                        });
-                });
             });
-
-        $phoneAttempts = 'COALESCE(contact_phones.attempts_count, contacts.attempts_count)';
-        $phonePosition = 'COALESCE(contact_phones.position, 0)';
-        $phoneId = 'COALESCE(contact_phones.id, 0)';
 
         if (($campaign->lead_phone_strategy ?? 'vertical') === 'horizontal') {
             return $query
                 ->orderByDesc('campaign_contact_list.weight')
-                ->orderByRaw($phoneAttempts.' asc')
-                ->orderBy('contacts.id')
-                ->orderByRaw($phonePosition.' asc')
-                ->orderByRaw($phoneId.' asc')
+                ->orderBy('campaign_phone_states.attempts_count')
+                ->orderBy('campaign_phone_states.contact_id')
+                ->orderBy('campaign_phone_states.contact_phone_id')
                 ->limit(1);
         }
 
-        $primaryRank = 'CASE WHEN contact_phones.id IS NULL OR contact_phones.is_primary = 1 OR contact_phones.position = 0 THEN 0 ELSE 1 END';
-
         return $query
-            ->orderByRaw($phoneAttempts.' asc')
-            ->orderByRaw($primaryRank.' asc')
+            ->orderBy('campaign_phone_states.attempts_count')
+            ->orderByRaw('CASE WHEN contact_phones.is_primary = 1 OR contact_phones.position = 0 THEN 0 ELSE 1 END')
             ->orderByDesc('campaign_contact_list.weight')
-            ->orderBy('contacts.id')
-            ->orderByRaw($phonePosition.' asc')
-            ->orderByRaw($phoneId.' asc')
+            ->orderBy('campaign_phone_states.contact_id')
+            ->orderBy('contact_phones.position')
+            ->orderBy('campaign_phone_states.contact_phone_id')
             ->limit(1);
     }
 
@@ -165,7 +187,16 @@ class MailingQueueService
         ?Carbon $nextAttemptAt = null,
         string $status = 'dialing',
         ?ContactPhone $contactPhone = null,
+        ?Campaign $campaign = null,
     ): Contact {
+        if ($campaign) {
+            Campaign::query()
+                ->where('company_id', $campaign->company_id)
+                ->whereHas('contactLists', fn ($query) => $query->whereKey($contact->contact_list_id))
+                ->get()
+                ->each(fn (Campaign $linkedCampaign) => $this->ensureCampaignStates($linkedCampaign, [(int) $contact->contact_list_id]));
+        }
+
         $contact->forceFill([
             'status' => $status,
             'attempts_count' => $contact->attempts_count + 1,
@@ -184,45 +215,127 @@ class MailingQueueService
                 'last_attempt_at' => now(),
                 'next_attempt_at' => $nextAttemptAt,
             ])->save();
+
+            if ($campaign) {
+                $this->stateForCampaignPhone($campaign, $contactPhone)->update([
+                    'status' => $status,
+                    'last_result' => null,
+                    'attempts_count' => DB::raw('attempts_count + 1'),
+                    'last_attempt_at' => now(),
+                    'next_attempt_at' => $nextAttemptAt,
+                ]);
+                event(new CampaignMailingMetricsUpdated($campaign->company_id, $campaign->id));
+            }
         }
 
         return $contact;
     }
 
-    public function recycleCampaign(Campaign $campaign): int
+    public function recycleCampaign(
+        Campaign $campaign,
+        ?ContactList $list = null,
+        array $statuses = ['no_answer', 'failed', 'abandoned'],
+        ?User $user = null,
+        ?string $requestKey = null,
+        array $dispositionIds = [],
+    ): int
     {
-        $listIds = $this->activeListIds($campaign, includeInactiveLists: true);
-
-        if ($listIds === []) {
+        $list ??= $campaign->contactLists()->where('contact_lists.company_id', $campaign->company_id)->first();
+        if (! $list) {
             return 0;
         }
 
-        return DB::transaction(function () use ($campaign, $listIds): int {
-            $contacts = Contact::query()
-                ->where('company_id', $campaign->company_id)
-                ->whereIn('contact_list_id', $listIds)
-                ->whereIn('status', ['unproductive', 'callback', 'exhausted']);
-            $contactIds = (clone $contacts)->pluck('id');
+        abort_unless($list->company_id === $campaign->company_id && $campaign->contactLists()->whereKey($list->id)->exists(), 404);
+        $requestKey ??= hash('sha256', implode(':', [$campaign->id, $list->id, implode(',', $statuses), now()->format('YmdHi')]));
 
-            if ($contactIds->isEmpty()) {
-                return 0;
+        return DB::transaction(function () use ($campaign, $list, $statuses, $dispositionIds, $user, $requestKey): int {
+            $actorId = $user?->id ?? auth()->id();
+            $recycle = null;
+            if ($actorId) {
+                $recycle = MailingRecycle::query()->firstOrCreate(
+                    ['request_key' => $requestKey],
+                    [
+                        'company_id' => $campaign->company_id,
+                        'campaign_id' => $campaign->id,
+                        'contact_list_id' => $list->id,
+                        'user_id' => $actorId,
+                        'filters' => [
+                            'statuses' => array_values($statuses),
+                            'disposition_ids' => array_values(array_map('intval', $dispositionIds)),
+                        ],
+                    ],
+                );
+
+                if (! $recycle->wasRecentlyCreated) {
+                    return $recycle->affected_count;
+                }
             }
 
-            ContactPhone::query()
+            $this->ensureCampaignStates($campaign, [$list->id]);
+            $states = CampaignPhoneState::query()
                 ->where('company_id', $campaign->company_id)
-                ->whereIn('contact_id', $contactIds)
-                ->update([
-                    'status' => 'pending',
-                    'next_attempt_at' => null,
-                    'updated_at' => now(),
-                ]);
+                ->where('campaign_id', $campaign->id)
+                ->where('contact_list_id', $list->id)
+                ->whereIn('status', array_values(array_intersect($statuses, self::STATUSES)));
 
-            return $contacts->update([
+            if ($dispositionIds !== []) {
+                $states->whereIn('last_disposition_id', array_values(array_unique(array_map('intval', $dispositionIds))));
+            }
+            $phoneIds = $states->pluck('contact_phone_id');
+            $count = $phoneIds->count();
+            $states->update([
                 'status' => 'pending',
+                'last_result' => null,
+                'attempts_count' => 0,
+                'recycle_count' => DB::raw('recycle_count + 1'),
                 'next_attempt_at' => null,
                 'updated_at' => now(),
             ]);
+
+            // Legacy callers (scheduler/maintenance and the historical test
+            // surface) recycle the entire list. Keep their contact queue in
+            // sync, while interactive recycling remains campaign-scoped.
+            if (! $actorId && $dispositionIds === []) {
+                $contacts = ContactPhone::query()
+                    ->whereIn('id', $phoneIds)
+                    ->get(['id', 'contact_id']);
+
+                ContactPhone::query()
+                    ->whereIn('id', $phoneIds)
+                    ->update([
+                        'status' => 'pending',
+                        'next_attempt_at' => null,
+                        'updated_at' => now(),
+                    ]);
+
+                Contact::query()
+                    ->whereIn('id', $contacts->pluck('contact_id')->unique())
+                    ->update([
+                        'status' => 'pending',
+                        'next_attempt_at' => null,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            $recycle?->update(['affected_count' => $count]);
+            event(new CampaignMailingMetricsUpdated($campaign->company_id, $campaign->id));
+
+            return $count;
         });
+    }
+
+    public function recordDisposition(Campaign $campaign, ContactPhone $phone, int $dispositionId, string $status, ?Carbon $nextAttemptAt = null): void
+    {
+        $state = $this->stateForCampaignPhone($campaign, $phone);
+
+        $state->update([
+            'status' => in_array($status, self::STATUSES, true) ? $status : 'delivered',
+            'last_disposition_id' => $dispositionId,
+            'last_result' => (string) $dispositionId,
+            'next_attempt_at' => $nextAttemptAt,
+            'completed_at' => now(),
+        ]);
+        event(new CampaignMailingMetricsUpdated($campaign->company_id, $campaign->id));
     }
 
     public function summaryForCampaign(Campaign $campaign): array
@@ -234,8 +347,11 @@ class MailingQueueService
             return $summary;
         }
 
-        Contact::query()
+        $this->ensureCampaignStates($campaign, $listIds);
+
+        CampaignPhoneState::query()
             ->where('company_id', $campaign->company_id)
+            ->where('campaign_id', $campaign->id)
             ->whereIn('contact_list_id', $listIds)
             ->whereIn('status', self::STATUSES)
             ->selectRaw('status, count(*) as total')
@@ -246,6 +362,35 @@ class MailingQueueService
             });
 
         return $summary;
+    }
+
+    private function ensureCampaignStates(Campaign $campaign, array $listIds): void
+    {
+        Contact::query()
+            ->where('company_id', $campaign->company_id)
+            ->whereIn('contact_list_id', $listIds)
+            ->with('phones')
+            ->orderBy('id')
+            ->each(function (Contact $contact) use ($campaign): void {
+                $phones = $contact->phones;
+                if ($phones->isEmpty()) {
+                    $phone = $this->ensurePrimaryPhoneForLegacyContact($contact);
+                    $phones = $phone ? collect([$phone]) : collect();
+                }
+
+                $phones->each(fn (ContactPhone $phone) => $this->stateForCampaignPhone($campaign, $phone));
+            });
+    }
+
+    private function stateStatusFromLegacy(string $status): string
+    {
+        return match ($status) {
+            'dialing' => 'dialing',
+            'answered', 'callback' => 'delivered',
+            'unproductive' => 'no_answer',
+            'exhausted' => 'failed',
+            default => 'pending',
+        };
     }
 
     private function activeListIds(Campaign $campaign, bool $includeInactiveLists = false): array

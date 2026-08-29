@@ -13,6 +13,7 @@ use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\SuperAdmin\TelephonyRouteController;
 use App\Http\Controllers\Tenant\AgentPanelController;
 use App\Http\Controllers\Tenant\CampaignController;
+use App\Http\Controllers\Tenant\PbxController;
 use App\Http\Controllers\Tenant\ContactListController;
 use App\Http\Controllers\Tenant\IntegrationController;
 use App\Http\Controllers\Tenant\NotificationController;
@@ -88,6 +89,8 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::delete('lists/{list}', [ContactListController::class, 'destroy'])->middleware('can:tenant.lists.delete')->name('lists.destroy');
 
         Route::get('campaigns', [CampaignController::class, 'index'])->middleware('can:tenant.campaigns.read')->name('campaigns.index');
+        Route::get('pbx', [PbxController::class, 'index'])->middleware('can:tenant.pbx.read')->name('pbx.index');
+        Route::post('pbx/calls', [PbxController::class, 'call'])->middleware(['can:tenant.pbx.call', 'god-mode.telephony-safe'])->name('pbx.calls.store');
         Route::post('campaigns', [CampaignController::class, 'store'])->middleware('can:tenant.campaigns.create')->name('campaigns.store');
         Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->middleware('can:tenant.campaigns.update')->name('campaigns.update');
         Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])->middleware('can:tenant.campaigns.delete')->name('campaigns.destroy');
@@ -102,6 +105,9 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::get('agent/state', [AgentPanelController::class, 'state'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-state'])->name('agent.state');
         Route::post('agent/softphone/session', [AgentPanelController::class, 'softphoneSession'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-softphone'])->name('agent.softphone.session');
         Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.status');
+        Route::patch('agent/campaign', [AgentPanelController::class, 'selectCampaign'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.campaign.select');
+        Route::post('agent/preview/reserve', [AgentPanelController::class, 'reservePreview'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.preview.reserve');
+        Route::post('agent/preview/call', [AgentPanelController::class, 'startPreviewCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.preview.call');
         Route::patch('agent/pause', [AgentPanelController::class, 'pause'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.pause');
         Route::post('agent/calls', [AgentPanelController::class, 'storeCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.store');
         Route::patch('agent/calls/hangup', [AgentPanelController::class, 'hangupCall'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.calls.hangup');
