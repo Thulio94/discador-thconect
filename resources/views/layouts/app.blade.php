@@ -15,6 +15,7 @@
             ['label' => 'Capacidade', 'href' => route('super-admin.capacity.index'), 'icon' => 'status', 'active' => request()->routeIs('super-admin.capacity.*')],
             ['label' => 'Status do sistema', 'href' => route('super-admin.system-status.index'), 'icon' => 'status', 'active' => request()->routeIs('super-admin.system-status.*')],
             ['label' => 'Backup de gravações', 'href' => route('super-admin.recording-backup.index'), 'icon' => 'history', 'active' => request()->routeIs('super-admin.recording-backup.*')],
+            ['label' => 'Backup de dados', 'href' => route('super-admin.database-backup.index'), 'icon' => 'history', 'active' => request()->routeIs('super-admin.database-backup.*')],
             ['label' => 'Auditoria', 'href' => route('super-admin.audit-logs.index'), 'icon' => 'history', 'active' => request()->routeIs('super-admin.audit-logs.*')],
         ]
         : [

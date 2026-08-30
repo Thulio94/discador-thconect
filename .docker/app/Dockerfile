@@ -1,7 +1,7 @@
 FROM php:8.3-fpm
 
 RUN apt-get update \
-    && apt-get install -y git curl unzip libzip-dev libpng-dev libonig-dev libxml2-dev \
+    && apt-get install -y git curl unzip mariadb-client libzip-dev libpng-dev libonig-dev libxml2-dev \
     && docker-php-ext-install pdo_mysql mbstring zip exif pcntl bcmath gd opcache \
     && pecl install redis \
     && docker-php-ext-enable redis \

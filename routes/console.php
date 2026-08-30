@@ -26,6 +26,10 @@ Schedule::command('recordings:dispatch-google-drive-backup')
     ->everyMinute()
     ->withoutOverlapping();
 
+Schedule::command('system:database-backup')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 Schedule::command('calls:archive-old')
     ->monthlyOn(2, '02:30')
     ->withoutOverlapping();
