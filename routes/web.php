@@ -9,6 +9,7 @@ use App\Http\Controllers\SuperAdmin\AuditLogController as SuperAdminAuditLogCont
 use App\Http\Controllers\SuperAdmin\CapacityController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\GodModeController;
+use App\Http\Controllers\SuperAdmin\GoogleDriveRecordingBackupController;
 use App\Http\Controllers\SuperAdmin\SystemStatusController;
 use App\Http\Controllers\SuperAdmin\TelephonyRouteController;
 use App\Http\Controllers\Tenant\AgentPanelController;
@@ -49,6 +50,11 @@ Route::middleware(['auth', 'super.admin'])
         Route::get('system-status/poll', [SystemStatusController::class, 'poll'])->name('system-status.poll');
         Route::get('system-status', [SystemStatusController::class, 'index'])->name('system-status.index');
         Route::get('audit-logs', [SuperAdminAuditLogController::class, 'index'])->name('audit-logs.index');
+        Route::get('recording-backup', [GoogleDriveRecordingBackupController::class, 'index'])->name('recording-backup.index');
+        Route::put('recording-backup', [GoogleDriveRecordingBackupController::class, 'update'])->name('recording-backup.update');
+        Route::post('recording-backup/connect', [GoogleDriveRecordingBackupController::class, 'connect'])->name('recording-backup.connect');
+        Route::get('recording-backup/callback', [GoogleDriveRecordingBackupController::class, 'callback'])->name('recording-backup.callback');
+        Route::post('recording-backup/run', [GoogleDriveRecordingBackupController::class, 'run'])->name('recording-backup.run');
         Route::delete('audit-logs/purge', [SuperAdminAuditLogController::class, 'purge'])->name('audit-logs.purge');
         Route::post('companies/{company}/god-mode', [GodModeController::class, 'enter'])->name('companies.god-mode.enter');
         Route::patch('companies/{company}/block', [CompanyController::class, 'block'])->name('companies.block');

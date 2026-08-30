@@ -7,6 +7,7 @@ use App\Jobs\GenerateReportExport;
 use App\Models\Call;
 use App\Models\ReportExport;
 use App\Services\Capacity\ResourceLimitService;
+use App\Services\Recordings\GoogleDriveRecordingBackup;
 use App\Services\Reports\ReportDataService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -68,9 +69,22 @@ class ReportController extends Controller
         return Storage::disk('local')->download($reportExport->file_path, sprintf('%s-%s.%s', $reportExport->report_type, $reportExport->id, $reportExport->format));
     }
 
-    public function recording(Request $request, Call $call): StreamedResponse
+    public function recording(Request $request, Call $call, GoogleDriveRecordingBackup $drive): StreamedResponse
     {
         abort_unless($call->company_id === $request->user()->company_id, 404);
+        if ($call->recording_disk === 'google_drive') {
+            abort_if(blank($call->recording_path), 404);
+            $stream = $drive->download($call->recording_path);
+
+            return response()->stream(function () use ($stream): void {
+                while (! $stream->eof()) {
+                    echo $stream->read(8192);
+                }
+            }, 200, [
+                'Content-Type' => 'audio/'.($call->recording_format ?: 'wav'),
+                'Content-Disposition' => 'inline',
+            ]);
+        }
         $disk = $call->recording_disk ?: 'local';
         abort_unless($call->recording_path && Storage::disk($disk)->exists($call->recording_path), 404);
 

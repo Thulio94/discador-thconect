@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Call;
 use App\Models\ReportExport;
+use App\Services\Recordings\GoogleDriveRecordingBackup;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,7 +14,7 @@ class PurgeExpiredReportAssets extends Command
 
     protected $description = 'Remove arquivos de relatório e gravações que passaram da retenção configurada.';
 
-    public function handle(): int
+    public function handle(GoogleDriveRecordingBackup $drive): int
     {
         $exports = 0;
         ReportExport::query()->where('status', 'completed')->whereNotNull('expires_at')->where('expires_at', '<=', now())->each(function (ReportExport $export) use (&$exports): void {
@@ -30,7 +31,11 @@ class PurgeExpiredReportAssets extends Command
             if ($days === null || ! $call->recording_available_at || $call->recording_available_at->addDays($days)->isFuture()) {
                 return;
             }
-            Storage::disk($call->recording_disk ?: 'local')->delete($call->recording_path);
+            if ($call->recording_disk === 'google_drive') {
+                $drive->delete($call->recording_path);
+            } else {
+                Storage::disk($call->recording_disk ?: 'local')->delete($call->recording_path);
+            }
             $call->update(['recording_path' => null, 'recording_disk' => null, 'recording_size' => null]);
             $recordings++;
         });

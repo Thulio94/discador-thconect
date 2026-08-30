@@ -1,9 +1,9 @@
 <?php
 
-use App\Jobs\RecordQueueHeartbeat;
-use App\Jobs\ReconcileChannelReservations;
-use App\Jobs\GenerateOperationalAlerts;
 use App\Jobs\DispatchPowerCampaigns;
+use App\Jobs\GenerateOperationalAlerts;
+use App\Jobs\ReconcileChannelReservations;
+use App\Jobs\RecordQueueHeartbeat;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\SystemStatus\SystemStatusService;
 use Illuminate\Foundation\Inspiring;
@@ -20,6 +20,10 @@ Schedule::command('reports:run-scheduled')
 
 Schedule::command('reports:purge-expired-assets')
     ->dailyAt('03:20')
+    ->withoutOverlapping();
+
+Schedule::command('recordings:dispatch-google-drive-backup')
+    ->everyMinute()
     ->withoutOverlapping();
 
 Schedule::command('calls:archive-old')
