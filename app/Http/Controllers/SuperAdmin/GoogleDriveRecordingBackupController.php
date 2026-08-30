@@ -27,16 +27,12 @@ class GoogleDriveRecordingBackupController extends Controller
     public function update(Request $request, AuditLogService $audit): RedirectResponse
     {
         $data = $request->validate([
-            'client_id' => ['required', 'string', 'max:500'],
-            'client_secret' => ['nullable', 'string', 'max:1000'],
             'root_folder_name' => ['required', 'string', 'max:120'],
             'daily_at' => ['required', 'date_format:H:i'],
             'delete_local_after_backup' => ['nullable', 'boolean'],
         ]);
         $setting = GoogleDriveBackupSetting::current();
         $setting->update([
-            'client_id' => $data['client_id'],
-            'client_secret' => filled($data['client_secret'] ?? null) ? $data['client_secret'] : $setting->client_secret,
             'root_folder_name' => $data['root_folder_name'],
             'daily_at' => $data['daily_at'],
             'delete_local_after_backup' => $request->boolean('delete_local_after_backup'),

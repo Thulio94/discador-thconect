@@ -7,10 +7,10 @@ Este recurso é exclusivo do super admin. Empresas não recebem credenciais OAut
 1. Crie ou selecione um projeto no Google Cloud e ative a **Google Drive API**.
 2. Em **APIs e serviços > Credenciais**, crie um cliente OAuth do tipo **Aplicativo da Web**.
 3. Cadastre exatamente a URL exibida em `Super admin > Backup de gravações` como URI de redirecionamento autorizado. Em produção ela deve usar o domínio HTTPS final do discador.
-4. No painel privado do super admin, informe o Client ID e Client Secret, escolha o horário diário e salve.
-5. Selecione **Conectar Google Drive** e autorize a conta que possui espaço disponível.
+4. Cadastre o Client ID e Client Secret somente nas variáveis seguras do Easypanel: `GOOGLE_DRIVE_BACKUP_CLIENT_ID` e `GOOGLE_DRIVE_BACKUP_CLIENT_SECRET`.
+5. No painel privado do super admin, escolha o horário diário e selecione **Conectar com Google** para autorizar a conta que possui espaço disponível.
 
-O sistema solicita somente o escopo `drive.file`: ele cria e administra apenas os arquivos e pastas deste backup. Client Secret e refresh token ficam criptografados no banco e nunca são retornados para as empresas.
+O sistema solicita somente o escopo `drive.file`: ele cria e administra apenas os arquivos e pastas deste backup. O Client Secret permanece somente no Easypanel; o refresh token fica criptografado no banco e nenhum deles é retornado para as empresas.
 
 ## Estrutura e retenção
 

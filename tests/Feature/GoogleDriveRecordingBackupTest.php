@@ -33,15 +33,15 @@ class GoogleDriveRecordingBackupTest extends TestCase
             ->assertDontSee('Segredo OAuth configurado');
     }
 
-    public function test_super_admin_can_save_encrypted_google_drive_configuration_and_dispatch_backup(): void
+    public function test_super_admin_can_configure_backup_without_seeing_oauth_credentials_and_dispatch_backup(): void
     {
         Bus::fake();
+        config()->set('services.google_drive_backup.client_id', 'client-id.apps.googleusercontent.com');
+        config()->set('services.google_drive_backup.client_secret', 'client-secret');
         $superAdmin = User::factory()->create(['is_super_admin' => true, 'company_id' => null]);
 
         $this->actingAs($superAdmin)
             ->put(route('super-admin.recording-backup.update'), [
-                'client_id' => 'client-id.apps.googleusercontent.com',
-                'client_secret' => 'client-secret',
                 'root_folder_name' => 'Backup Discador',
                 'daily_at' => '23:30',
                 'delete_local_after_backup' => '1',
@@ -49,8 +49,7 @@ class GoogleDriveRecordingBackupTest extends TestCase
             ->assertRedirect(route('super-admin.recording-backup.index'));
 
         $setting = GoogleDriveBackupSetting::current();
-        $this->assertSame('client-id.apps.googleusercontent.com', $setting->client_id);
-        $this->assertSame('client-secret', $setting->client_secret);
+        $this->assertTrue($setting->isOAuthConfigured());
         $this->assertTrue($setting->delete_local_after_backup);
         $setting->update([
             'refresh_token' => 'refresh-token',
@@ -80,6 +79,8 @@ class GoogleDriveRecordingBackupTest extends TestCase
     public function test_confirmed_google_drive_upload_moves_recording_and_preserves_a_company_index(): void
     {
         Storage::fake('recordings');
+        config()->set('services.google_drive_backup.client_id', 'client-id.apps.googleusercontent.com');
+        config()->set('services.google_drive_backup.client_secret', 'client-secret');
         $company = Company::create(['name' => 'Empresa Áudio', 'status' => 'active']);
         $call = Call::create([
             'company_id' => $company->id,
@@ -96,8 +97,6 @@ class GoogleDriveRecordingBackupTest extends TestCase
         Storage::disk('recordings')->put($call->recording_path, 'audio-test');
 
         GoogleDriveBackupSetting::current()->update([
-            'client_id' => 'client-id.apps.googleusercontent.com',
-            'client_secret' => 'client-secret',
             'refresh_token' => 'refresh-token',
             'enabled' => true,
             'delete_local_after_backup' => true,

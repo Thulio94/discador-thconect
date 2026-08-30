@@ -33,6 +33,21 @@ class GoogleDriveBackupSetting extends Model
 
     public function isConnected(): bool
     {
-        return filled($this->client_id) && filled($this->client_secret) && filled($this->refresh_token);
+        return $this->isOAuthConfigured() && filled($this->refresh_token);
+    }
+
+    public function isOAuthConfigured(): bool
+    {
+        return filled(config('services.google_drive_backup.client_id')) && filled(config('services.google_drive_backup.client_secret'));
+    }
+
+    public function oauthClientId(): ?string
+    {
+        return config('services.google_drive_backup.client_id');
+    }
+
+    public function oauthClientSecret(): ?string
+    {
+        return config('services.google_drive_backup.client_secret');
     }
 }

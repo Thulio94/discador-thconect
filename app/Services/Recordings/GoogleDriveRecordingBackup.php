@@ -24,7 +24,7 @@ class GoogleDriveRecordingBackup
         $this->assertClientConfigured($setting);
 
         return 'https://accounts.google.com/o/oauth2/v2/auth?'.http_build_query([
-            'client_id' => $setting->client_id,
+            'client_id' => $setting->oauthClientId(),
             'redirect_uri' => $redirectUrl,
             'response_type' => 'code',
             'scope' => self::DRIVE_SCOPE,
@@ -41,8 +41,8 @@ class GoogleDriveRecordingBackup
 
         $response = Http::asForm()->timeout(20)->post('https://oauth2.googleapis.com/token', [
             'code' => $code,
-            'client_id' => $setting->client_id,
-            'client_secret' => $setting->client_secret,
+            'client_id' => $setting->oauthClientId(),
+            'client_secret' => $setting->oauthClientSecret(),
             'redirect_uri' => $redirectUrl,
             'grant_type' => 'authorization_code',
         ]);
@@ -135,8 +135,8 @@ class GoogleDriveRecordingBackup
             throw new RuntimeException('Conecte uma conta Google antes de executar o backup.');
         }
         $token = Http::asForm()->timeout(20)->post('https://oauth2.googleapis.com/token', [
-            'client_id' => $setting->client_id,
-            'client_secret' => $setting->client_secret,
+            'client_id' => $setting->oauthClientId(),
+            'client_secret' => $setting->oauthClientSecret(),
             'refresh_token' => $setting->refresh_token,
             'grant_type' => 'refresh_token',
         ]);
@@ -181,8 +181,8 @@ class GoogleDriveRecordingBackup
 
     private function assertClientConfigured(GoogleDriveBackupSetting $setting): void
     {
-        if (blank($setting->client_id) || blank($setting->client_secret)) {
-            throw new RuntimeException('Informe o Client ID e o Client Secret do Google antes de conectar.');
+        if (! $setting->isOAuthConfigured()) {
+            throw new RuntimeException('A integração Google ainda não foi configurada no servidor.');
         }
     }
 }

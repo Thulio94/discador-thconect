@@ -4,6 +4,11 @@ return [
 
     'metrics' => ['token' => env('METRICS_TOKEN')],
 
+    'google_drive_backup' => [
+        'client_id' => env('GOOGLE_DRIVE_BACKUP_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_DRIVE_BACKUP_CLIENT_SECRET'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

@@ -22,8 +22,6 @@
 
             <form method="POST" action="{{ route('super-admin.recording-backup.update') }}" class="grid gap-4">
                 @csrf @method('PUT')
-                <label class="grid gap-1 text-sm"><span class="font-semibold">Google OAuth Client ID</span><input name="client_id" value="{{ old('client_id', $setting->client_id) }}" autocomplete="off" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt);" required></label>
-                <label class="grid gap-1 text-sm"><span class="font-semibold">Google OAuth Client Secret</span><input type="password" name="client_secret" autocomplete="new-password" placeholder="{{ $setting->client_secret ? 'Mantido em segurança; preencha para alterar' : 'Informe o segredo OAuth' }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt);"></label>
                 <div class="grid gap-4 sm:grid-cols-2">
                     <label class="grid gap-1 text-sm"><span class="font-semibold">Pasta principal</span><input name="root_folder_name" value="{{ old('root_folder_name', $setting->root_folder_name) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt);" required></label>
                     <label class="grid gap-1 text-sm"><span class="font-semibold">Horário diário</span><input type="time" name="daily_at" value="{{ old('daily_at', substr((string) $setting->daily_at, 0, 5)) }}" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt);" required></label>
@@ -33,10 +31,12 @@
             </form>
 
             <div class="mt-5 flex flex-wrap gap-2 border-t pt-5" style="border-color: var(--border);">
-                <form method="POST" action="{{ route('super-admin.recording-backup.connect') }}">@csrf<x-ui.button type="submit" variant="secondary">Conectar Google Drive</x-ui.button></form>
+                <form method="POST" action="{{ route('super-admin.recording-backup.connect') }}">@csrf<x-ui.button type="submit" variant="secondary" :disabled="! $setting->isOAuthConfigured()">Conectar com Google</x-ui.button></form>
                 <form method="POST" action="{{ route('super-admin.recording-backup.run') }}">@csrf<x-ui.button type="submit" variant="secondary" :disabled="! $setting->isConnected()">Executar backup agora</x-ui.button></form>
             </div>
-            <p class="mt-4 text-[11px]" style="color: var(--fg-muted);">URL de retorno a cadastrar no Google Cloud: <span class="font-mono">{{ route('super-admin.recording-backup.callback') }}</span></p>
+            @if (! $setting->isOAuthConfigured())
+                <p class="mt-4 text-[11px]" style="color: var(--status-warning);">A integração do Google ainda precisa ser ativada nas variáveis seguras do servidor.</p>
+            @endif
         </section>
 
         <section class="rounded-lg border" style="border-color: var(--border); background: var(--surface);">
