@@ -15,7 +15,7 @@ class DatabaseBackupService
         $path = 'database-backups/discador-'.now()->format('Ymd-His').'-'.$backup->id.'.sql.gz';
         Storage::disk('local')->makeDirectory('database-backups');
         $target = Storage::disk('local')->path($path);
-        $command = sprintf('mariadb-dump --single-transaction --routines --events --hex-blob -h%s -P%s -u%s %s | gzip -9 > %s',
+        $command = sprintf('mariadb-dump --single-transaction --add-drop-table --routines --events --hex-blob --no-tablespaces -h%s -P%s -u%s %s | gzip -9 > %s',
             escapeshellarg((string) $connection['host']), escapeshellarg((string) ($connection['port'] ?? 3306)), escapeshellarg((string) $connection['username']), escapeshellarg((string) $connection['database']), escapeshellarg($target));
         $process = Process::fromShellCommandline($command, null, ['MYSQL_PWD' => (string) $connection['password']]);
         $process->setTimeout(3600)->run();

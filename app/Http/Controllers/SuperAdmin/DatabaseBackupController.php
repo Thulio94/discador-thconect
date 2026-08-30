@@ -48,10 +48,15 @@ class DatabaseBackupController extends Controller
         $request->validate(['confirmation' => ['required', 'in:RESTAURAR']]);
         $safetyBackup = DatabaseBackup::create(['status' => 'running', 'created_by_user_id' => $request->user()->id]);
         $service->create($safetyBackup);
-        $service->restore($backup);
-        $backup->update(['restored_at' => now(), 'restored_by_user_id' => $request->user()->id]);
-        $audit->record('database_backup.restored', 'restored', 'Banco restaurado a partir de backup confirmado.', subject: $backup);
+        Artisan::call('down', ['--retry' => 60]);
+        try {
+            $service->restore($backup);
+            $backup->update(['restored_at' => now(), 'restored_by_user_id' => $request->user()->id]);
+            $audit->record('database_backup.restored', 'restored', 'Banco restaurado a partir de backup confirmado.', subject: $backup);
+        } finally {
+            Artisan::call('up');
+        }
 
-        return redirect()->route('super-admin.database-backup.index')->with('status', 'Restauração concluída. Entre novamente no sistema.');
+        return redirect()->route('login')->with('status', 'Restauração concluída. Entre novamente no sistema.');
     }
 }
