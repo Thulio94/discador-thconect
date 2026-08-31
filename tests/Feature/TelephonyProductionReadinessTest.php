@@ -23,9 +23,12 @@ class TelephonyProductionReadinessTest extends TestCase
     public function test_asterisk_loads_the_websocket_modules_required_by_browser_agents(): void
     {
         $modules = file_get_contents(base_path('.docker/asterisk/config/modules.conf'));
+        $dockerfile = file_get_contents(base_path('.docker/asterisk/Dockerfile'));
 
         $this->assertStringContainsString('load => res_http_websocket.so', $modules);
         $this->assertStringContainsString('load => res_pjsip_transport_websocket.so', $modules);
+        $this->assertStringContainsString('--enable res_http_websocket.so', $dockerfile);
+        $this->assertStringContainsString('--enable res_pjsip_transport_websocket.so', $dockerfile);
     }
 
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void
