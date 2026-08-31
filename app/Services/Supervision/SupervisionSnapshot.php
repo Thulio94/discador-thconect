@@ -24,7 +24,7 @@ final class SupervisionSnapshot
             ? $viewer->assignedTeams()->where('teams.company_id', $companyId)->wherePivot('membership_type', 'supervisor')->pluck('teams.id')
             : null;
         if ($teamId !== null && $allowedTeamIds !== null && ! $allowedTeamIds->contains($teamId)) {
-            abort(403);
+            abort(404);
         }
         if ($allowedTeamIds !== null && $teamId === null && $allowedTeamIds->count() === 1) {
             $teamId = $allowedTeamIds->first();

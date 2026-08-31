@@ -22,10 +22,10 @@ class OperationalDashboardScopeTest extends TestCase
         [$firstAgent] = $this->user('agent', $company, 'Agente Um');
         [$secondAgent] = $this->user('agent', $company, 'Agente Dois');
 
-        $this->status($firstAgent, 'available');
-        $this->status($secondAgent, 'in_call');
-        $this->call($firstAgent, 'ended', true);
-        $this->call($secondAgent, 'in_progress');
+        $this->createAgentStatus($firstAgent, 'available');
+        $this->createAgentStatus($secondAgent, 'in_call');
+        $this->createCall($firstAgent, 'ended', true);
+        $this->createCall($secondAgent, 'in_progress');
 
         $this->actingAs($administrator)
             ->get(route('dashboard'))
@@ -48,10 +48,10 @@ class OperationalDashboardScopeTest extends TestCase
         $visibleTeam->users()->attach($supervisor, ['company_id' => $company->id, 'membership_type' => 'supervisor']);
         $visibleTeam->users()->attach($visibleAgent, ['company_id' => $company->id, 'membership_type' => 'agent']);
         $hiddenTeam->users()->attach($hiddenAgent, ['company_id' => $company->id, 'membership_type' => 'agent']);
-        $this->status($visibleAgent, 'available');
-        $this->status($hiddenAgent, 'in_call');
-        $this->call($visibleAgent, 'ended', true);
-        $this->call($hiddenAgent, 'in_progress');
+        $this->createAgentStatus($visibleAgent, 'available');
+        $this->createAgentStatus($hiddenAgent, 'in_call');
+        $this->createCall($visibleAgent, 'ended', true);
+        $this->createCall($hiddenAgent, 'in_progress');
 
         $this->actingAs($supervisor)
             ->get(route('dashboard'))
@@ -77,7 +77,7 @@ class OperationalDashboardScopeTest extends TestCase
 
         $this->actingAs($supervisor)
             ->get(route('tenant.supervision.index', ['team_id' => $hiddenTeam->id]))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_super_admin_receives_platform_wide_operational_summary(): void
@@ -86,10 +86,10 @@ class OperationalDashboardScopeTest extends TestCase
         [, $secondCompany] = $this->user('company_admin');
         [$firstAgent] = $this->user('agent', $firstCompany);
         [$secondAgent] = $this->user('agent', $secondCompany);
-        $this->status($firstAgent, 'available');
-        $this->status($secondAgent, 'available');
-        $this->call($firstAgent, 'in_progress');
-        $this->call($secondAgent, 'in_progress');
+        $this->createAgentStatus($firstAgent, 'available');
+        $this->createAgentStatus($secondAgent, 'available');
+        $this->createCall($firstAgent, 'in_progress');
+        $this->createCall($secondAgent, 'in_progress');
         $superAdmin = User::factory()->create(['is_super_admin' => true, 'user_type' => 'super_admin']);
 
         $this->actingAs($superAdmin)
@@ -133,12 +133,12 @@ class OperationalDashboardScopeTest extends TestCase
         ]), $company];
     }
 
-    private function status(User $user, string $status): void
+    private function createAgentStatus(User $user, string $status): void
     {
         AgentStatus::create(['company_id' => $user->company_id, 'user_id' => $user->id, 'status' => $status, 'started_at' => now()]);
     }
 
-    private function call(User $user, string $status, bool $answered = false): void
+    private function createCall(User $user, string $status, bool $answered = false): void
     {
         Call::create([
             'company_id' => $user->company_id,

@@ -140,6 +140,17 @@ class User extends Authenticatable
             return false;
         }
 
+        // The agent console is an operational entitlement, not a permission that
+        // depends on an administrator remembering to add it to every agent role.
+        if ($this->user_type === 'agent') {
+            return in_array($permissionKey, [
+                'dashboard.read',
+                'agent.access',
+                'notifications.read',
+                'notifications.update',
+            ], true);
+        }
+
         $role = $this->role;
 
         if (! $role || $role->company_id !== $this->company_id) {
@@ -148,19 +159,6 @@ class User extends Authenticatable
 
         if ($this->user_type === 'company_admin' && $role->is_admin) {
             return true;
-        }
-
-        if ($this->user_type === 'agent') {
-            $agentPermissions = [
-                'dashboard.read',
-                'agent.access',
-                'notifications.read',
-                'notifications.update',
-            ];
-
-            if (! in_array($permissionKey, $agentPermissions, true)) {
-                return false;
-            }
         }
 
         $role->loadMissing('permissions');

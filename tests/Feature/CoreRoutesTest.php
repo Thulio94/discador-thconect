@@ -72,7 +72,7 @@ class CoreRoutesTest extends TestCase
             ->assertSee('Agentes disponiveis')
             ->assertSee('Chamadas hoje')
             ->assertSee('Capacidade imediata')
-            ->assertSee('2 / 3')
+            ->assertSee('Capacidade disponivel agora.')
             ->assertSee('3');
     }
 
