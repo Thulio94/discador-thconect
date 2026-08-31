@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Models\Company;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -30,7 +31,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('tenant.agent.index', absolute: false));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void
@@ -43,6 +44,27 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertGuest();
+    }
+
+    public function test_agent_dashboard_never_requires_administrative_dashboard_permission(): void
+    {
+        $company = Company::create(['name' => 'Empresa do Agente']);
+        $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => now()->subDay()->toDateString(),
+            'ends_at' => now()->addMonth()->toDateString(),
+        ]);
+        $agent = User::factory()->create([
+            'company_id' => $company->id,
+            'user_type' => 'agent',
+            'status' => 'active',
+            'extension' => '1001',
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Meu dashboard');
     }
 
     public function test_users_can_logout(): void

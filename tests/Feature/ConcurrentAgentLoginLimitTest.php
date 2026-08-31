@@ -23,7 +23,7 @@ class ConcurrentAgentLoginLimitTest extends TestCase
             'email' => $newAgent->email,
             'password' => 'password',
             '_token' => 'login-test-token',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('tenant.agent.index', absolute: false));
 
         $this->assertAuthenticatedAs($newAgent);
     }
@@ -38,7 +38,7 @@ class ConcurrentAgentLoginLimitTest extends TestCase
             'email' => $agent->email,
             'password' => 'password',
             '_token' => 'login-test-token',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('tenant.agent.index', absolute: false));
 
         $this->assertAuthenticatedAs($agent);
     }

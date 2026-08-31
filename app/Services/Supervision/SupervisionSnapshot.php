@@ -17,17 +17,27 @@ final class SupervisionSnapshot
         private readonly CallWrapUpService $wrapUps,
     ) {}
 
-    public function forCompany(int $companyId, string $status = '', ?int $teamId = null): array
+    public function forUser(User $viewer, string $status = '', ?int $teamId = null): array
     {
+        $companyId = $viewer->company_id;
+        $allowedTeamIds = $viewer->user_type === 'supervisor'
+            ? $viewer->assignedTeams()->where('teams.company_id', $companyId)->wherePivot('membership_type', 'supervisor')->pluck('teams.id')
+            : null;
+        if ($teamId !== null && $allowedTeamIds !== null && ! $allowedTeamIds->contains($teamId)) {
+            abort(403);
+        }
+        if ($allowedTeamIds !== null && $teamId === null && $allowedTeamIds->count() === 1) {
+            $teamId = $allowedTeamIds->first();
+        }
         $this->wrapUps->expireForCompany($companyId);
         if (app()->runningUnitTests()) {
             dispatch_sync(new GenerateOperationalAlerts);
         }
 
-        return $this->build($companyId, $status, $teamId);
+        return $this->build($companyId, $status, $teamId, $allowedTeamIds);
     }
 
-    private function build(int $companyId, string $status, ?int $teamId): array
+    private function build(int $companyId, string $status, ?int $teamId, $allowedTeamIds = null): array
     {
         $parameters = OperationalParameter::forCompany($companyId);
         $monitoringReady = Company::query()
@@ -63,7 +73,7 @@ final class SupervisionSnapshot
 
         $agents = User::query()
             ->where('company_id', $companyId)
-            ->whereIn('user_type', ['agent', 'supervisor'])
+            ->where('user_type', 'agent')
             ->with([
                 'currentAgentStatus',
                 'assignedTeams:id,name',
@@ -80,6 +90,15 @@ final class SupervisionSnapshot
                         ->from('team_user')
                         ->where('team_user.company_id', $companyId)
                         ->where('team_user.team_id', $teamId);
+                }
+            ))
+            ->when($allowedTeamIds !== null && $teamId === null, fn ($query) => $query->whereIn(
+                'users.id',
+                function ($teamQuery) use ($companyId, $allowedTeamIds): void {
+                    $teamQuery->select('team_user.user_id')->from('team_user')
+                        ->where('team_user.company_id', $companyId)
+                        ->where('team_user.membership_type', 'agent')
+                        ->whereIn('team_user.team_id', $allowedTeamIds);
                 }
             ))
             ->orderBy('name')
@@ -170,17 +189,35 @@ final class SupervisionSnapshot
 
         $statuses = User::query()
             ->where('company_id', $companyId)
-            ->whereIn('user_type', ['agent', 'supervisor'])
+            ->where('user_type', 'agent')
             ->with('currentAgentStatus')
+            ->when($teamId, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $teamId): void {
+                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->where('team_user.team_id', $teamId);
+            }))
+            ->when($allowedTeamIds !== null && $teamId === null, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $allowedTeamIds): void {
+                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->whereIn('team_user.team_id', $allowedTeamIds);
+            }))
             ->get()
             ->map(
                 fn (User $user): string => $user->currentAgentStatus?->status ?? 'offline'
             );
 
+        $scopedAgentIds = User::query()
+            ->where('company_id', $companyId)
+            ->where('user_type', 'agent')
+            ->when($teamId, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $teamId): void {
+                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->where('team_user.team_id', $teamId);
+            }))
+            ->when($allowedTeamIds !== null && $teamId === null, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $allowedTeamIds): void {
+                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->whereIn('team_user.team_id', $allowedTeamIds);
+            }))
+            ->pluck('users.id');
+
         return [
             'agents' => $agents,
             'teamOptions' => Team::query()
                 ->where('company_id', $companyId)
+                ->when($allowedTeamIds !== null, fn ($query) => $query->whereIn('id', $allowedTeamIds))
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->map(fn (Team $team): array => [
@@ -213,11 +250,18 @@ final class SupervisionSnapshot
                 )->count(),
                 'active_calls' => Call::query()
                     ->where('company_id', $companyId)
+                    ->whereIn('user_id', $scopedAgentIds)
                     ->whereIn('status', Call::ACTIVE_STATUSES)
                     ->count(),
             ],
             'recentCalls' => Call::query()
                 ->where('company_id', $companyId)
+                ->when($teamId, fn ($query) => $query->whereIn('user_id', function ($teamQuery) use ($companyId, $teamId): void {
+                    $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->where('team_user.team_id', $teamId);
+                }))
+                ->when($allowedTeamIds !== null && $teamId === null, fn ($query) => $query->whereIn('user_id', function ($teamQuery) use ($companyId, $allowedTeamIds): void {
+                    $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->whereIn('team_user.team_id', $allowedTeamIds);
+                }))
                 ->with(['user:id,name,extension', 'campaign:id,name'])
                 ->latest('started_at')
                 ->limit(50)

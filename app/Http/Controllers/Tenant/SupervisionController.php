@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Call;
 use App\Models\User;
 use App\Services\Audit\AuditLogService;
+use App\Services\Dashboard\OperationalDashboardSnapshot;
 use App\Services\Supervision\SupervisionSnapshot;
 use App\Services\Telephony\AsteriskBridgeClient;
 use Illuminate\Contracts\View\View;
@@ -18,15 +19,16 @@ use Throwable;
 class SupervisionController extends Controller
 {
     public function __construct(
-        private readonly SupervisionSnapshot $snapshot
+        private readonly SupervisionSnapshot $snapshot,
+        private readonly OperationalDashboardSnapshot $scope,
     ) {}
 
     public function index(Request $request): View
     {
         return view(
             'tenant.supervision.index',
-            array_merge($this->snapshot->forCompany(
-                $request->user()->company_id,
+            array_merge($this->snapshot->forUser(
+                $request->user(),
                 $request->string('status')->toString(),
                 $request->integer('team_id') ?: null,
             ), ['realtimeCompanyId' => $request->user()->company_id])
@@ -37,8 +39,8 @@ class SupervisionController extends Controller
     {
         $html = view(
             'tenant.supervision.poll',
-            $this->snapshot->forCompany(
-                $request->user()->company_id,
+            $this->snapshot->forUser(
+                $request->user(),
                 $request->string('status')->toString(),
                 $request->integer('team_id') ?: null,
             )
@@ -57,6 +59,7 @@ class SupervisionController extends Controller
     ): RedirectResponse {
         $supervisor = $request->user();
         abort_unless($agent->company_id === $supervisor->company_id, 404);
+        abort_unless($this->scope->canAccessAgent($supervisor, $agent), 404);
         abort_unless($agent->user_type === 'agent', 422, 'A monitoria opera somente chamadas de agentes.');
 
         $data = $request->validate([

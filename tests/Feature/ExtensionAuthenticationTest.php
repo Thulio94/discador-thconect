@@ -22,7 +22,7 @@ class ExtensionAuthenticationTest extends TestCase
         $this->post(route('login'), [
             'email' => ' EMAIL.LOGIN@TEST.LOCAL ',
             'password' => 'password',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('tenant.agent.index', absolute: false));
 
         $this->assertAuthenticatedAs($user);
     }

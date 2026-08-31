@@ -68,6 +68,7 @@ class TenantSupervisionTest extends TestCase
 
         $team->users()->attach($available, ['company_id' => $company->id, 'membership_type' => 'agent']);
         $team->users()->attach($paused, ['company_id' => $company->id, 'membership_type' => 'agent']);
+        $team->users()->attach($supervisor, ['company_id' => $company->id, 'membership_type' => 'supervisor']);
         $otherTeam->users()->attach($inCall, ['company_id' => $company->id, 'membership_type' => 'agent']);
 
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $available->id, 'status' => 'available', 'started_at' => now()]);
@@ -241,6 +242,10 @@ class TenantSupervisionTest extends TestCase
         $team->users()->attach($paused, [
             'company_id' => $company->id,
             'membership_type' => 'agent',
+        ]);
+        $team->users()->attach($supervisor, [
+            'company_id' => $company->id,
+            'membership_type' => 'supervisor',
         ]);
 
         AgentStatus::create([
@@ -435,6 +440,19 @@ class TenantSupervisionTest extends TestCase
             'extension' => fake()->unique()->numerify('3###'),
             'status' => 'active',
         ]);
+
+        if (in_array($type, ['agent', 'supervisor'], true)) {
+            $team = Team::firstOrCreate([
+                'company_id' => $company->id,
+                'slug' => 'equipe-supervisao-padrao',
+            ], [
+                'name' => 'Equipe Supervisao Padrao',
+                'status' => 'active',
+            ]);
+            $team->users()->syncWithoutDetaching([
+                $user->id => ['company_id' => $company->id, 'membership_type' => $type],
+            ]);
+        }
 
         return [$user, $company];
     }

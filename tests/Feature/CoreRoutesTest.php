@@ -31,7 +31,7 @@ class CoreRoutesTest extends TestCase
             ->assertSee('Dashboard');
     }
 
-    public function test_tenant_dashboard_shows_current_call_capacity_usage(): void
+    public function test_tenant_dashboard_shows_current_operational_metrics(): void
     {
         $user = $this->tenantUser();
         $user->company->licenses()->firstOrFail()->update([
@@ -68,14 +68,11 @@ class CoreRoutesTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('2 chamadas ativas')
-            ->assertSee('Limite por operador: 3')
-            ->assertSee('Teto da empresa: 10')
-            ->assertSee('Uso atual da empresa')
-            ->assertSee('Agentes disponiveis')
             ->assertSee('Chamadas simultaneas')
-            ->assertSee('2 / 10')
-            ->assertSee('Capacidade efetiva agora')
+            ->assertSee('Agentes disponiveis')
+            ->assertSee('Chamadas hoje')
+            ->assertSee('Capacidade imediata')
+            ->assertSee('2 / 3')
             ->assertSee('3');
     }
 

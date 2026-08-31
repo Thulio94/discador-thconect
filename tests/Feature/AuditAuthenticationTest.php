@@ -21,7 +21,7 @@ class AuditAuthenticationTest extends TestCase
         $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('tenant.agent.index', absolute: false));
 
         $this->post('/logout')->assertRedirect('/');
 

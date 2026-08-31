@@ -36,6 +36,10 @@ Route::post('/bridge/events', AsteriskEventController::class)
 
 Route::get('/internal/metrics', InternalMetricsController::class)->middleware('metrics.token')->name('internal.metrics');
 
+Route::get('/dashboard/poll', [DashboardController::class, 'poll'])
+    ->middleware(['auth', 'verified', 'tenant.active', 'agent.console.presence'])
+    ->name('dashboard.poll');
+
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'tenant.active', 'agent.console.presence'])
     ->name('dashboard');
