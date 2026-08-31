@@ -27,8 +27,8 @@ class TelephonyProductionReadinessTest extends TestCase
 
         $this->assertStringContainsString('load => res_http_websocket.so', $modules);
         $this->assertStringContainsString('load => res_pjsip_transport_websocket.so', $modules);
-        $this->assertStringContainsString('--enable res_http_websocket.so', $dockerfile);
-        $this->assertStringContainsString('--enable res_pjsip_transport_websocket.so', $dockerfile);
+        $this->assertMatchesRegularExpression('/--enable res_http_websocket(?:\\s|\\\\)/', $dockerfile);
+        $this->assertMatchesRegularExpression('/--enable res_pjsip_transport_websocket(?:\\s|\\\\)/', $dockerfile);
     }
 
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void

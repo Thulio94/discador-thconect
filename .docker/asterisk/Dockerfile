@@ -30,8 +30,8 @@ RUN ./configure \
         --without-bluetooth \
     && make menuselect.makeopts \
     && menuselect/menuselect --disable BUILD_NATIVE \
-        --enable res_http_websocket.so \
-        --enable res_pjsip_transport_websocket.so \
+        --enable res_http_websocket \
+        --enable res_pjsip_transport_websocket \
         menuselect.makeopts \
     && make -j"$(nproc)" \
     && make DESTDIR=/opt/asterisk install \
