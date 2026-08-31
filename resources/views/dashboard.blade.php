@@ -38,8 +38,6 @@
                 <div class="mt-4 flex items-end justify-between gap-3"><div><p class="text-3xl font-bold">{{ $metrics['calls_today'] }}</p><p class="mt-1 text-sm" style="color:var(--fg-muted);">Chamadas hoje</p></div><p class="text-2xl font-bold" style="color:var(--status-success);">{{ $metrics['answer_rate'] }}%</p></div>
                 <p class="mt-4 text-sm" style="color:var(--fg-muted);">{{ $metrics['answered_today'] }} atendidas pelo cliente.</p>
             </x-ui.card>
-            <x-ui.card tone="violet"><p class="text-xs font-semibold uppercase" style="color:var(--fg-muted);">Capacidade imediata</p><p class="mt-4 text-3xl font-bold">{{ $metrics['effective_capacity'] }}</p><p class="mt-1 text-sm" style="color:var(--fg-muted);">{{ $metrics['available'] }} disponiveis x {{ $metrics['calls_per_available_agent'] }} chamadas por agente.</p></x-ui.card>
-            <x-ui.card tone="amber"><p class="text-xs font-semibold uppercase" style="color:var(--fg-muted);">Atencao operacional</p><div class="mt-4 grid gap-3 text-sm"><div class="flex justify-between"><span style="color:var(--fg-muted);">Tabulando</span><strong>{{ $metrics['wrap_up'] }}</strong></div><div class="flex justify-between"><span style="color:var(--fg-muted);">Teto contratado</span><strong>{{ $metrics['company_call_limit'] ?? 'Sem teto' }}</strong></div></div></x-ui.card>
         </div>
     @endisset
     </section>
