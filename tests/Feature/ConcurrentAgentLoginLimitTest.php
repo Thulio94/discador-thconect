@@ -59,7 +59,7 @@ class ConcurrentAgentLoginLimitTest extends TestCase
             'email' => $administrator->email,
             'password' => 'password',
             '_token' => 'login-test-token',
-        ])->assertRedirect(route('dashboard', absolute: false));
+        ])->assertRedirect(route('profile.edit', absolute: false));
 
         $this->assertAuthenticatedAs($administrator);
     }

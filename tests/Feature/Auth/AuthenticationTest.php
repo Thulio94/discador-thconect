@@ -155,6 +155,31 @@ class AuthenticationTest extends TestCase
         }
     }
 
+    public function test_supervisor_without_dashboard_access_is_sent_to_supervision(): void
+    {
+        $company = $this->activeCompany();
+        $role = Role::create([
+            'company_id' => $company->id,
+            'name' => 'Supervisor somente monitoria',
+            'slug' => 'supervisor-somente-monitoria',
+        ]);
+        $role->permissions()->attach(Permission::query()->firstOrCreate(
+            ['key' => 'supervision.read'],
+            ['name' => 'Ler supervisao', 'module' => 'supervision'],
+        ));
+        $supervisor = User::factory()->create([
+            'company_id' => $company->id,
+            'role_id' => $role->id,
+            'user_type' => 'supervisor',
+            'status' => 'active',
+        ]);
+
+        $this->post('/login', [
+            'email' => $supervisor->email,
+            'password' => 'password',
+        ])->assertRedirect(route('tenant.supervision.index', absolute: false));
+    }
+
     public function test_users_can_logout(): void
     {
         $user = User::factory()->create();
