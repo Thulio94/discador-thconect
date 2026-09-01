@@ -30,8 +30,12 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertStringContainsString('load => res_pjsip_transport_websocket.so', $modules);
         $this->assertMatchesRegularExpression('/--enable res_http_websocket(?:\\s|\\\\)/', $dockerfile);
         $this->assertMatchesRegularExpression('/--enable res_pjsip_transport_websocket(?:\\s|\\\\)/', $dockerfile);
-        $this->assertStringContainsString('image: discador-piloto-asterisk:22.11.0-webrtc-r2', $productionCompose);
-        $this->assertStringContainsString('ASTERISK_BUILD_REVISION: webrtc-r2', $productionCompose);
+        $this->assertStringContainsString('test -f /opt/asterisk/usr/lib/asterisk/modules/res_http_websocket.so', $dockerfile);
+        $this->assertStringContainsString('test -f /opt/asterisk/usr/lib/asterisk/modules/res_pjsip_transport_websocket.so', $dockerfile);
+        $this->assertStringContainsString('image: discador-piloto-asterisk:22.11.0-webrtc-r3', $productionCompose);
+        $this->assertStringContainsString('ASTERISK_BUILD_REVISION: webrtc-r3', $productionCompose);
+        $this->assertStringContainsString("module show like res_http_websocket", $productionCompose);
+        $this->assertStringContainsString("module show like res_pjsip_transport_websocket", $productionCompose);
     }
 
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void

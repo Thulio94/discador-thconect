@@ -199,12 +199,12 @@ services:
   asterisk:
     # A versioned tag and build revision prevent Easypanel from reusing a legacy
     # Asterisk layer without the WebSocket modules needed by browser agents.
-    image: discador-piloto-asterisk:22.11.0-webrtc-r2
+    image: discador-piloto-asterisk:22.11.0-webrtc-r3
     build:
       context: ./.docker/asterisk
       dockerfile: Dockerfile
       args:
-        ASTERISK_BUILD_REVISION: webrtc-r2
+        ASTERISK_BUILD_REVISION: webrtc-r3
     env_file:
       - .env
     environment:
@@ -229,7 +229,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     healthcheck:
-      test: ["CMD-SHELL", "asterisk -rx 'core show uptime' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "asterisk -rx 'core show uptime' >/dev/null 2>&1 && asterisk -rx 'module show like res_http_websocket' | grep -q 'res_http_websocket.so' && asterisk -rx 'module show like res_pjsip_transport_websocket' | grep -q 'res_pjsip_transport_websocket.so'"]
       interval: 20s
       timeout: 5s
       retries: 5

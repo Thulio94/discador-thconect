@@ -2,7 +2,7 @@ FROM debian:bookworm-slim AS build
 
 ARG ASTERISK_VERSION=22.11.0
 ARG ASTERISK_SHA256=3bd5ee040509a3d3cd9b1ba9520c18e6ec0a7e7981ca68c457dcd36ba3c54d94
-ARG ASTERISK_BUILD_REVISION=webrtc-r2
+ARG ASTERISK_BUILD_REVISION=webrtc-r3
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -37,6 +37,8 @@ RUN ./configure \
         menuselect.makeopts \
     && make -j"$(nproc)" \
     && make DESTDIR=/opt/asterisk install \
+    && test -f /opt/asterisk/usr/lib/asterisk/modules/res_http_websocket.so \
+    && test -f /opt/asterisk/usr/lib/asterisk/modules/res_pjsip_transport_websocket.so \
     && make DESTDIR=/opt/asterisk samples
 
 FROM debian:bookworm-slim
