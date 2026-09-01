@@ -164,7 +164,7 @@
                     <select name="fixed_telephony_route_id" :disabled="!routesEnabled" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                         <option value="">Selecionar rota</option>
                         @foreach ($telephonyRoutes as $telephonyRoute)
-                            <option value="{{ $telephonyRoute->id }}" @selected((string) old('fixed_telephony_route_id', $campaign?->fixed_telephony_route_id) === (string) $telephonyRoute->id)>{{ $telephonyRoute->name }} · Tech {{ $telephonyRoute->tech }}</option>
+                            <option value="{{ $telephonyRoute->id }}" @selected((string) old('fixed_telephony_route_id', $campaign?->fixed_telephony_route_id) === (string) $telephonyRoute->id)>{{ $telephonyRoute->name }} · {{ filled($telephonyRoute->tech) ? 'Tech '.$telephonyRoute->tech : 'Sem Tech' }}</option>
                         @endforeach
                     </select>
                 </label>
@@ -173,7 +173,7 @@
                     <select name="mobile_telephony_route_id" :disabled="!routesEnabled" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                         <option value="">Selecionar rota</option>
                         @foreach ($telephonyRoutes as $telephonyRoute)
-                            <option value="{{ $telephonyRoute->id }}" @selected((string) old('mobile_telephony_route_id', $campaign?->mobile_telephony_route_id) === (string) $telephonyRoute->id)>{{ $telephonyRoute->name }} · Tech {{ $telephonyRoute->tech }}</option>
+                            <option value="{{ $telephonyRoute->id }}" @selected((string) old('mobile_telephony_route_id', $campaign?->mobile_telephony_route_id) === (string) $telephonyRoute->id)>{{ $telephonyRoute->name }} · {{ filled($telephonyRoute->tech) ? 'Tech '.$telephonyRoute->tech : 'Sem Tech' }}</option>
                         @endforeach
                     </select>
                 </label>

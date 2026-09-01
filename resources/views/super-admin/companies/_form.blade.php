@@ -22,7 +22,7 @@
             @foreach ($telephonyRoutes as $telephonyRoute)
                 <label class="flex items-center gap-2 rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface-alt);">
                     <input type="checkbox" name="telephony_route_ids[]" value="{{ $telephonyRoute->id }}" @checked(in_array($telephonyRoute->id, old('telephony_route_ids', $company?->telephonyRoutes->pluck('id')->all() ?? [])))>
-                    <span>{{ $telephonyRoute->name }} · Tech {{ $telephonyRoute->tech }}</span>
+                    <span>{{ $telephonyRoute->name }} · {{ filled($telephonyRoute->tech) ? 'Tech '.$telephonyRoute->tech : 'Sem Tech' }}</span>
                 </label>
             @endforeach
         </div>

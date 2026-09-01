@@ -44,6 +44,12 @@ O token autentica Laravel e bridge. O segundo segredo assina os eventos enviados
 5. Salve e use `Testar AMI`.
 6. Somente quando o status ficar `Conectada`, inicie uma chamada controlada.
 
+## Formato de discagem por rota
+
+- Com `Tech`, o servidor envia `Tech + 55 + DDD + telefone`.
+- Em uma rota liberada por IP que nao use `Tech`, deixe esse campo vazio e informe o prefixo nacional obrigatorio. Por exemplo, com prefixo `0`, o destino enviado sera `0 + DDD + telefone`.
+- O navegador continua enviando apenas o telefone normalizado. A montagem do destino ocorre no servidor, sem expor configuracao tecnica ou credenciais SIP aos usuarios.
+
 ## AMD
 
 Para a campanha com AMD `Asterisk / rota`, o dialplan ou o provedor deve emitir um UserEvent AMI com este formato:

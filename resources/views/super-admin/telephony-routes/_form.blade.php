@@ -22,9 +22,9 @@
         <input name="provider" value="{{ old('provider', $route?->provider) }}" placeholder="Solutions VoIP" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
     </label>
     <label class="grid gap-1 text-sm">
-        <span class="font-semibold">Tech</span>
-        <input name="tech" inputmode="numeric" value="{{ old('tech', $route?->tech) }}" placeholder="5006" required class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
-        <span class="text-xs" style="color: var(--fg-muted);">Prefixo da discagem. Ex.: Tech + 55 + DDD + telefone.</span>
+        <span class="font-semibold">Tech (opcional)</span>
+        <input name="tech" inputmode="numeric" value="{{ old('tech', $route?->tech) }}" placeholder="5006" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+        <span class="text-xs" style="color: var(--fg-muted);">Quando informado: Tech + 55 + DDD + telefone. Para rota liberada por IP sem Tech, deixe vazio e configure o prefixo nacional.</span>
     </label>
     <label class="grid gap-1 text-sm">
         <span class="font-semibold">Dominio ou IP SIP</span>
@@ -61,6 +61,11 @@
     <label class="grid gap-1 text-sm">
         <span class="font-semibold">Caller ID</span>
         <input name="caller_id" value="{{ old('caller_id', $route?->caller_id) }}" placeholder="Numero autorizado" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+    </label>
+    <label class="grid gap-1 text-sm">
+        <span class="font-semibold">Prefixo de discagem nacional</span>
+        <input name="dial_prefix" inputmode="numeric" value="{{ old('dial_prefix', $route?->dial_prefix) }}" placeholder="0" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+        <span class="text-xs" style="color: var(--fg-muted);">Obrigatorio sem Tech. Ex.: 0 envia 0 + DDD + telefone.</span>
     </label>
     <label class="grid gap-1 text-sm" x-show="auth === 'registration' || auth === 'digest'" x-cloak>
         <span class="font-semibold">Usuario SIP</span>

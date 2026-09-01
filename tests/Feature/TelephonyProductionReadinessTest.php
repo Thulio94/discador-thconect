@@ -102,6 +102,52 @@ class TelephonyProductionReadinessTest extends TestCase
         );
     }
 
+    public function test_manual_call_without_tech_uses_the_national_prefix_for_an_ip_route(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+
+        $company = Company::create(['name' => 'Empresa rota por IP']);
+        $company->licenses()->create([
+            'status' => 'active', 'starts_at' => today()->subDay(), 'ends_at' => today()->addMonth(), 'max_concurrent_calls' => 25,
+        ]);
+        $company->resourceLimit()->create([]);
+        $agent = User::factory()->create([
+            'company_id' => $company->id, 'user_type' => 'agent', 'extension' => '1303', 'status' => 'active',
+        ]);
+        $node = AsteriskNode::create([
+            'name' => 'Asterisk rota por IP', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id,
+            'name' => 'Rota IP sem Tech',
+            'tech' => null,
+            'dial_prefix' => '0',
+            'host' => '165.227.198.187',
+            'sip_port' => 5060,
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'g729,alaw,ulaw',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $company->telephonyRoutes()->attach($route);
+
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202)]);
+
+        app(DialerGateway::class)->originate(new DialerCallRequest(
+            companyId: $company->id, userId: $agent->id, campaignId: null, contactId: null, contactPhoneId: null,
+            phone: '5531999990001', channel: 'manual',
+        ));
+
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://asterisk-bridge.test/v1/calls/originate'
+            && $request['phone'] === '031999990001'
+            && $request['channel'] === 'PJSIP/031999990001@thconect-route-'.$route->id
+        );
+    }
+
     public function test_agent_can_create_only_its_own_encrypted_webrtc_session(): void
     {
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');

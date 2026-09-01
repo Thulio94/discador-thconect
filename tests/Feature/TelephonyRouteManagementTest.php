@@ -38,6 +38,47 @@ class TelephonyRouteManagementTest extends TestCase
         $this->assertTrue($route->enabled);
     }
 
+    public function test_super_admin_can_create_an_ip_authenticated_route_without_tech_using_a_national_prefix(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->post(route('super-admin.telephony-routes.store'), [
+                'name' => 'Rota por IP sem Tech',
+                'host' => '165.227.198.187',
+                'sip_port' => 5060,
+                'transport' => 'udp',
+                'authentication_mode' => 'ip',
+                'dial_prefix' => '0',
+                'dialplan_context' => 'thconect-outbound',
+                'dialplan_extension' => 's',
+                'codecs' => 'g729,alaw,ulaw',
+                'enabled' => '1',
+            ])
+            ->assertRedirect(route('super-admin.telephony-routes.index'));
+
+        $route = TelephonyRoute::where('name', 'Rota por IP sem Tech')->sole();
+
+        $this->assertNull($route->tech);
+        $this->assertSame('0', $route->dial_prefix);
+        $this->assertSame('031999990001', $route->formattedPhone('5531999990001'));
+        $this->assertSame('031999990001', $route->formattedPhone('(31) 99999-0001'));
+    }
+
+    public function test_route_without_tech_requires_a_national_dial_prefix(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->post(route('super-admin.telephony-routes.store'), [
+                'name' => 'Rota incompleta sem Tech',
+                'host' => '165.227.198.187',
+                'transport' => 'udp',
+                'authentication_mode' => 'ip',
+                'dialplan_context' => 'thconect-outbound',
+                'dialplan_extension' => 's',
+                'codecs' => 'g729,alaw,ulaw',
+                'enabled' => '1',
+            ])
+            ->assertSessionHasErrors('dial_prefix');
+    }
+
     public function test_company_can_receive_a_super_admin_route_without_tenant_configuration(): void
     {
         $route = TelephonyRoute::create([

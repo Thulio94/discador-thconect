@@ -98,7 +98,7 @@ class TelephonyRouteController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100', Rule::unique('telephony_routes', 'name')->ignore($route)],
             'provider' => ['nullable', 'string', 'max:100'],
-            'tech' => ['required', 'string', 'max:20', 'regex:/^[0-9]+$/'],
+            'tech' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]+$/'],
             'host' => ['required', 'string', 'max:253', 'regex:/^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/'],
             'sip_port' => ['sometimes', 'integer', 'min:1', 'max:65535'],
             'from_domain' => ['nullable', 'string', 'max:253', 'regex:/^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/'],
@@ -110,7 +110,7 @@ class TelephonyRouteController extends Controller
             'from_user' => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9_.+@\-]+$/'],
             'contact_user' => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9_.+@\-]+$/'],
             'caller_id' => ['nullable', 'string', 'max:40', 'regex:/^[0-9+]+$/'],
-            'dial_prefix' => ['nullable', 'string', 'max:40', 'regex:/^[0-9]*$/'],
+            'dial_prefix' => ['nullable', 'string', 'max:40', 'regex:/^[0-9]*$/', Rule::requiredIf(fn (): bool => blank($request->input('tech')))],
             'dialplan_context' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_.\-]+$/'],
             'dialplan_extension' => ['required', 'string', 'max:80', 'regex:/^[A-Za-z0-9_.+*#\-]+$/'],
             'codecs' => ['required', 'string', 'max:100', $this->codecList()],
@@ -125,6 +125,7 @@ class TelephonyRouteController extends Controller
         ]);
 
         $data['enabled'] = $request->boolean('enabled');
+        $data['tech'] = filled($data['tech'] ?? null) ? $data['tech'] : null;
         $data['asterisk_node_id'] ??= AsteriskNode::query()->orderBy('priority')->value('id');
         $data['connection_status'] = $data['enabled'] ? 'pending_test' : 'not_configured';
         $data['last_error'] = null;

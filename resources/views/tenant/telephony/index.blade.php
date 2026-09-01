@@ -14,7 +14,7 @@
             @forelse ($routes as $route)
                 <div class="rounded-lg border p-4" style="border-color: var(--border); background: var(--surface-alt);">
                     <p class="font-semibold">{{ $route->name }}</p>
-                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">Tech {{ $route->tech }} · {{ $route->provider ?: 'Operadora não informada' }}</p>
+                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ filled($route->tech) ? 'Tech '.$route->tech : 'Sem Tech' }} · {{ $route->provider ?: 'Operadora não informada' }}</p>
                 </div>
             @empty
                 <p class="text-sm" style="color: var(--fg-muted);">Nenhuma rota foi liberada para esta empresa.</p>

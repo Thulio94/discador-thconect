@@ -74,6 +74,7 @@ class TelephonyRoute extends Model
     {
         return $this->enabled
             && filled($this->host)
+            && (filled($this->tech) || filled($this->dial_prefix))
             && (! in_array($this->authentication_mode, ['registration', 'digest'], true) || (filled($this->sip_username) && filled($this->sip_password)))
             && filled(config('services.asterisk_bridge.token'))
             && filled(config('services.asterisk_bridge.webhook_secret'));
@@ -82,11 +83,14 @@ class TelephonyRoute extends Model
     public function formattedPhone(string $phone): string
     {
         $digits = preg_replace('/\D+/', '', $phone) ?: '';
+        $e164 = str_starts_with($digits, '55') && strlen($digits) >= 12
+            ? $digits
+            : '55'.$digits;
 
-        if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
-            return ($this->dial_prefix ?: $this->tech).$digits;
+        if (blank($this->tech)) {
+            return (filled($this->dial_prefix) ? $this->dial_prefix : '').substr($e164, 2);
         }
 
-        return ($this->dial_prefix ?: $this->tech).'55'.$digits;
+        return (filled($this->dial_prefix) ? $this->dial_prefix : $this->tech).$e164;
     }
 }
