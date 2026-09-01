@@ -347,18 +347,35 @@ class MailingQueueService
             return $summary;
         }
 
-        $this->ensureCampaignStates($campaign, $listIds);
-
-        CampaignPhoneState::query()
+        $stateCounts = CampaignPhoneState::query()
             ->where('company_id', $campaign->company_id)
             ->where('campaign_id', $campaign->id)
             ->whereIn('contact_list_id', $listIds)
             ->whereIn('status', self::STATUSES)
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
+            ->pluck('total', 'status');
+
+        if ($stateCounts->isNotEmpty()) {
+            $stateCounts->each(function (int $total, string $status) use (&$summary): void {
+                $summary[$status] = $total;
+            });
+
+            return $summary;
+        }
+
+        // A dashboard request must remain read-only. Initializing a state for
+        // every phone in a large list here can turn opening Campanhas into a
+        // long-running write transaction. The dialer and recycling flows
+        // materialize isolated phone states when they actually need them.
+        Contact::query()
+            ->where('company_id', $campaign->company_id)
+            ->whereIn('contact_list_id', $listIds)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
             ->pluck('total', 'status')
             ->each(function (int $total, string $status) use (&$summary): void {
-                $summary[$status] = $total;
+                $summary[$this->stateStatusFromLegacy($status)] += $total;
             });
 
         return $summary;

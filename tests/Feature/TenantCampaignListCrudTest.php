@@ -402,6 +402,35 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSee('Revisao da campanha');
     }
 
+    public function test_campaign_index_reads_legacy_mailing_without_materializing_phone_states(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista Grande', 'status' => 'active']);
+        $list->contacts()->create([
+            'company_id' => $admin->company_id,
+            'name' => 'Lead pendente',
+            'phone' => '31999990019',
+            'status' => 'pending',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha de leitura',
+            'dialing_mode' => 'power',
+            'status' => 'draft',
+        ]);
+        $campaign->teams()->attach($team, ['company_id' => $admin->company_id]);
+        $campaign->contactLists()->attach($list, ['company_id' => $admin->company_id]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Pendentes 1 (100,00%)');
+
+        $this->assertDatabaseMissing('campaign_phone_states', [
+            'campaign_id' => $campaign->id,
+        ]);
+    }
+
     public function test_tenant_admin_can_update_and_inactivate_contact_list(): void
     {
         [$admin] = $this->tenantAdmin();
@@ -875,13 +904,6 @@ class TenantCampaignListCrudTest extends TestCase
             'dialing_mode' => 'preview',
             'status' => 'paused',
         ]);
-        $queue = app(MailingQueueService::class);
-        $queue->summaryForCampaign($campaign);
-        $recyclableState = CampaignPhoneState::query()
-            ->where('campaign_id', $campaign->id)
-            ->where('contact_id', $recyclable->id)
-            ->sole();
-
         $this->actingAs($admin)
             ->patch(route('tenant.campaigns.recycle', $campaign), [
                 'list_id' => $list->id,
@@ -891,7 +913,10 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertRedirect(route('tenant.campaigns.index'))
             ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 contato reciclado'));
 
-        $recyclableState->refresh();
+        $recyclableState = CampaignPhoneState::query()
+            ->where('campaign_id', $campaign->id)
+            ->where('contact_id', $recyclable->id)
+            ->sole();
         $answered->refresh();
 
         $this->assertSame('pending', $recyclableState->status);
