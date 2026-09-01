@@ -154,6 +154,25 @@ func TestReadAMIGreetingRejectsUnexpectedProtocol(t *testing.T) {
 	}
 }
 
+func TestSuccessfulSIPResponseAcceptsOnlyTwoHundreds(t *testing.T) {
+	for _, test := range []struct {
+		line string
+		want bool
+	}{
+		{line: "SIP/2.0 200 OK", want: true},
+		{line: "SIP/2.0 202 Accepted", want: true},
+		{line: "SIP/2.0 100 Trying", want: false},
+		{line: "SIP/2.0 401 Unauthorized", want: false},
+		{line: "SIP/2.0 403 Forbidden", want: false},
+		{line: "SIP/2.0 503 Service Unavailable", want: false},
+		{line: "invalid response", want: false},
+	} {
+		if got := successfulSIPResponse(test.line); got != test.want {
+			t.Errorf("successfulSIPResponse(%q) = %t, want %t", test.line, got, test.want)
+		}
+	}
+}
+
 func validRouteConfig() routeConfig {
 	return routeConfig{
 		CompanyID: 1, RouteID: 7,

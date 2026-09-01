@@ -908,10 +908,14 @@ func testSIPReachability(config routeConfig) (string, error) {
 		return "", fmt.Errorf("SIP endpoint did not answer OPTIONS: %w", err)
 	}
 	line = strings.TrimSpace(line)
-	if !regexp.MustCompile(`^SIP/2\.0 [1-6][0-9]{2}(?: |$)`).MatchString(line) {
-		return "", errors.New("SIP endpoint returned an invalid response")
+	if !successfulSIPResponse(line) {
+		return "", fmt.Errorf("SIP endpoint rejected OPTIONS: %s", line)
 	}
 	return line, nil
+}
+
+func successfulSIPResponse(line string) bool {
+	return regexp.MustCompile(`^SIP/2\.0 2[0-9]{2}(?: |$)`).MatchString(line)
 }
 
 func randomToken(bytesCount int) string {
