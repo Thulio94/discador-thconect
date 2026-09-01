@@ -402,6 +402,36 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertSee('Revisao da campanha');
     }
 
+    public function test_campaign_index_uses_icon_only_start_and_pause_actions(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista de acoes', 'status' => 'active']);
+        $draft = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha para iniciar',
+            'dialing_mode' => 'power',
+            'status' => 'draft',
+        ]);
+        $active = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha ativa',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        foreach ([$draft, $active] as $campaign) {
+            $campaign->teams()->attach($team, ['company_id' => $admin->company_id]);
+            $campaign->contactLists()->attach($list, ['company_id' => $admin->company_id]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('title="Iniciar campanha"', false)
+            ->assertSee('title="Pausar campanha"', false)
+            ->assertDontSee('Rodar discagem')
+            ->assertDontSee('>Pausar<', false);
+    }
+
     public function test_campaign_index_reads_legacy_mailing_without_materializing_phone_states(): void
     {
         [$admin, $team] = $this->tenantAdmin();

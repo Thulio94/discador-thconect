@@ -103,26 +103,25 @@
                         <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'campaign-view-{{ $campaign->id }}')" />
                         @can('tenant.campaigns.operate')
                         @if ($campaign->status === 'draft')
-                            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-start-{{ $campaign->id }}')">Iniciar</x-ui.button>
+                            <x-ui.action icon="play" label="Iniciar campanha" variant="primary" x-data x-on:click="$dispatch('open-modal', 'campaign-start-{{ $campaign->id }}')" />
                         @endif
                         @if ($campaign->status === 'active')
-                            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-dial-{{ $campaign->id }}')">Rodar discagem</x-ui.button>
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-pause-{{ $campaign->id }}')">Pausar</x-ui.button>
+                            <x-ui.action icon="pause" label="Pausar campanha" variant="warning" x-data x-on:click="$dispatch('open-modal', 'campaign-pause-{{ $campaign->id }}')" />
                         @endif
                         @if ($campaign->status === 'paused')
-                            <x-ui.button type="button" x-data x-on:click="$dispatch('open-modal', 'campaign-restart-{{ $campaign->id }}')">Reiniciar</x-ui.button>
+                            <x-ui.action icon="play" label="Retomar campanha" variant="primary" x-data x-on:click="$dispatch('open-modal', 'campaign-restart-{{ $campaign->id }}')" />
                         @endif
-                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-recycle-{{ $campaign->id }}')">Reciclar mailing</x-ui.button>
+                        <x-ui.action icon="refresh" label="Reciclar mailing" x-data x-on:click="$dispatch('open-modal', 'campaign-recycle-{{ $campaign->id }}')" />
                         @endcan
                         @can('tenant.campaigns.create')
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-duplicate-{{ $campaign->id }}')">Duplicar</x-ui.button>
+                            <x-ui.action icon="add" label="Duplicar campanha" x-data x-on:click="$dispatch('open-modal', 'campaign-duplicate-{{ $campaign->id }}')" />
                         @endcan
                         @can('tenant.campaigns.update')
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'campaign-edit-{{ $campaign->id }}')">Editar</x-ui.button>
+                            <x-ui.action icon="edit" label="Editar campanha" x-data x-on:click="$dispatch('open-modal', 'campaign-edit-{{ $campaign->id }}')" />
                         @endcan
                         @can('tenant.campaigns.delete')
                         @if ($campaign->status !== 'finished')
-                            <x-ui.button type="button" variant="danger" x-data x-on:click="$dispatch('open-modal', 'campaign-finish-{{ $campaign->id }}')">Finalizar</x-ui.button>
+                            <x-ui.action icon="delete" label="Finalizar campanha" variant="danger" x-data x-on:click="$dispatch('open-modal', 'campaign-finish-{{ $campaign->id }}')" />
                         @endif
                         @endcan
                     </div>
@@ -164,18 +163,6 @@
                         <div class="mt-5 flex justify-end gap-2">
                             <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-pause-{{ $campaign->id }}')">Cancelar</x-ui.button>
                             <x-ui.button type="submit" variant="secondary">Pausar campanha</x-ui.button>
-                        </div>
-                    </form>
-                </x-ui.modal>
-
-                <x-ui.modal name="campaign-dial-{{ $campaign->id }}" title="Rodar discagem simulada" max-width="md">
-                    <form method="POST" action="{{ route('tenant.campaigns.dial', $campaign) }}">
-                        @csrf
-                        @method('PATCH')
-                        <p class="text-sm" style="color: var(--fg-muted);">A campanha buscara contatos pendentes e agentes disponiveis para criar chamadas simuladas.</p>
-                        <div class="mt-5 flex justify-end gap-2">
-                            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'campaign-dial-{{ $campaign->id }}')">Cancelar</x-ui.button>
-                            <x-ui.button type="submit">Rodar discagem</x-ui.button>
                         </div>
                     </form>
                 </x-ui.modal>
