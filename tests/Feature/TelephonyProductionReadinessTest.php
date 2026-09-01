@@ -36,6 +36,7 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertStringContainsString('ASTERISK_BUILD_REVISION: webrtc-r3', $productionCompose);
         $this->assertStringContainsString("module show like res_http_websocket", $productionCompose);
         $this->assertStringContainsString("module show like res_pjsip_transport_websocket", $productionCompose);
+        $this->assertMatchesRegularExpression('/asterisk:.*?networks:.*?easypanel:/s', $productionCompose);
     }
 
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void
@@ -128,6 +129,20 @@ class TelephonyProductionReadinessTest extends TestCase
             && $request['password'] === $secret
         );
         $this->assertSame('http://asterisk-bridge.test', $node->bridge_url);
+    }
+
+    public function test_agent_session_prefers_the_dedicated_webrtc_websocket_url(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webrtc_ws_url', 'wss://ws.discador.test/ws');
+
+        [$agent] = $this->agentWithRoute();
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['synchronized' => true])]);
+
+        $this->actingAs($agent)
+            ->postJson(route('tenant.agent.softphone.session'))
+            ->assertOk()
+            ->assertJsonPath('websocket_url', 'wss://ws.discador.test/ws');
     }
 
     public function test_inactive_user_cannot_create_a_webrtc_session(): void

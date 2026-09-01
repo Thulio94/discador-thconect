@@ -52,6 +52,7 @@ return [
         'manager_username' => env('ASTERISK_AMI_USERNAME', 'thconect'),
         'manager_secret' => env('ASTERISK_AMI_SECRET'),
         'webrtc_stun_url' => env('WEBRTC_STUN_URL'),
+        'webrtc_ws_url' => env('WEBRTC_WS_URL'),
     ],
 
 ];

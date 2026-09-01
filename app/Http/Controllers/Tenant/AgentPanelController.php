@@ -147,13 +147,14 @@ class AgentPanelController extends Controller
         $host = $publicUrl['host'] ?? $request->getHost();
         $port = isset($publicUrl['port']) ? ':'.$publicUrl['port'] : '';
         $scheme = ($publicUrl['scheme'] ?? 'http') === 'https' ? 'wss' : 'ws';
+        $websocketUrl = config('services.asterisk_bridge.webrtc_ws_url') ?: $scheme.'://'.$host.$port.'/sip-ws';
 
         return response()->json([
             'endpoint' => $session['endpoint'],
             'extension' => $session['extension'],
             'uri' => 'sip:'.$session['endpoint'].'@'.$host,
             'password' => $session['password'],
-            'websocket_url' => $scheme.'://'.$host.$port.'/sip-ws',
+            'websocket_url' => $websocketUrl,
             'ice_servers' => filled(config('services.asterisk_bridge.webrtc_stun_url'))
                 ? [['urls' => [(string) config('services.asterisk_bridge.webrtc_stun_url')]]]
                 : [],
