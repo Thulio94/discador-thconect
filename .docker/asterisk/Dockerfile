@@ -2,6 +2,7 @@ FROM debian:bookworm-slim AS build
 
 ARG ASTERISK_VERSION=22.11.0
 ARG ASTERISK_SHA256=3bd5ee040509a3d3cd9b1ba9520c18e6ec0a7e7981ca68c457dcd36ba3c54d94
+ARG ASTERISK_BUILD_REVISION=webrtc-r2
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -13,7 +14,8 @@ RUN apt-get update \
 
 WORKDIR /usr/src
 
-RUN curl --fail --location --show-error --silent \
+RUN printf 'Building Asterisk revision %s\n' "$ASTERISK_BUILD_REVISION" \
+    && curl --fail --location --show-error --silent \
         "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${ASTERISK_VERSION}.tar.gz" \
         --output asterisk.tar.gz \
     && echo "${ASTERISK_SHA256}  asterisk.tar.gz" | sha256sum --check --strict \

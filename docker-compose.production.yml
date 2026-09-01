@@ -197,12 +197,14 @@ services:
     restart: unless-stopped
 
   asterisk:
-    # A versioned tag prevents Easypanel from reusing the legacy Asterisk image
-    # without the WebSocket modules needed by browser agents.
-    image: discador-piloto-asterisk:22.11.0-webrtc-r1
+    # A versioned tag and build revision prevent Easypanel from reusing a legacy
+    # Asterisk layer without the WebSocket modules needed by browser agents.
+    image: discador-piloto-asterisk:22.11.0-webrtc-r2
     build:
       context: ./.docker/asterisk
       dockerfile: Dockerfile
+      args:
+        ASTERISK_BUILD_REVISION: webrtc-r2
     env_file:
       - .env
     environment:
