@@ -24,11 +24,13 @@ class TelephonyProductionReadinessTest extends TestCase
     {
         $modules = file_get_contents(base_path('.docker/asterisk/config/modules.conf'));
         $dockerfile = file_get_contents(base_path('.docker/asterisk/Dockerfile'));
+        $productionCompose = file_get_contents(base_path('docker-compose.production.yml'));
 
         $this->assertStringContainsString('load => res_http_websocket.so', $modules);
         $this->assertStringContainsString('load => res_pjsip_transport_websocket.so', $modules);
         $this->assertMatchesRegularExpression('/--enable res_http_websocket(?:\\s|\\\\)/', $dockerfile);
         $this->assertMatchesRegularExpression('/--enable res_pjsip_transport_websocket(?:\\s|\\\\)/', $dockerfile);
+        $this->assertStringContainsString('image: discador-piloto-asterisk:22.11.0-webrtc-r1', $productionCompose);
     }
 
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void

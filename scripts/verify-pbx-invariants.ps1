@@ -77,7 +77,7 @@ Assert-Match $bootstrapApp 'TRUSTED_PROXIES' 'O Laravel precisa declarar os prox
 Assert-Match $bootstrapApp 'trustProxies\(at: \$trustedProxies\)' 'O Laravel precisa confiar somente nos proxies reversos configurados.'
 Assert-NotMatch $bootstrapApp 'trustProxies\(at: ''\*''\)' 'O Laravel nao pode confiar em cabecalhos encaminhados por qualquer origem.'
 Assert-Match $databaseConfig "env\('REDIS_CLIENT', 'predis'\)" 'A imagem de producao precisa usar o cliente Redis incluido pelo Composer.'
-Assert-Match $productionCompose 'image: discador-piloto-asterisk:latest' 'O piloto precisa usar imagem Asterisk isolada do PABX legado.'
+Assert-Match $productionCompose 'image: discador-piloto-asterisk:[A-Za-z0-9._-]+' 'O piloto precisa usar imagem Asterisk isolada do PABX legado.'
 Assert-NotMatch $productionCompose 'image: discador-thconect-asterisk:latest' 'O piloto nao pode reutilizar a tag de imagem do PABX legado.'
 Assert-Match $productionCompose 'pilot-app' 'O piloto precisa usar alias interno exclusivo para o Laravel.'
 Assert-Match $productionCompose 'pilot-reverb' 'O piloto precisa usar alias interno exclusivo para o Reverb.'
