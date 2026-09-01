@@ -7,6 +7,7 @@ use App\Models\TelephonyRoute;
 use App\Models\AsteriskNode;
 use App\Services\Telephony\AsteriskBridgeClient;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -86,7 +87,7 @@ class TelephonyRouteController extends Controller
             $telephonyRoute->update([
                 'connection_status' => 'error',
                 'last_checked_at' => now(),
-                'last_error' => 'Falha de conexao. Consulte os logs tecnicos para diagnostico.',
+                'last_error' => $this->safeRouteTestError($exception),
             ]);
 
             return back()->withErrors(['telephony_route' => 'Nao foi possivel validar a rota no Asterisk. Revise o dominio, as credenciais e a rede.']);
@@ -152,5 +153,18 @@ class TelephonyRouteController extends Controller
                 $fail('Informe codecs únicos separados por vírgula: alaw, ulaw, g722, gsm, opus ou g729.');
             }
         };
+    }
+
+    private function safeRouteTestError(Throwable $exception): string
+    {
+        if ($exception instanceof RequestException) {
+            $message = $exception->response->json('message');
+
+            if (is_string($message) && $message !== '') {
+                return str($message)->squish()->limit(180, '')->toString();
+            }
+        }
+
+        return 'Falha de conexao. Consulte os logs tecnicos para diagnostico.';
     }
 }

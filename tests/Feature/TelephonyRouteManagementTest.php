@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\TelephonyRoute;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class TelephonyRouteManagementTest extends TestCase
@@ -77,6 +78,31 @@ class TelephonyRouteManagementTest extends TestCase
                 'enabled' => '1',
             ])
             ->assertSessionHasErrors('dial_prefix');
+    }
+
+    public function test_super_admin_sees_the_safe_sip_rejection_when_a_route_test_fails(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        $node = \App\Models\AsteriskNode::create([
+            'name' => 'No de teste', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id, 'name' => 'Rota com rejeicao SIP', 'tech' => '5006', 'host' => 'sip.example.test',
+            'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's', 'codecs' => 'alaw,ulaw', 'enabled' => true,
+        ]);
+        Http::fake([
+            'http://asterisk-bridge.test/*' => Http::response([
+                'message' => 'SIP endpoint rejected OPTIONS: SIP/2.0 403 Forbidden',
+            ], 502),
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('super-admin.telephony-routes.test', $route))
+            ->assertSessionHasErrors('telephony_route');
+
+        $this->assertSame('error', $route->fresh()->connection_status);
+        $this->assertSame('SIP endpoint rejected OPTIONS: SIP/2.0 403 Forbidden', $route->fresh()->last_error);
     }
 
     public function test_company_can_receive_a_super_admin_route_without_tenant_configuration(): void
