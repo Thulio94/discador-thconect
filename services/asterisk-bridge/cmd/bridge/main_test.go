@@ -173,6 +173,21 @@ func TestSuccessfulSIPResponseAcceptsOnlyTwoHundreds(t *testing.T) {
 	}
 }
 
+func TestAMICorrelationUsesLinkedIDAfterOriginateResponse(t *testing.T) {
+	manager := newRouteManager(&bridge{}, routeConfig{CompanyID: 3})
+	manager.actions["call-action"] = actionRef{CallID: 42, CompanyID: 3}
+	manager.companies[42] = 3
+
+	manager.processEvent(map[string]string{
+		"Event": "OriginateResponse", "ActionID": "call-action", "Response": "Success",
+		"Uniqueid": "1720000000.10", "Linkedid": "1720000000.10",
+	})
+
+	if got := manager.callIDFor(map[string]string{"Event": "Hangup", "Linkedid": "1720000000.10"}); got != 42 {
+		t.Fatalf("expected Linkedid to resolve call 42, got %d", got)
+	}
+}
+
 func validRouteConfig() routeConfig {
 	return routeConfig{
 		CompanyID: 1, RouteID: 7,

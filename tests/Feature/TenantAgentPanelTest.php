@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Events\AgentPresenceUpdated;
+use App\Contracts\Dialer\DialerGateway;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
@@ -16,6 +17,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\DialerCallRequest;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -1072,6 +1074,49 @@ class TenantAgentPanelTest extends TestCase
             ->assertNotFound();
 
         $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_real_manual_call_keeps_agent_dialing_until_asterisk_confirms_answer(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->app->instance(DialerGateway::class, new class implements DialerGateway {
+            public function originate(DialerCallRequest $request): Call
+            {
+                return Call::create([
+                    'company_id' => $request->companyId,
+                    'user_id' => $request->userId,
+                    'direction' => 'outbound',
+                    'status' => 'dialing',
+                    'channel' => 'asterisk_ami',
+                    'phone' => $request->phone,
+                    'started_at' => now(),
+                ]);
+            }
+
+            public function cancel(DialerCallRequest $request, string $reason): Call
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function hangup(Call $call): Call
+            {
+                return $call;
+            }
+        });
+
+        $this->actingAs($agent)
+            ->post(route('tenant.agent.calls.store'), ['phone' => '(31) 99999-0001', 'channel' => 'manual'])
+            ->assertRedirect(route('tenant.agent.index'));
+
+        $this->assertSame('dialing', $agent->fresh()->currentAgentStatus->status);
+        $this->actingAs($agent)->get(route('tenant.agent.index'))->assertSee('Discando');
     }
 
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void

@@ -2,6 +2,7 @@
     @php
         $statusMeta = [
             'available' => ['label' => 'Disponivel', 'color' => 'var(--status-success)', 'tone' => 'emerald'],
+            'dialing' => ['label' => 'Discando', 'color' => 'var(--status-info)', 'tone' => 'cyan'],
             'paused' => ['label' => 'Em pausa', 'color' => 'var(--status-warning)', 'tone' => 'amber'],
             'in_call' => ['label' => 'Em chamada', 'color' => 'var(--primary)', 'tone' => 'cyan'],
             'wrap_up' => ['label' => 'Em tabulacao', 'color' => 'var(--status-purple)', 'tone' => 'violet'],
@@ -66,7 +67,7 @@
                 csrfToken: @js(csrf_token()),
                 statusUrl: @js(route('tenant.agent.status')),
                 currentStatus: @js($currentStatus),
-                acceptIncoming: @js(in_array($currentStatus, ['available', 'paused', 'in_call'], true)),
+                acceptIncoming: @js(in_array($currentStatus, ['available', 'paused', 'dialing', 'in_call'], true)),
             })"
             x-init="start()"
             x-on:beforeunload.window="stop()"
@@ -119,6 +120,10 @@
                 @if ($wrapUpCall)
                     <div class="rounded-lg border px-4 py-3 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-purple) 45%, var(--border)); background: color-mix(in srgb, var(--status-purple) 10%, var(--surface)); color: var(--status-purple);">
                         Conclua a tabulacao para liberar novas chamadas
+                    </div>
+                @elseif ($currentCall && $currentStatus === 'dialing')
+                    <div class="rounded-lg border px-4 py-3 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 10%, var(--surface)); color: var(--status-info);">
+                        Aguardando a resposta da chamada
                     </div>
                 @else
                     <div class="flex flex-wrap gap-2">

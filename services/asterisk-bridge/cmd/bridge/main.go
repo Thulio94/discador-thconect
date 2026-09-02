@@ -655,10 +655,12 @@ func (m *routeManager) processEvent(message map[string]string) {
 		companyID = m.config.CompanyID
 	}
 
-	uniqueID := firstNonEmpty(message["Uniqueid"], message["UniqueID"], message["DestUniqueid"])
+	uniqueID := firstNonEmpty(message["Uniqueid"], message["UniqueID"], message["DestUniqueid"], message["DestUniqueID"])
 	if uniqueID != "" {
 		m.mu.Lock()
-		m.ids[uniqueID] = callID
+		for _, id := range correlationIDs(message) {
+			m.ids[id] = callID
+		}
 		m.mu.Unlock()
 	}
 
@@ -771,7 +773,7 @@ func (m *routeManager) callIDFor(message map[string]string) int {
 		id, _ := strconv.Atoi(message["Value"])
 		return id
 	}
-	for _, id := range []string{message["Uniqueid"], message["UniqueID"], message["DestUniqueid"]} {
+	for _, id := range correlationIDs(message) {
 		m.mu.Lock()
 		callID := m.ids[id]
 		m.mu.Unlock()
@@ -780,6 +782,22 @@ func (m *routeManager) callIDFor(message map[string]string) int {
 		}
 	}
 	return 0
+}
+
+func correlationIDs(message map[string]string) []string {
+	seen := map[string]bool{}
+	ids := make([]string, 0, 6)
+	for _, id := range []string{
+		message["Uniqueid"], message["UniqueID"], message["DestUniqueid"], message["DestUniqueID"],
+		message["Linkedid"], message["LinkedID"],
+	} {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
 }
 
 func (m *routeManager) companyIDFor(callID int) int {

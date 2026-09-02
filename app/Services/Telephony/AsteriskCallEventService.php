@@ -30,6 +30,10 @@ class AsteriskCallEventService
         }
 
         $event = (string) $payload['event'];
+        if (in_array($call->status, ['ended', 'cancelled'], true) && $event !== 'recording_ready') {
+            return;
+        }
+
         $callEvent = CallEvent::query()->firstOrCreate([
             'call_id' => $call->id,
             'event_key' => $this->eventKey($payload),

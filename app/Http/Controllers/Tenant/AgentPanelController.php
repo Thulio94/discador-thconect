@@ -406,7 +406,7 @@ class AgentPanelController extends Controller
 
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
-            'status' => 'in_call',
+            'status' => $call->channel === 'asterisk_ami' ? 'dialing' : 'in_call',
             'started_at' => now(),
         ]);
 

@@ -26,7 +26,7 @@ final class CallWrapUpService
 
     public function expireDue(): int
     {
-        return $this->expire(Call::query());
+        return $this->expire(Call::query()) + $this->expireStaleAsteriskCalls();
     }
 
     public function hasPendingForUser(User $user): bool
@@ -61,6 +61,47 @@ final class CallWrapUpService
                     'status' => 'ended',
                     'end_reason' => 'wrap_up_timeout',
                     'wrap_up_expires_at' => null,
+                ]);
+
+                if ($call->user_id && $user = User::query()->find($call->user_id)) {
+                    $this->releaseAgent($user, $call);
+                }
+
+                return true;
+            });
+
+            $expired += $didExpire ? 1 : 0;
+        }
+
+        return $expired;
+    }
+
+    private function expireStaleAsteriskCalls(): int
+    {
+        $callIds = Call::query()
+            ->where('channel', 'asterisk_ami')
+            ->whereIn('status', ['dialing', 'ringing'])
+            ->where('started_at', '<=', now()->subSeconds(50))
+            ->pluck('id');
+
+        $expired = 0;
+
+        foreach ($callIds as $callId) {
+            $didExpire = DB::transaction(function () use ($callId): bool {
+                $call = Call::query()->lockForUpdate()->find($callId);
+
+                if (! $call
+                    || $call->channel !== 'asterisk_ami'
+                    || ! in_array($call->status, ['dialing', 'ringing'], true)
+                    || $call->started_at?->greaterThan(now()->subSeconds(50))) {
+                    return false;
+                }
+
+                $call->update([
+                    'status' => 'cancelled',
+                    'end_reason' => 'asterisk_event_timeout',
+                    'hangup_party' => 'system',
+                    'ended_at' => now(),
                 ]);
 
                 if ($call->user_id && $user = User::query()->find($call->user_id)) {

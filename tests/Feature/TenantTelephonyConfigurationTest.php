@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\TelephonyRoute;
 use App\Models\User;
 use App\Services\Telephony\AsteriskCallEventService;
+use App\Services\Dialer\CallWrapUpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -160,6 +161,41 @@ class TenantTelephonyConfigurationTest extends TestCase
 
         $this->assertSame('cancelled', $call->fresh()->status);
         $this->assertSame('available', $admin->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_stale_ami_call_is_cancelled_and_releases_the_agent_when_its_terminal_event_is_missing(): void
+    {
+        $admin = $this->tenantAdmin();
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'direction' => 'outbound',
+            'status' => 'ringing',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990004',
+            'started_at' => now()->subSeconds(51),
+        ]);
+        AgentStatus::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'status' => 'dialing',
+            'started_at' => now()->subSeconds(51),
+        ]);
+
+        $this->assertSame(1, app(CallWrapUpService::class)->expireDue());
+
+        $this->assertSame('cancelled', $call->fresh()->status);
+        $this->assertSame('asterisk_event_timeout', $call->fresh()->end_reason);
+        $this->assertSame('available', $admin->fresh()->currentAgentStatus->status);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'answered',
+            'uniqueid' => '1720000000.4',
+        ]);
+
+        $this->assertSame('cancelled', $call->fresh()->status);
     }
 
     public function test_asterisk_event_rejects_expired_or_replayed_payloads(): void
