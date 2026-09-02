@@ -52,6 +52,11 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                 }
 
                 const state = await response.json();
+                const softphone = globalThis.Alpine?.store?.('softphone');
+                if (softphone) {
+                    softphone.callActive = Boolean(state.call_active);
+                    softphone.callStatus = state.call_status ?? null;
+                }
 
                 if (!state.signature || state.signature === this.signature) {
                     return;

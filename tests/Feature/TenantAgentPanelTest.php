@@ -1141,7 +1141,60 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)
             ->getJson(route('tenant.agent.state'))
             ->assertOk()
-            ->assertJsonPath('call_active', true);
+            ->assertJsonPath('call_active', true)
+            ->assertJsonPath('agent_status', 'dialing')
+            ->assertJsonPath('call_status', 'dialing');
+    }
+
+    public function test_power_campaign_marks_an_asterisk_agent_as_dialing_until_the_call_is_answered(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Lista Asterisk', 'status' => 'active']);
+        $list->contacts()->create(['company_id' => $company->id, 'name' => 'Lead', 'phone' => '31999990051', 'status' => 'pending']);
+        $campaign->contactLists()->attach($list, ['company_id' => $company->id]);
+
+        $this->app->instance(DialerGateway::class, new class implements DialerGateway {
+            public function originate(DialerCallRequest $request): Call
+            {
+                return Call::create([
+                    'company_id' => $request->companyId,
+                    'user_id' => $request->userId,
+                    'campaign_id' => $request->campaignId,
+                    'contact_id' => $request->contactId,
+                    'contact_phone_id' => $request->contactPhoneId,
+                    'direction' => 'outbound',
+                    'status' => 'dialing',
+                    'channel' => 'asterisk_ami',
+                    'phone' => $request->phone,
+                    'started_at' => now(),
+                ]);
+            }
+
+            public function cancel(DialerCallRequest $request, string $reason): Call
+            {
+                return Call::create([
+                    'company_id' => $request->companyId,
+                    'user_id' => $request->userId,
+                    'campaign_id' => $request->campaignId,
+                    'direction' => 'outbound',
+                    'status' => 'cancelled',
+                    'channel' => 'asterisk_ami',
+                    'phone' => $request->phone,
+                    'end_reason' => $reason,
+                    'started_at' => now(),
+                    'ended_at' => now(),
+                ]);
+            }
+
+            public function hangup(Call $call): Call
+            {
+                return $call;
+            }
+        });
+
+        $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
+        $this->assertSame('dialing', $agent->fresh()->currentAgentStatus->status);
     }
 
     public function test_manual_call_can_start_without_navigating_away_from_the_registered_ramal(): void

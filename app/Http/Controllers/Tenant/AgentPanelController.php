@@ -131,13 +131,17 @@ class AgentPanelController extends Controller
     public function state(Request $request): JsonResponse
     {
         $user = $request->user();
+        $currentCall = $user->calls()
+            ->whereIn('status', Call::ACTIVE_STATUSES)
+            ->latest('id')
+            ->first(['status']);
 
         return response()
             ->json([
                 'signature' => $this->stateSignature($user),
-                'call_active' => $user->calls()
-                    ->whereIn('status', Call::ACTIVE_STATUSES)
-                    ->exists(),
+                'call_active' => $currentCall !== null,
+                'call_status' => $currentCall?->status,
+                'agent_status' => $user->currentAgentStatus()->value('status') ?? 'offline',
             ])
             ->header('Cache-Control', 'no-store, private');
     }

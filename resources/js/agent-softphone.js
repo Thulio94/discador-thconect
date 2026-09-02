@@ -219,6 +219,6 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
 }
 
 export function registerAgentSoftphone(Alpine) {
-    Alpine.store('softphone', { state: 'preparing', registered: false, activeSession: false });
+    Alpine.store('softphone', { state: 'preparing', registered: false, activeSession: false, callActive: false, callStatus: null });
     Alpine.data('agentSoftphone', (config) => createAgentSoftphone(config));
 }

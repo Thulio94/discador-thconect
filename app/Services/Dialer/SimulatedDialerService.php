@@ -197,6 +197,7 @@ class SimulatedDialerService
     private function createBatch(Campaign $campaign, User $agent, int $batchSize): int
     {
         $created = 0;
+        $winnerCall = null;
 
         for ($attempt = 0; $attempt < $batchSize; $attempt++) {
             $contactPhone = $this->queue->nextContactPhoneForCampaign($campaign);
@@ -217,21 +218,25 @@ class SimulatedDialerService
                 phone: $contactPhone->phone,
             );
 
-            $isWinner
+            $call = $isWinner
                 ? $this->gateway->originate($request)
                 : $this->gateway->cancel($request, 'answered_elsewhere');
+
+            if ($isWinner) {
+                $winnerCall = $call;
+            }
 
             $this->queue->markAttempt(
                 $contact,
                 now()->addMinutes(30),
-                status: $isWinner ? 'dialing' : 'pending',
+                status: $isWinner && in_array($call->status, Call::ACTIVE_STATUSES, true) ? 'dialing' : 'pending',
                 contactPhone: $contactPhone,
                 campaign: $campaign,
             );
             $created++;
         }
 
-        if ($created === 0) {
+        if ($created === 0 || ! $winnerCall || ! in_array($winnerCall->status, Call::ACTIVE_STATUSES, true)) {
             return 0;
         }
 
@@ -239,7 +244,7 @@ class SimulatedDialerService
 
         $agent->agentStatuses()->create([
             'company_id' => $campaign->company_id,
-            'status' => 'in_call',
+            'status' => $winnerCall->channel === 'asterisk_ami' ? 'dialing' : 'in_call',
             'started_at' => now(),
         ]);
 

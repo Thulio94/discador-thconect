@@ -87,6 +87,11 @@
             <audio data-agent-remote-audio autoplay playsinline class="hidden"></audio>
         </div>
 
+        <div x-show="$store.softphone.callActive" x-cloak class="mb-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 8%, var(--surface));">
+            <x-ui.icon name="phone" class="h-4 w-4 shrink-0" />
+            <span x-text="$store.softphone.callStatus === 'dialing' ? 'Ligação em preparação. Aguarde o atendimento.' : 'Ligação em andamento. Aguarde o áudio do ramal.'">Ligação em preparação. Aguarde o atendimento.</span>
+        </div>
+
         <div x-show="pending" x-cloak class="mb-4 flex items-center gap-4 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 8%, var(--surface));">
             <span>Atualização recebida. A tela será atualizada após a ligação para manter o áudio do ramal conectado.</span>
         </div>
@@ -247,7 +252,7 @@
                                 @csrf
                                 <input type="hidden" name="channel" value="manual">
                                 <input name="phone" inputmode="tel" autocomplete="tel" x-model="phone" x-on:input="phone = formatPhone($event.target.value)" class="rounded-lg border px-3 py-2 text-sm" placeholder="(31) 99999-0001" aria-label="Telefone para chamada manual">
-                                <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered || submitting"><span x-text="submitting ? 'Chamando...' : 'Ligar'">Ligar</span></x-ui.button>
+                                <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered || $store.softphone.callActive || submitting"><span x-text="submitting ? 'Chamando...' : 'Ligar'">Ligar</span></x-ui.button>
                             </form>
                         @elseif (! $wrapUpCall)
                             <span class="text-sm font-semibold" style="color: var(--fg-muted);">Chamadas bloqueadas enquanto estiver offline.</span>
