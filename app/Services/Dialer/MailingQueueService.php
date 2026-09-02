@@ -383,20 +383,77 @@ class MailingQueueService
 
     private function ensureCampaignStates(Campaign $campaign, array $listIds): void
     {
+        if ($listIds === []) {
+            return;
+        }
+
+        $now = now();
+
+        // Imports already create one contact_phones row for every normalized
+        // number. Create missing rows for legacy contacts in batches too, then
+        // materialize the campaign queue with a handful of bulk inserts. The
+        // previous Eloquent loop performed multiple queries per number and
+        // could exceed the telephony worker timeout before its first call.
         Contact::query()
             ->where('company_id', $campaign->company_id)
             ->whereIn('contact_list_id', $listIds)
-            ->with('phones')
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '')
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('contact_phones')
+                    ->whereColumn('contact_phones.contact_id', 'contacts.id');
+            })
+            ->select(['id', 'company_id', 'phone', 'status', 'attempts_count', 'last_attempt_at', 'next_attempt_at'])
             ->orderBy('id')
-            ->each(function (Contact $contact) use ($campaign): void {
-                $phones = $contact->phones;
-                if ($phones->isEmpty()) {
-                    $phone = $this->ensurePrimaryPhoneForLegacyContact($contact);
-                    $phones = $phone ? collect([$phone]) : collect();
-                }
-
-                $phones->each(fn (ContactPhone $phone) => $this->stateForCampaignPhone($campaign, $phone));
+            ->chunkById(500, function ($contacts) use ($now): void {
+                DB::table('contact_phones')->insertOrIgnore($contacts->map(fn (Contact $contact): array => [
+                    'company_id' => $contact->company_id,
+                    'contact_id' => $contact->id,
+                    'phone' => $contact->phone,
+                    'column_name' => 'phone',
+                    'position' => 0,
+                    'is_primary' => true,
+                    'status' => $contact->status,
+                    'attempts_count' => $contact->attempts_count,
+                    'last_attempt_at' => $contact->last_attempt_at,
+                    'next_attempt_at' => $contact->next_attempt_at,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all());
             });
+
+        ContactPhone::query()
+            ->join('contacts', 'contacts.id', '=', 'contact_phones.contact_id')
+            ->where('contact_phones.company_id', $campaign->company_id)
+            ->where('contacts.company_id', $campaign->company_id)
+            ->whereIn('contacts.contact_list_id', $listIds)
+            ->select([
+                'contact_phones.id as contact_phone_id',
+                'contact_phones.contact_id',
+                'contact_phones.status as phone_status',
+                'contact_phones.attempts_count',
+                'contact_phones.last_attempt_at',
+                'contact_phones.next_attempt_at',
+                'contacts.contact_list_id',
+                'contacts.status as contact_status',
+            ])
+            ->orderBy('contact_phones.id')
+            ->chunkById(500, function ($phones) use ($campaign, $now): void {
+                DB::table('campaign_phone_states')->insertOrIgnore($phones->map(fn (object $phone): array => [
+                    'company_id' => $campaign->company_id,
+                    'campaign_id' => $campaign->id,
+                    'contact_list_id' => $phone->contact_list_id,
+                    'contact_id' => $phone->contact_id,
+                    'contact_phone_id' => $phone->contact_phone_id,
+                    'status' => $this->stateStatusFromLegacy((string) ($phone->phone_status ?: $phone->contact_status)),
+                    'attempts_count' => $phone->attempts_count,
+                    'last_attempt_at' => $phone->last_attempt_at,
+                    'next_attempt_at' => $phone->next_attempt_at,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all());
+            }, 'contact_phones.id', 'contact_phone_id');
     }
 
     private function stateStatusFromLegacy(string $status): string

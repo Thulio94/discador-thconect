@@ -2,22 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RunPowerCampaign;
+use App\Models\AgentStatus;
 use App\Models\Campaign;
-use App\Models\Call;
 use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
-use App\Services\Dialer\MailingQueueService;
 use App\Services\Campaigns\CampaignOperationalGuard;
+use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\PreviewLeadService;
-use App\Jobs\RunPowerCampaign;
-use App\Models\AgentStatus;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Services\Dialer\SimulatedDialerService;
 use App\Support\Tenant\PermissionMatrix;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class CampaignMailingStateTest extends TestCase
@@ -130,11 +131,55 @@ class CampaignMailingStateTest extends TestCase
             $campaign->contactLists()->attach($list, ['company_id' => $company->id, 'weight' => 1]);
         }
 
-        (new RunPowerCampaign($preview->id))->handle(app(\App\Services\Dialer\SimulatedDialerService::class));
+        (new RunPowerCampaign($preview->id))->handle(app(SimulatedDialerService::class));
         $this->assertDatabaseCount('calls', 0);
 
-        (new RunPowerCampaign($power->id))->handle(app(\App\Services\Dialer\SimulatedDialerService::class));
+        (new RunPowerCampaign($power->id))->handle(app(SimulatedDialerService::class));
         $this->assertDatabaseHas('calls', ['campaign_id' => $power->id, 'user_id' => $agent->id]);
+    }
+
+    public function test_large_mailing_is_materialized_in_batches_before_selecting_the_first_phone(): void
+    {
+        $company = Company::create(['name' => 'Empresa lote grande', 'status' => 'active']);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Lista grande', 'status' => 'active']);
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Power em lote', 'dialing_mode' => 'power', 'status' => 'active']);
+        $campaign->contactLists()->attach($list, ['company_id' => $company->id, 'weight' => 1]);
+
+        $now = now();
+        $contacts = collect(range(1, 1_200))->map(fn (int $number): array => [
+            'company_id' => $company->id,
+            'contact_list_id' => $list->id,
+            'name' => "Lead {$number}",
+            'phone' => '319'.str_pad((string) $number, 8, '0', STR_PAD_LEFT),
+            'status' => 'pending',
+            'attempts_count' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all();
+        DB::table('contacts')->insert($contacts);
+        $createdContacts = DB::table('contacts')->where('contact_list_id', $list->id)->orderBy('id')->get(['id', 'phone']);
+        DB::table('contact_phones')->insert($createdContacts->map(fn (object $contact): array => [
+            'company_id' => $company->id,
+            'contact_id' => $contact->id,
+            'phone' => $contact->phone,
+            'column_name' => 'phone',
+            'position' => 0,
+            'is_primary' => true,
+            'status' => 'pending',
+            'attempts_count' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all());
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $phone = app(MailingQueueService::class)->nextContactPhoneForCampaign($campaign);
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertNotNull($phone);
+        $this->assertSame(1_200, DB::table('campaign_phone_states')->where('campaign_id', $campaign->id)->count());
+        $this->assertLessThanOrEqual(12, count($queries), 'A primeira discagem de um mailing grande nao pode executar consultas por telefone.');
     }
 
     public function test_discador_does_not_expose_the_pbx_workspace_or_permissions(): void
