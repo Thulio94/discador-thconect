@@ -130,8 +130,15 @@ class AgentPanelController extends Controller
 
     public function state(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         return response()
-            ->json(['signature' => $this->stateSignature($request->user())])
+            ->json([
+                'signature' => $this->stateSignature($user),
+                'call_active' => $user->calls()
+                    ->whereIn('status', Call::ACTIVE_STATUSES)
+                    ->exists(),
+            ])
             ->header('Cache-Control', 'no-store, private');
     }
 
@@ -341,7 +348,7 @@ class AgentPanelController extends Controller
         return redirect()->route('tenant.agent.index')->with('status', 'Pausa iniciada.');
     }
 
-    public function storeCall(Request $request, DialerGateway $gateway, BrazilianPhoneNormalizer $phones): RedirectResponse
+    public function storeCall(Request $request, DialerGateway $gateway, BrazilianPhoneNormalizer $phones): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'phone' => ['nullable', 'string', 'max:32'],
@@ -354,12 +361,20 @@ class AgentPanelController extends Controller
         $currentStatus = $user->currentAgentStatus()->value('status') ?? 'offline';
 
         if (! in_array($currentStatus, ['available', 'paused'], true)) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Fique disponível ou em pausa para iniciar uma ligação.'], 422);
+            }
+
             return back()->withErrors([
                 'phone' => 'Para iniciar uma chamada, fique disponivel ou inicie uma pausa no painel do agente.',
             ]);
         }
 
         if ($this->wrapUps->hasPendingForUser($user)) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Conclua a tabulação pendente antes de iniciar outra ligação.'], 422);
+            }
+
             return back()->withErrors(['phone' => 'Conclua a tabulacao pendente antes de iniciar outra chamada.']);
         }
 
@@ -369,6 +384,10 @@ class AgentPanelController extends Controller
         $parameters = OperationalParameter::forCompany($user->company_id);
 
         if ($channel === 'manual' && $phone === null) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Informe um telefone válido com DDD e número.'], 422);
+            }
+
             return back()
                 ->withErrors(['phone' => 'Informe um telefone valido com DDD e numero.'])
                 ->withInput();
@@ -377,6 +396,10 @@ class AgentPanelController extends Controller
         $phone ??= preg_replace('/\D+/', '', $rawPhone) ?: '';
 
         if ($this->isPaused($user->id, $user->company_id) && ! $parameters->allow_manual_calls_while_paused) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Finalize a pausa antes de iniciar uma ligação manual.'], 422);
+            }
+
             return back()->withErrors(['phone' => 'Finalize a pausa antes de iniciar chamada manual.']);
         }
 
@@ -415,6 +438,10 @@ class AgentPanelController extends Controller
         if (! in_array($call->status, Call::ACTIVE_STATUSES, true)) {
             $this->wrapUps->releaseAgent($user, $call);
 
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'A ligação não foi iniciada. Tente novamente ou avise o administrador.'], 422);
+            }
+
             return redirect()
                 ->route('tenant.agent.index')
                 ->withErrors(['phone' => 'A chamada nao foi iniciada. Verifique a rota de telefonia e tente novamente.']);
@@ -425,6 +452,13 @@ class AgentPanelController extends Controller
             'status' => $call->channel === 'asterisk_ami' ? 'dialing' : 'in_call',
             'started_at' => now(),
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Ligação iniciada. Aguarde o atendimento.',
+                'call_id' => $call->id,
+            ], 202);
+        }
 
         return redirect()->route('tenant.agent.index')->with('status', 'Chamada iniciada.');
     }

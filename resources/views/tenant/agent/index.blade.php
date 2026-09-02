@@ -87,9 +87,8 @@
             <audio data-agent-remote-audio autoplay playsinline class="hidden"></audio>
         </div>
 
-        <div x-show="pending" x-cloak class="mb-4 flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 8%, var(--surface));">
-            <span>O atendimento recebeu uma atualizacao. Seus dados preenchidos foram preservados.</span>
-            <button type="button" class="th-focus shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold" style="border-color: var(--border); color: var(--primary);" x-on:click="applyPending()">Atualizar agora</button>
+        <div x-show="pending" x-cloak class="mb-4 flex items-center gap-4 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 8%, var(--surface));">
+            <span>Atualização recebida. A tela será atualizada após a ligação para manter o áudio do ramal conectado.</span>
         </div>
 
         <div class="agent-panel grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] gap-4">
@@ -244,11 +243,11 @@
                                 <x-ui.button type="submit" variant="danger">Encerrar chamada</x-ui.button>
                             </form>
                         @elseif (! $wrapUpCall && $canMakeManualCall)
-                            <form method="POST" action="{{ route('tenant.agent.calls.store') }}" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row" x-data="{ phone: '', formatPhone(value) { const digits = value.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '').slice(0, 11); if (digits.length <= 2) return digits; if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`; return digits.length <= 10 ? `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}` : `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`; } }">
+                            <form method="POST" action="{{ route('tenant.agent.calls.store') }}" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row" x-data="agentManualCall({ url: @js(route('tenant.agent.calls.store')), csrfToken: @js(csrf_token()) })" x-on:submit.prevent="submit()">
                                 @csrf
                                 <input type="hidden" name="channel" value="manual">
                                 <input name="phone" inputmode="tel" autocomplete="tel" x-model="phone" x-on:input="phone = formatPhone($event.target.value)" class="rounded-lg border px-3 py-2 text-sm" placeholder="(31) 99999-0001" aria-label="Telefone para chamada manual">
-                                <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered">Ligar</x-ui.button>
+                                <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered || submitting"><span x-text="submitting ? 'Chamando...' : 'Ligar'">Ligar</span></x-ui.button>
                             </form>
                         @elseif (! $wrapUpCall)
                             <span class="text-sm font-semibold" style="color: var(--fg-muted);">Chamadas bloqueadas enquanto estiver offline.</span>

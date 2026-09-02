@@ -133,6 +133,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
             }
 
             this.activeSession = session;
+            this.syncActiveSession();
             session.on('peerconnection', ({ peerconnection }) => {
                 peerconnection.addEventListener('track', ({ streams }) => {
                     if (streams?.[0]) {
@@ -143,7 +144,10 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 });
             });
             const clear = () => {
-                if (this.activeSession === session) this.activeSession = null;
+                if (this.activeSession === session) {
+                    this.activeSession = null;
+                    this.syncActiveSession();
+                }
             };
             session.on('ended', clear);
             session.on('failed', clear);
@@ -189,6 +193,13 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
             }
         },
 
+        syncActiveSession() {
+            const store = globalThis.Alpine?.store?.('softphone');
+            if (store) {
+                store.activeSession = this.activeSession !== null;
+            }
+        },
+
         stop() {
             this.stopped = true;
             this.cancelFailure();
@@ -198,6 +209,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
             }
             this.activeSession?.terminate();
             this.activeSession = null;
+            this.syncActiveSession();
             this.ua?.stop();
             this.ua = null;
             this.registered = false;
@@ -207,6 +219,6 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
 }
 
 export function registerAgentSoftphone(Alpine) {
-    Alpine.store('softphone', { state: 'preparing', registered: false });
+    Alpine.store('softphone', { state: 'preparing', registered: false, activeSession: false });
     Alpine.data('agentSoftphone', (config) => createAgentSoftphone(config));
 }

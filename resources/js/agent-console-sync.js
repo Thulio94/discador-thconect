@@ -19,6 +19,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         stopped: false,
         pending: false,
         unsubscribe: null,
+        canReload: config.canReload ?? (() => !globalThis.Alpine?.store?.('softphone')?.activeSession),
 
         start() {
             this.unsubscribe = config.subscribe?.(() => this.check(true)) ?? null;
@@ -56,7 +57,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                     return;
                 }
 
-                if (dependencies.hasDirtyForm()) {
+                if (state.call_active || dependencies.hasDirtyForm() || !this.canReload()) {
                     this.pending = true;
                     return;
                 }
@@ -72,7 +73,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         },
 
         applyPending() {
-            if (!this.pending) {
+            if (!this.pending || !this.canReload()) {
                 return;
             }
 

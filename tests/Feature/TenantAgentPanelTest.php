@@ -1119,6 +1119,50 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)->get(route('tenant.agent.index'))->assertSee('Discando');
     }
 
+    public function test_agent_state_keeps_the_web_rtc_session_open_while_a_call_is_being_delivered(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'dialing',
+            'started_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990001',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('tenant.agent.state'))
+            ->assertOk()
+            ->assertJsonPath('call_active', true);
+    }
+
+    public function test_manual_call_can_start_without_navigating_away_from_the_registered_ramal(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('tenant.agent.calls.store'), [
+                'phone' => '(31) 99999-0001',
+                'channel' => 'manual',
+            ])
+            ->assertAccepted()
+            ->assertJsonPath('message', 'Ligação iniciada. Aguarde o atendimento.');
+    }
+
     public function test_agent_panel_shows_a_simple_message_when_a_provider_rejects_a_call(): void
     {
         [$agent] = $this->tenantUser('agent');

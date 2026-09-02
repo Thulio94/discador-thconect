@@ -69,3 +69,30 @@ test('does nothing while the state signature is unchanged', async () => {
     assert.equal(context.reloads(), 0);
     assert.equal(sync.pending, false);
 });
+
+test('defers refreshing the page while a server call still needs the WebRTC ramal', async () => {
+    let state = { signature: 'call-started', call_active: true };
+    let reloads = 0;
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        signature: 'before-call',
+        canReload: () => true,
+    }, {
+        fetch: async () => ({ ok: true, status: 200, json: async () => state }),
+        setInterval: () => 1,
+        clearInterval: () => {},
+        visibility: () => 'visible',
+        hasDirtyForm: () => false,
+        reload: () => { reloads += 1; },
+    });
+
+    await sync.check();
+
+    assert.equal(reloads, 0);
+    assert.equal(sync.pending, true);
+
+    state = { signature: 'call-ended', call_active: false };
+    await sync.check();
+
+    assert.equal(reloads, 1);
+});
