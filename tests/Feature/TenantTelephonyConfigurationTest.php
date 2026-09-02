@@ -155,11 +155,12 @@ class TenantTelephonyConfigurationTest extends TestCase
             'company_id' => $admin->company_id,
             'call_id' => $call->id,
             'event' => 'originate_failed',
-            'cause' => 'network_congestion',
+            'cause' => 'SIP/2.0 407 Proxy Authentication Required',
             'uniqueid' => '1720000000.3',
         ]);
 
         $this->assertSame('cancelled', $call->fresh()->status);
+        $this->assertSame('provider_authentication_required', $call->fresh()->end_reason);
         $this->assertSame('available', $admin->fresh()->currentAgentStatus->status);
     }
 

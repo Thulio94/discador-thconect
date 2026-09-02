@@ -377,11 +377,20 @@ func (b *bridge) syncAgent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
+	previous, hadPrevious := b.agents.Load(userID)
+	if hadPrevious && sameAgentConfig(previous.(agentConfig), config) {
+		b.agents.Store(userID, config)
+		if err := b.persistRoutes(); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"synchronized": true, "user_id": userID})
+		return
+	}
 	if err := b.provisionAgents(b.currentAgentConfigs(config)); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
 		return
 	}
-	previous, hadPrevious := b.agents.Load(userID)
 	b.agents.Store(userID, config)
 	if err := b.reloadFromAnyRoute(); err != nil {
 		if hadPrevious {
@@ -398,6 +407,14 @@ func (b *bridge) syncAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"synchronized": true, "user_id": userID})
+}
+
+func sameAgentConfig(left agentConfig, right agentConfig) bool {
+	return left.UserID == right.UserID &&
+		left.CompanyID == right.CompanyID &&
+		left.Extension == right.Extension &&
+		left.Password == right.Password &&
+		left.Codecs == right.Codecs
 }
 
 func (b *bridge) originate(w http.ResponseWriter, r *http.Request) {

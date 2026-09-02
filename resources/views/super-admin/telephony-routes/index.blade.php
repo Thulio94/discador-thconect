@@ -17,7 +17,7 @@
 
         <div class="mt-5 grid gap-3">
             @forelse ($routes as $route)
-                @php($status = ['online' => 'Conectada', 'pending_test' => 'Aguardando teste', 'error' => 'Com falha', 'not_configured' => 'Desativada'][$route->connection_status] ?? 'Nao configurada')
+                @php($status = ['online' => 'SIP acessivel', 'pending_test' => 'Aguardando teste', 'error' => 'Com falha', 'not_configured' => 'Desativada'][$route->connection_status] ?? 'Nao configurada')
                 <div class="rounded-lg border p-4" style="border-color: var(--border); background: var(--surface);">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
@@ -51,7 +51,7 @@
                     </form>
                 </x-ui.modal>
                 <x-ui.modal name="telephony-route-test-{{ $route->id }}" title="Testar rota" max-width="lg">
-                    <p class="text-sm" style="color: var(--fg-muted);">Este teste valida o Asterisk e prepara a rota SIP. Ele nao realiza uma chamada para numero externo.</p>
+                    <p class="text-sm" style="color: var(--fg-muted);">Este teste valida o Asterisk e se o endpoint SIP pode ser alcancado. Ele nao realiza uma chamada externa nem confirma a autorizacao da operadora.</p>
                     <form method="POST" action="{{ route('super-admin.telephony-routes.test', $route) }}" class="mt-5 flex justify-end gap-2">
                         @csrf
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'telephony-route-test-{{ $route->id }}')">Cancelar</x-ui.button>

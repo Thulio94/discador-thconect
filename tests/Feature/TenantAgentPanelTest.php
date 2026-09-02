@@ -1119,6 +1119,27 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)->get(route('tenant.agent.index'))->assertSee('Discando');
     }
 
+    public function test_agent_panel_shows_a_simple_message_when_a_provider_rejects_a_call(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990001',
+            'end_reason' => 'provider_authentication_required',
+            'started_at' => now()->subSecond(),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('A ligação não foi aceita pela operadora. Tente novamente ou avise o administrador.');
+    }
+
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void
     {
         [$agent, $company] = $this->tenantUser('agent');

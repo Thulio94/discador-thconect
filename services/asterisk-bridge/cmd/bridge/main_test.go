@@ -188,6 +188,17 @@ func TestAMICorrelationUsesLinkedIDAfterOriginateResponse(t *testing.T) {
 	}
 }
 
+func TestSameAgentConfigIgnoresOnlyExpiry(t *testing.T) {
+	current := agentConfig{UserID: 9, CompanyID: 3, Extension: "1301", Password: "secret", Codecs: "opus,ulaw", ExpiresAt: 10}
+
+	if !sameAgentConfig(current, agentConfig{UserID: 9, CompanyID: 3, Extension: "1301", Password: "secret", Codecs: "opus,ulaw", ExpiresAt: 20}) {
+		t.Fatal("expected a session renewal with the same endpoint settings to avoid a PJSIP reload")
+	}
+	if sameAgentConfig(current, agentConfig{UserID: 9, CompanyID: 3, Extension: "1301", Password: "changed", Codecs: "opus,ulaw"}) {
+		t.Fatal("expected changed WebRTC credentials to require a PJSIP reload")
+	}
+}
+
 func validRouteConfig() routeConfig {
 	return routeConfig{
 		CompanyID: 1, RouteID: 7,

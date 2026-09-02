@@ -48,8 +48,8 @@
         </div>
     </x-slot>
 
-    <div
-        x-data="agentConsoleSync({
+        <div
+            x-data="agentConsoleSync({
             url: @js(route('tenant.agent.state')),
             signature: @js($agentStateSignature),
             intervalSeconds: 5,
@@ -57,8 +57,15 @@
         })"
         x-init="start()"
         x-on:visibilitychange.document="handleVisibilityChange()"
-        x-on:beforeunload.window="destroy()"
-    >
+            x-on:beforeunload.window="destroy()"
+        >
+        @if ($callFailureMessage)
+            <div class="mb-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-danger) 45%, var(--border)); background: color-mix(in srgb, var(--status-danger) 8%, var(--surface)); color: var(--status-danger);" role="alert">
+                <x-ui.icon name="warning" class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{{ $callFailureMessage }}</span>
+            </div>
+        @endif
+
         <div
             class="mb-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm"
             style="border-color: var(--border); background: var(--surface);"

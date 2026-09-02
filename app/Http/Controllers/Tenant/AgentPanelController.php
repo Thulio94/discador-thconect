@@ -57,6 +57,12 @@ class AgentPanelController extends Controller
         $canSelectCampaign = $this->campaignSelectionRequired($user, $eligibleCampaigns);
         $selectedCampaign = $user->currentAgentCampaignSession?->campaign
             ?? ($canSelectCampaign ? null : $eligibleCampaigns->first());
+        $lastCallFailure = $user->calls()
+            ->where('channel', 'asterisk_ami')
+            ->where('status', 'cancelled')
+            ->where('ended_at', '>=', now()->subMinutes(5))
+            ->latest('ended_at')
+            ->first();
 
         return view('tenant.agent.index', [
             'currentStatus' => $activeStatus?->status ?? 'offline',
@@ -66,6 +72,7 @@ class AgentPanelController extends Controller
                 : 0,
             'currentCall' => $currentCall,
             'wrapUpCall' => $wrapUpCall,
+            'callFailureMessage' => $lastCallFailure ? $this->callFailureMessage($lastCallFailure) : null,
             'wrapUpSecondsRemaining' => $wrapUpCall?->wrap_up_expires_at
                 ? max(0, now()->diffInSeconds($wrapUpCall->wrap_up_expires_at, false))
                 : 0,
@@ -126,6 +133,15 @@ class AgentPanelController extends Controller
         return response()
             ->json(['signature' => $this->stateSignature($request->user())])
             ->header('Cache-Control', 'no-store, private');
+    }
+
+    private function callFailureMessage(Call $call): string
+    {
+        return match ($call->end_reason) {
+            'asterisk_event_timeout' => 'A ligação não recebeu resposta. Tente novamente ou avise o administrador.',
+            'provider_authentication_required' => 'A ligação não foi aceita pela operadora. Tente novamente ou avise o administrador.',
+            default => 'A ligação não foi aceita pela operadora. Tente novamente ou avise o administrador.',
+        };
     }
 
     public function softphoneSession(Request $request, AgentWebRtcService $webRtc): JsonResponse

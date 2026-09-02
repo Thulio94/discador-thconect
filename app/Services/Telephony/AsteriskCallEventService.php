@@ -73,7 +73,7 @@ class AsteriskCallEventService
 
         if ($event === 'originate_failed') {
             $updates['status'] = 'cancelled';
-            $updates['end_reason'] = $payload['cause'] ?? 'originate_failed';
+            $updates['end_reason'] = $this->failureReason((string) ($payload['cause'] ?? 'originate_failed'));
             $updates['hangup_party'] = 'carrier';
             $updates['ended_at'] = now();
             $this->capacity->release($call->channel_reservation_id, 'originate_failed');
@@ -174,5 +174,16 @@ class AsteriskCallEventService
         }
 
         return 'unknown';
+    }
+
+    private function failureReason(string $cause): string
+    {
+        $normalized = strtolower($cause);
+
+        if (str_contains($normalized, 'auth') || str_contains($normalized, '401') || str_contains($normalized, '407') || str_contains($normalized, 'unauthorized')) {
+            return 'provider_authentication_required';
+        }
+
+        return $cause;
     }
 }
