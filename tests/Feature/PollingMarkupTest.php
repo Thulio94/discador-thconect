@@ -59,7 +59,10 @@ class PollingMarkupTest extends TestCase
             ->assertSee('\/tenant\/agent\/state', false)
             ->assertSee('subscribeToAgentConsole', false)
             ->assertDontSee('A tela será atualizada após a ligação', false)
-            ->assertDontSee('window.location.reload()', false);
+            ->assertDontSee('window.location.reload()', false)
+            ->assertSee("isCurrentStatus('available')", false)
+            ->assertSee("isCurrentStatus('offline')", false)
+            ->assertSee('pauseActionLabel()', false);
 
         $this->actingAs($agent)
             ->getJson(route('tenant.agent.state'))

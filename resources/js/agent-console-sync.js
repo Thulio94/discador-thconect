@@ -151,6 +151,14 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
             }[this.agentStatus] ?? 'var(--fg-muted)';
         },
 
+        isCurrentStatus(status) {
+            return this.agentStatus === status;
+        },
+
+        pauseActionLabel() {
+            return this.isCurrentStatus('paused') ? 'Alterar pausa' : 'Pausar';
+        },
+
         formatDuration(value) {
             const hours = Math.floor(value / 3600);
             const minutes = Math.floor((value % 3600) / 60);

@@ -128,16 +128,16 @@
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="available">
-                            <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered">Disponivel</x-ui.button>
+                            <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered || isCurrentStatus('available')" x-bind:aria-pressed="isCurrentStatus('available')">Disponivel</x-ui.button>
                         </form>
-                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'agent-pause')">
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'agent-pause')" x-bind:aria-label="pauseActionLabel()" x-bind:title="pauseActionLabel()" x-text="pauseActionLabel()">
                             Pausar
                         </x-ui.button>
                         <form method="POST" action="{{ route('tenant.agent.status') }}" x-on:submit.prevent="setAgentStatus('offline')">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="offline">
-                            <x-ui.button type="submit" variant="ghost">Ficar offline</x-ui.button>
+                            <x-ui.button type="submit" variant="ghost" x-bind:disabled="isCurrentStatus('offline')" x-bind:aria-pressed="isCurrentStatus('offline')">Ficar offline</x-ui.button>
                         </form>
                 </div>
             </div>

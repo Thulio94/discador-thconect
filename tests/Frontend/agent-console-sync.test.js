@@ -164,3 +164,27 @@ test('changes agent availability through JSON without navigating away from the s
     assert.equal(request.options.headers['X-CSRF-TOKEN'], 'csrf-token');
     assert.equal(sync.agentStatus, 'available');
 });
+
+test('marks the current availability action as unavailable while keeping pause changes explicit', () => {
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        signature: 'paused-signature',
+        initialState: {
+            agent_status: 'paused',
+            status_elapsed_seconds: 4,
+            call_active: false,
+            call_status: null,
+            call: null,
+        },
+    }, {
+        fetch: async () => { throw new Error('not needed'); },
+        setInterval: () => 1,
+        clearInterval: () => {},
+        visibility: () => 'visible',
+        toast: () => {},
+    });
+
+    assert.equal(sync.isCurrentStatus('paused'), true);
+    assert.equal(sync.isCurrentStatus('available'), false);
+    assert.equal(sync.pauseActionLabel(), 'Alterar pausa');
+});
