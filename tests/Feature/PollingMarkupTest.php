@@ -57,12 +57,21 @@ class PollingMarkupTest extends TestCase
             ->assertOk()
             ->assertSee('agentConsoleSync(', false)
             ->assertSee('\/tenant\/agent\/state', false)
-            ->assertSee('subscribeToAgentConsole', false);
+            ->assertSee('subscribeToAgentConsole', false)
+            ->assertDontSee('A tela será atualizada após a ligação', false)
+            ->assertDontSee('window.location.reload()', false);
 
         $this->actingAs($agent)
             ->getJson(route('tenant.agent.state'))
             ->assertOk()
-            ->assertJsonStructure(['signature']);
+            ->assertJsonStructure([
+                'signature',
+                'agent_status',
+                'status_elapsed_seconds',
+                'call_active',
+                'call_status',
+                'call',
+            ]);
     }
 
     public function test_polling_source_uses_abort_visibility_and_an_isolated_display_clock(): void

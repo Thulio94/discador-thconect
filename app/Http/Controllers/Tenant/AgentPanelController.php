@@ -121,6 +121,7 @@ class AgentPanelController extends Controller
                 ->orderBy('name')
                 ->get(),
             'agentStateSignature' => $this->stateSignature($user),
+            'agentConsoleState' => $this->agentConsoleState($user),
             'selectedCampaign' => $selectedCampaign,
             'eligibleCampaigns' => $eligibleCampaigns,
             'canSelectCampaign' => $canSelectCampaign,
@@ -131,18 +132,9 @@ class AgentPanelController extends Controller
     public function state(Request $request): JsonResponse
     {
         $user = $request->user();
-        $currentCall = $user->calls()
-            ->whereIn('status', Call::ACTIVE_STATUSES)
-            ->latest('id')
-            ->first(['status']);
 
         return response()
-            ->json([
-                'signature' => $this->stateSignature($user),
-                'call_active' => $currentCall !== null,
-                'call_status' => $currentCall?->status,
-                'agent_status' => $user->currentAgentStatus()->value('status') ?? 'offline',
-            ])
+            ->json($this->agentConsoleState($user))
             ->header('Cache-Control', 'no-store, private');
     }
 
@@ -188,7 +180,7 @@ class AgentPanelController extends Controller
         ])->header('Cache-Control', 'no-store, private');
     }
 
-    public function status(Request $request, AgentCapacityService $capacity): RedirectResponse
+    public function status(Request $request, AgentCapacityService $capacity): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(['available', 'offline'])],
@@ -234,6 +226,12 @@ class AgentPanelController extends Controller
             return back()->withErrors([
                 'status' => 'O limite de usuarios disponiveis desta empresa foi atingido. Peca que outro usuario entre em pausa ou fique offline para liberar uma licenca.',
             ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()
+                ->json($this->agentConsoleState($user->fresh()))
+                ->header('Cache-Control', 'no-store, private');
         }
 
         return redirect()->route('tenant.agent.index')->with('status', 'Status atualizado com sucesso.');
@@ -792,5 +790,37 @@ class AgentPanelController extends Controller
             'latest_call' => [$latestCall?->id, $latestCall?->updated_at?->getTimestamp()],
             'callback' => [$latestCallback?->id, $latestCallback?->updated_at?->getTimestamp()],
         ], JSON_THROW_ON_ERROR));
+    }
+
+    private function agentConsoleState(User $user): array
+    {
+        $status = $user->agentStatuses()->latest('id')->first(['status', 'started_at']);
+        $call = $user->calls()
+            ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
+            ->with(['campaign:id,name,service_fields_schema', 'contact:id,name,contact_list_id', 'contact.contactList:id,name'])
+            ->latest('id')
+            ->first();
+
+        return [
+            'signature' => $this->stateSignature($user),
+            'agent_status' => $status?->status ?? 'offline',
+            'status_elapsed_seconds' => $status?->started_at
+                ? max(0, (int) $status->started_at->diffInSeconds(now()))
+                : 0,
+            'call_active' => $call !== null && in_array($call->status, Call::ACTIVE_STATUSES, true),
+            'call_status' => $call?->status,
+            'call' => $call ? [
+                'id' => $call->id,
+                'phone' => $call->phone,
+                'protocol' => $call->protocol,
+                'status' => $call->status,
+                'channel' => $call->channel,
+                'campaign_name' => $call->campaign?->name,
+                'contact_name' => $call->contact?->name,
+                'list_name' => $call->contact?->contactList?->name,
+                'started_at' => $call->started_at?->toIso8601String(),
+                'service_fields_schema' => $this->serviceFieldsSchema($call),
+            ] : null,
+        ];
     }
 }

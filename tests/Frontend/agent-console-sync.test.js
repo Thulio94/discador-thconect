@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAgentConsoleSync } from '../../resources/js/agent-console-sync.js';
 
-function harness(signature, dirty = false) {
+function harness(state) {
     const intervals = [];
     let reloads = 0;
 
@@ -13,7 +13,7 @@ function harness(signature, dirty = false) {
             fetch: async () => ({
                 ok: true,
                 status: 200,
-                json: async () => ({ signature }),
+                json: async () => state,
             }),
             setInterval: (callback, delay) => {
                 intervals.push({ callback, delay });
@@ -22,14 +22,25 @@ function harness(signature, dirty = false) {
             },
             clearInterval: () => {},
             visibility: () => 'visible',
-            hasDirtyForm: () => dirty,
             reload: () => { reloads += 1; },
         },
     };
 }
 
-test('reloads only when the server signature changes', async () => {
-    const context = harness('new-signature');
+test('applies a changed agent state without reloading the registered softphone page', async () => {
+    const context = harness({
+        signature: 'new-signature',
+        agent_status: 'in_call',
+        status_elapsed_seconds: 6,
+        call_active: true,
+        call_status: 'in_progress',
+        call: {
+            id: 42,
+            phone: '31999990001',
+            status: 'in_progress',
+            campaign_name: 'Cobranca',
+        },
+    });
     const sync = createAgentConsoleSync({
         url: '/tenant/agent/state',
         signature: 'old-signature',
@@ -39,11 +50,22 @@ test('reloads only when the server signature changes', async () => {
     await sync.check();
 
     assert.equal(context.intervals[0].delay, 5000);
-    assert.equal(context.reloads(), 1);
+    assert.equal(context.reloads(), 0);
+    assert.equal(sync.signature, 'new-signature');
+    assert.equal(sync.agentStatus, 'in_call');
+    assert.equal(sync.statusElapsedSeconds, 6);
+    assert.equal(sync.call.phone, '31999990001');
 });
 
-test('preserves a dirty disposition form until the agent confirms refresh', async () => {
-    const context = harness('new-signature', true);
+test('updates live state even while the disposition form is dirty', async () => {
+    const context = harness({
+        signature: 'new-signature',
+        agent_status: 'wrap_up',
+        status_elapsed_seconds: 3,
+        call_active: false,
+        call_status: 'wrap_up',
+        call: { id: 42, status: 'wrap_up' },
+    });
     const sync = createAgentConsoleSync({
         url: '/tenant/agent/state',
         signature: 'old-signature',
@@ -51,14 +73,19 @@ test('preserves a dirty disposition form until the agent confirms refresh', asyn
 
     await sync.check();
 
-    assert.equal(sync.pending, true);
+    assert.equal(sync.agentStatus, 'wrap_up');
+    assert.equal(sync.call.status, 'wrap_up');
     assert.equal(context.reloads(), 0);
-    sync.applyPending();
-    assert.equal(context.reloads(), 1);
 });
 
 test('does nothing while the state signature is unchanged', async () => {
-    const context = harness('same-signature');
+    const context = harness({
+        signature: 'same-signature',
+        agent_status: 'available',
+        call_active: false,
+        call_status: null,
+        call: null,
+    });
     const sync = createAgentConsoleSync({
         url: '/tenant/agent/state',
         signature: 'same-signature',
@@ -67,32 +94,73 @@ test('does nothing while the state signature is unchanged', async () => {
     await sync.check();
 
     assert.equal(context.reloads(), 0);
-    assert.equal(sync.pending, false);
+    assert.equal(sync.agentStatus, 'available');
+    assert.equal(sync.call, null);
 });
 
-test('defers refreshing the page while a server call still needs the WebRTC ramal', async () => {
-    let state = { signature: 'call-started', call_active: true };
-    let reloads = 0;
+test('uses the realtime event to fetch and apply state without a navigation', async () => {
+    let listener;
+    const context = harness({
+        signature: 'call-started',
+        agent_status: 'dialing',
+        status_elapsed_seconds: 1,
+        call_active: true,
+        call_status: 'dialing',
+        call: { id: 9, phone: '31999990002', status: 'dialing' },
+    });
     const sync = createAgentConsoleSync({
         url: '/tenant/agent/state',
         signature: 'before-call',
-        canReload: () => true,
+        subscribe: (callback) => {
+            listener = callback;
+            return () => { listener = null; };
+        },
+    }, context.dependencies);
+
+    sync.start();
+    listener();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(sync.agentStatus, 'dialing');
+    assert.equal(sync.call.id, 9);
+    assert.equal(context.reloads(), 0);
+
+    sync.destroy();
+    assert.equal(listener, null);
+});
+
+test('changes agent availability through JSON without navigating away from the softphone', async () => {
+    let request;
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        statusUrl: '/tenant/agent/status',
+        csrfToken: 'csrf-token',
+        signature: 'before-status-change',
     }, {
-        fetch: async () => ({ ok: true, status: 200, json: async () => state }),
+        fetch: async (url, options) => {
+            request = { url, options };
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    signature: 'available-signature',
+                    agent_status: 'available',
+                    status_elapsed_seconds: 0,
+                    call_active: false,
+                    call_status: null,
+                    call: null,
+                }),
+            };
+        },
         setInterval: () => 1,
         clearInterval: () => {},
         visibility: () => 'visible',
-        hasDirtyForm: () => false,
-        reload: () => { reloads += 1; },
     });
 
-    await sync.check();
+    await sync.setAgentStatus('available');
 
-    assert.equal(reloads, 0);
-    assert.equal(sync.pending, true);
-
-    state = { signature: 'call-ended', call_active: false };
-    await sync.check();
-
-    assert.equal(reloads, 1);
+    assert.equal(request.url, '/tenant/agent/status');
+    assert.equal(request.options.method, 'PATCH');
+    assert.equal(request.options.headers['X-CSRF-TOKEN'], 'csrf-token');
+    assert.equal(sync.agentStatus, 'available');
 });

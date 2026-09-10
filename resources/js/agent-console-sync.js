@@ -4,8 +4,7 @@ function browserDependencies() {
         setInterval: (...args) => window.setInterval(...args),
         clearInterval: (timerId) => window.clearInterval(timerId),
         visibility: () => document.visibilityState,
-        hasDirtyForm: () => Boolean(document.querySelector('[data-agent-live-form][data-dirty="true"]')),
-        reload: () => window.location.reload(),
+        toast: (detail) => window.dispatchEvent(new CustomEvent('toast', { detail })),
     };
 }
 
@@ -15,15 +14,21 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         signature: config.signature,
         intervalMs: (config.intervalSeconds ?? 5) * 1000,
         timerId: null,
+        clockTimerId: null,
         inFlight: false,
         stopped: false,
-        pending: false,
         unsubscribe: null,
-        canReload: config.canReload ?? (() => !globalThis.Alpine?.store?.('softphone')?.activeSession),
+        agentStatus: config.initialState?.agent_status ?? 'offline',
+        statusElapsedSeconds: Number(config.initialState?.status_elapsed_seconds ?? 0),
+        call: config.initialState?.call ?? null,
+        callActive: Boolean(config.initialState?.call_active),
+        callStatus: config.initialState?.call_status ?? null,
 
         start() {
+            this.applyState(config.initialState ?? {});
             this.unsubscribe = config.subscribe?.(() => this.check(true)) ?? null;
             this.timerId = dependencies.setInterval(() => this.check(), this.intervalMs);
+            this.clockTimerId = dependencies.setInterval(() => this.statusElapsedSeconds += 1, 1000);
         },
 
         async check(force = false) {
@@ -52,22 +57,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                 }
 
                 const state = await response.json();
-                const softphone = globalThis.Alpine?.store?.('softphone');
-                if (softphone) {
-                    softphone.callActive = Boolean(state.call_active);
-                    softphone.callStatus = state.call_status ?? null;
-                }
-
-                if (!state.signature || state.signature === this.signature) {
-                    return;
-                }
-
-                if (state.call_active || dependencies.hasDirtyForm() || !this.canReload()) {
-                    this.pending = true;
-                    return;
-                }
-
-                dependencies.reload();
+                this.applyState(state);
             } catch (error) {
                 if (import.meta.env?.DEV) {
                     console.warn(error);
@@ -77,12 +67,96 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
             }
         },
 
-        applyPending() {
-            if (!this.pending || !this.canReload()) {
+        applyState(state) {
+            if (!state || typeof state !== 'object') {
                 return;
             }
 
-            dependencies.reload();
+            this.signature = state.signature ?? this.signature;
+            this.agentStatus = state.agent_status ?? this.agentStatus;
+            this.statusElapsedSeconds = Number(state.status_elapsed_seconds ?? this.statusElapsedSeconds);
+            this.callActive = Boolean(state.call_active);
+            this.callStatus = state.call_status ?? null;
+            this.call = state.call ?? null;
+
+            const softphone = globalThis.Alpine?.store?.('softphone');
+            if (softphone) {
+                softphone.callActive = this.callActive;
+                softphone.callStatus = this.callStatus;
+            }
+        },
+
+        async setAgentStatus(status) {
+            if (!config.statusUrl || this.inFlight) {
+                return;
+            }
+
+            this.inFlight = true;
+
+            try {
+                const response = await dependencies.fetch(config.statusUrl, {
+                    method: 'PATCH',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': config.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ status }),
+                });
+
+                const state = await response.json();
+                if (!response.ok) {
+                    dependencies.toast({
+                        title: 'Status não atualizado',
+                        message: state.message ?? 'Não foi possível atualizar seu status agora.',
+                        severity: 'error',
+                    });
+                    return;
+                }
+
+                this.applyState(state);
+            } catch {
+                dependencies.toast({
+                    title: 'Status não atualizado',
+                    message: 'Verifique sua conexão e tente novamente.',
+                    severity: 'error',
+                });
+            } finally {
+                this.inFlight = false;
+            }
+        },
+
+        statusLabel() {
+            return {
+                available: 'Disponivel',
+                dialing: 'Discando',
+                paused: 'Em pausa',
+                in_call: 'Em chamada',
+                wrap_up: 'Em tabulacao',
+                offline: 'Offline',
+            }[this.agentStatus] ?? 'Offline';
+        },
+
+        statusColor() {
+            return {
+                available: 'var(--status-success)',
+                dialing: 'var(--status-info)',
+                paused: 'var(--status-warning)',
+                in_call: 'var(--primary)',
+                wrap_up: 'var(--status-purple)',
+                offline: 'var(--fg-muted)',
+            }[this.agentStatus] ?? 'var(--fg-muted)';
+        },
+
+        formatDuration(value) {
+            const hours = Math.floor(value / 3600);
+            const minutes = Math.floor((value % 3600) / 60);
+            const seconds = value % 60;
+
+            return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':');
         },
 
         handleVisibilityChange() {
@@ -97,6 +171,11 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
             if (this.timerId !== null) {
                 dependencies.clearInterval(this.timerId);
                 this.timerId = null;
+            }
+
+            if (this.clockTimerId !== null) {
+                dependencies.clearInterval(this.clockTimerId);
+                this.clockTimerId = null;
             }
 
             this.unsubscribe?.();

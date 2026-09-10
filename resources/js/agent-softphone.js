@@ -29,7 +29,7 @@ function defaultDependencies() {
             },
             body: JSON.stringify({ status: 'offline' }),
         }),
-        reload: () => window.location.reload(),
+        reconcile: () => window.dispatchEvent(new CustomEvent('agent-console:reconcile')),
     };
 }
 
@@ -127,7 +127,8 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
             if (event.originator !== 'remote') return;
             const session = event.session;
 
-            if (!config.acceptIncoming || this.activeSession) {
+            const acceptsIncoming = config.acceptIncomingNow?.() ?? config.acceptIncoming;
+            if (!acceptsIncoming || this.activeSession) {
                 session.terminate({ status_code: 486, reason_phrase: 'Agent unavailable' });
                 return;
             }
@@ -169,9 +170,9 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                         message: 'As chamadas estao bloqueadas ate o audio reconectar.',
                         severity: 'error',
                     });
-                    if (config.currentStatus === 'available') {
+                    if (config.shouldMarkOffline?.() ?? config.currentStatus === 'available') {
                         dependencies.markOffline(config.statusUrl, config.csrfToken)
-                            .finally(() => dependencies.reload());
+                            .finally(() => dependencies.reconcile());
                     }
                 }
             }, 10000);

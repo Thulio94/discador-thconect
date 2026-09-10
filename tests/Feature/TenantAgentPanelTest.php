@@ -1143,7 +1143,10 @@ class TenantAgentPanelTest extends TestCase
             ->assertOk()
             ->assertJsonPath('call_active', true)
             ->assertJsonPath('agent_status', 'dialing')
-            ->assertJsonPath('call_status', 'dialing');
+            ->assertJsonPath('call_status', 'dialing')
+            ->assertJsonPath('call.phone', '31999990001')
+            ->assertJsonPath('call.status', 'dialing')
+            ->assertJsonPath('status_elapsed_seconds', 0);
     }
 
     public function test_power_campaign_marks_an_asterisk_agent_as_dialing_until_the_call_is_answered(): void

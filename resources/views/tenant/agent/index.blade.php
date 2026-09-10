@@ -51,12 +51,16 @@
         <div
             x-data="agentConsoleSync({
             url: @js(route('tenant.agent.state')),
+            statusUrl: @js(route('tenant.agent.status')),
+            csrfToken: @js(csrf_token()),
             signature: @js($agentStateSignature),
+            initialState: @js($agentConsoleState),
             intervalSeconds: 5,
             subscribe: (callback) => subscribeToAgentConsole(@js(auth()->user()->company_id), @js(auth()->id()), callback),
         })"
         x-init="start()"
         x-on:visibilitychange.document="handleVisibilityChange()"
+        x-on:agent-console:reconcile.window="check(true)"
             x-on:beforeunload.window="destroy()"
         >
         @if ($callFailureMessage)
@@ -74,7 +78,9 @@
                 csrfToken: @js(csrf_token()),
                 statusUrl: @js(route('tenant.agent.status')),
                 currentStatus: @js($currentStatus),
+                shouldMarkOffline: () => ['available', 'paused', 'dialing', 'in_call'].includes(agentStatus),
                 acceptIncoming: @js(in_array($currentStatus, ['available', 'paused', 'dialing', 'in_call'], true)),
+                acceptIncomingNow: () => ['available', 'paused', 'dialing', 'in_call'].includes(agentStatus),
             })"
             x-init="start()"
             x-on:beforeunload.window="stop()"
@@ -92,35 +98,18 @@
             <span x-text="$store.softphone.callStatus === 'dialing' ? 'Ligação em preparação. Aguarde o atendimento.' : 'Ligação em andamento. Aguarde o áudio do ramal.'">Ligação em preparação. Aguarde o atendimento.</span>
         </div>
 
-        <div x-show="pending" x-cloak class="mb-4 flex items-center gap-4 rounded-lg border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 8%, var(--surface));">
-            <span>Atualização recebida. A tela será atualizada após a ligação para manter o áudio do ramal conectado.</span>
-        </div>
-
         <div class="agent-panel grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)] gap-4">
-        <x-ui.card :tone="$currentStatusMeta['tone']">
+        <x-ui.card x-bind:data-tone="agentStatus === 'available' ? 'emerald' : agentStatus === 'dialing' || agentStatus === 'in_call' ? 'cyan' : agentStatus === 'paused' ? 'amber' : agentStatus === 'wrap_up' ? 'violet' : null">
             <div
                 class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
-                x-data="{
-                    elapsed: {{ $statusElapsedSeconds }},
-                    timer: null,
-                    format(value) {
-                        const hours = Math.floor(value / 3600);
-                        const minutes = Math.floor((value % 3600) / 60);
-                        const seconds = value % 60;
-                        return [hours, minutes, seconds].map(part => String(part).padStart(2, '0')).join(':');
-                    },
-                    init() {
-                        this.timer = window.setInterval(() => this.elapsed += 1, 1000);
-                    }
-                }"
             >
                 <div class="flex min-w-0 items-center gap-4">
-                    <span class="h-4 w-4 shrink-0 rounded-full" style="background: {{ $currentStatusMeta['color'] }}; box-shadow: 0 0 0 6px color-mix(in srgb, {{ $currentStatusMeta['color'] }} 15%, transparent);"></span>
+                    <span class="h-4 w-4 shrink-0 rounded-full" x-bind:style="`background: ${statusColor()}; box-shadow: 0 0 0 6px color-mix(in srgb, ${statusColor()} 15%, transparent);`"></span>
                     <div class="min-w-0">
                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Status atual</p>
                         <div class="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                            <h2 class="text-2xl font-bold" style="color: {{ $currentStatusMeta['color'] }};">{{ $currentStatusMeta['label'] }}</h2>
-                            <span class="font-mono text-lg font-semibold" x-text="format(elapsed)">00:00:00</span>
+                            <h2 class="text-2xl font-bold" x-bind:style="`color: ${statusColor()};`" x-text="statusLabel()">{{ $currentStatusMeta['label'] }}</h2>
+                            <span class="font-mono text-lg font-semibold" x-text="formatDuration(statusElapsedSeconds)">00:00:00</span>
                         </div>
                         <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                             Ramal {{ auth()->user()->extension }} | {{ auth()->user()->name }}
@@ -128,17 +117,14 @@
                     </div>
                 </div>
 
-                @if ($wrapUpCall)
-                    <div class="rounded-lg border px-4 py-3 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-purple) 45%, var(--border)); background: color-mix(in srgb, var(--status-purple) 10%, var(--surface)); color: var(--status-purple);">
-                        Conclua a tabulacao para liberar novas chamadas
-                    </div>
-                @elseif ($currentCall && $currentStatus === 'dialing')
-                    <div class="rounded-lg border px-4 py-3 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 10%, var(--surface)); color: var(--status-info);">
-                        Aguardando a resposta da chamada
-                    </div>
-                @else
-                    <div class="flex flex-wrap gap-2">
-                        <form method="POST" action="{{ route('tenant.agent.status') }}">
+                <div x-show="call?.status === 'wrap_up'" x-cloak class="rounded-lg border px-4 py-3 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-purple) 45%, var(--border)); background: color-mix(in srgb, var(--status-purple) 10%, var(--surface)); color: var(--status-purple);">
+                    Conclua a tabulacao para liberar novas chamadas
+                </div>
+                <div x-show="callActive && call?.status === 'dialing'" x-cloak class="rounded-lg border px-4 py-3 text-sm font-semibold" style="border-color: color-mix(in srgb, var(--status-info) 45%, var(--border)); background: color-mix(in srgb, var(--status-info) 10%, var(--surface)); color: var(--status-info);">
+                    Aguardando a resposta da chamada
+                </div>
+                <div class="flex flex-wrap gap-2" x-show="!call">
+                        <form method="POST" action="{{ route('tenant.agent.status') }}" x-on:submit.prevent="setAgentStatus('available')">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="available">
@@ -147,14 +133,13 @@
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'agent-pause')">
                             Pausar
                         </x-ui.button>
-                        <form method="POST" action="{{ route('tenant.agent.status') }}">
+                        <form method="POST" action="{{ route('tenant.agent.status') }}" x-on:submit.prevent="setAgentStatus('offline')">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="offline">
                             <x-ui.button type="submit" variant="ghost">Ficar offline</x-ui.button>
                         </form>
-                    </div>
-                @endif
+                </div>
             </div>
         </x-ui.card>
 
@@ -183,7 +168,37 @@
 
         <div class="agent-workspace">
             <div class="grid min-w-0 gap-4">
-                <x-ui.card>
+                <x-ui.card x-show="call" x-cloak>
+                    <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Atendimento atual</p>
+                            <h2 class="mt-1 text-2xl font-bold" x-text="call?.phone ?? 'Sem numero'">Sem numero</h2>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);" x-text="`${call?.campaign_name ?? 'Chamada manual'} | ${call?.channel ?? 'Canal indisponivel'}`">Chamada manual</p>
+                            <span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" style="border: 1px solid color-mix(in srgb, var(--status-info) 35%, var(--border)); background: color-mix(in srgb, var(--status-info) 10%, var(--surface)); color: var(--status-info);" x-text="({ dialing: 'Discando', ringing: 'Chamando', in_progress: 'Em atendimento', wrap_up: 'Aguardando tabulacao' })[call?.status] ?? 'Atualizando'">Atualizando</span>
+                            <div class="mt-3 flex items-center gap-2 text-xs" style="color: var(--fg-muted);">
+                                <span x-text="`Protocolo ${call?.protocol ?? 'indisponivel'}`">Protocolo indisponivel</span>
+                            </div>
+                            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                <div class="rounded-lg border p-3" style="border-color: var(--border); background: var(--surface-alt);">
+                                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Contato</p>
+                                    <p class="mt-1 font-semibold" x-text="call?.contact_name ?? 'Nao informado'">Nao informado</p>
+                                </div>
+                                <div class="rounded-lg border p-3" style="border-color: var(--border);">
+                                    <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Lista</p>
+                                    <p class="mt-1 font-semibold" x-text="call?.list_name ?? 'Chamada manual'">Chamada manual</p>
+                                </div>
+                            </div>
+                        </div>
+                        <form x-show="callActive" method="POST" action="{{ route('tenant.agent.calls.hangup') }}">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="call_id" x-bind:value="call?.id">
+                            <x-ui.button type="submit" variant="danger">Encerrar chamada</x-ui.button>
+                        </form>
+                    </div>
+                </x-ui.card>
+
+                <x-ui.card x-show="!call">
                     <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Atendimento atual</p>
@@ -374,7 +389,39 @@
             </div>
 
             <aside class="grid min-w-0 content-start gap-4">
-                <x-ui.card id="call-disposition" tone="violet">
+                <x-ui.card x-show="call?.status === 'wrap_up'" x-cloak id="call-disposition-live" tone="violet">
+                    <div>
+                        <p class="text-xs font-semibold uppercase" style="color: var(--status-purple);">Tabulacao</p>
+                        <h2 class="mt-1 text-lg font-semibold">Resultado do atendimento</h2>
+                    </div>
+                    <form method="POST" action="{{ route('tenant.agent.calls.end') }}" class="mt-4 grid gap-4" x-data="{ dirty: false }" x-on:input="dirty = true" x-bind:data-dirty="dirty ? 'true' : 'false'" data-agent-live-form>
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="call_id" x-bind:value="call?.id">
+                        <label class="grid gap-1 text-sm">
+                            <span class="font-semibold">Tabulacao</span>
+                            <select name="disposition_id" required>
+                                <option value="">Selecione o resultado</option>
+                                @foreach ($dispositions as $disposition)
+                                    <option value="{{ $disposition->id }}">{{ $disposition->name }} | {{ $disposition->code }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <template x-for="field in (call?.service_fields_schema ?? [])" x-bind:key="field.key">
+                            <label class="grid gap-1 text-sm">
+                                <span class="font-semibold" x-text="`${field.label}${field.required ? ' *' : ''}`"></span>
+                                <input x-bind:type="field.type === 'number' || field.type === 'currency' ? 'number' : field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'" x-bind:name="`service_fields[${field.key}]`" x-bind:required="Boolean(field.required)">
+                            </label>
+                        </template>
+                        <label class="grid gap-1 text-sm">
+                            <span class="font-semibold">Anotacoes</span>
+                            <textarea name="disposition_notes" rows="3" placeholder="Resumo e proximos passos"></textarea>
+                        </label>
+                        <x-ui.button type="submit" variant="danger" class="w-full justify-center">Salvar tabulacao</x-ui.button>
+                    </form>
+                </x-ui.card>
+
+                <x-ui.card x-show="!call" id="call-disposition" tone="violet">
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <p class="text-xs font-semibold uppercase" style="color: var(--status-purple);">Tabulacao</p>
@@ -387,8 +434,7 @@
                                     remaining: {{ $wrapUpSecondsRemaining }},
                                     init() {
                                         window.setInterval(() => {
-                                            if (this.remaining <= 1) return window.location.reload();
-                                            this.remaining -= 1;
+                                            if (this.remaining > 0) this.remaining -= 1;
                                         }, 1000)
                                     },
                                     format(value) {
