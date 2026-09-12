@@ -164,7 +164,7 @@ class TenantTelephonyConfigurationTest extends TestCase
         $this->assertSame('available', $admin->fresh()->currentAgentStatus->status);
     }
 
-    public function test_stale_ami_call_is_cancelled_and_releases_the_agent_when_its_terminal_event_is_missing(): void
+    public function test_stale_ami_call_waits_for_the_route_and_agent_dial_windows_before_releasing_the_agent(): void
     {
         $admin = $this->tenantAdmin();
         $call = Call::create([
@@ -182,6 +182,12 @@ class TenantTelephonyConfigurationTest extends TestCase
             'status' => 'dialing',
             'started_at' => now()->subSeconds(51),
         ]);
+
+        $this->assertSame(0, app(CallWrapUpService::class)->expireDue());
+        $this->assertSame('ringing', $call->fresh()->status);
+        $this->assertSame('dialing', $admin->fresh()->currentAgentStatus->status);
+
+        $this->travel(40)->seconds();
 
         $this->assertSame(1, app(CallWrapUpService::class)->expireDue());
 

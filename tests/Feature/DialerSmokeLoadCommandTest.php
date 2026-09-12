@@ -27,6 +27,21 @@ class DialerSmokeLoadCommandTest extends TestCase
         $this->assertSame(0, Call::query()->count());
     }
 
+    public function test_smoke_load_validates_the_initial_three_agent_operation_at_five_attempts_per_agent(): void
+    {
+        $this->artisan('dialer:smoke-load', [
+            '--agents' => '3',
+            '--calls-per-agent' => 5,
+        ])
+            ->expectsOutputToContain('Teste isolado')
+            ->expectsOutputToContain('Carga simulada concluida')
+            ->assertSuccessful();
+
+        $this->assertSame(0, Company::query()->count());
+        $this->assertSame(0, User::query()->count());
+        $this->assertSame(0, Call::query()->count());
+    }
+
     public function test_smoke_load_rejects_values_above_the_safe_small_test_limit(): void
     {
         $this->artisan('dialer:smoke-load', [

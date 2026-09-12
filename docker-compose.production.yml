@@ -163,6 +163,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  queue-media:
+    image: discador-piloto-app:latest
+    env_file:
+      - .env
+    command: php artisan queue:work --queue=media --tries=3 --timeout=600 --memory=256 --max-jobs=100
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+      - pbx_recordings:/var/www/html/storage/app/recordings
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   scheduler:
     image: discador-piloto-app:latest
     env_file:

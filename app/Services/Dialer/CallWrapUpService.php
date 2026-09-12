@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 final class CallWrapUpService
 {
+    // AMI may spend 45 seconds originating the route and Asterisk then rings
+    // the browser agent for 40 seconds. Keep the reservation through both legs.
+    private const ASTERISK_EVENT_TIMEOUT_SECONDS = 90;
+
     public function expireForUser(User $user): bool
     {
         return $this->expire(
@@ -81,7 +85,7 @@ final class CallWrapUpService
         $callIds = Call::query()
             ->where('channel', 'asterisk_ami')
             ->whereIn('status', ['dialing', 'ringing'])
-            ->where('started_at', '<=', now()->subSeconds(50))
+            ->where('started_at', '<=', now()->subSeconds(self::ASTERISK_EVENT_TIMEOUT_SECONDS))
             ->pluck('id');
 
         $expired = 0;
@@ -93,7 +97,7 @@ final class CallWrapUpService
                 if (! $call
                     || $call->channel !== 'asterisk_ami'
                     || ! in_array($call->status, ['dialing', 'ringing'], true)
-                    || $call->started_at?->greaterThan(now()->subSeconds(50))) {
+                    || $call->started_at?->greaterThan(now()->subSeconds(self::ASTERISK_EVENT_TIMEOUT_SECONDS))) {
                     return false;
                 }
 

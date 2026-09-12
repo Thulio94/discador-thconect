@@ -39,6 +39,14 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertMatchesRegularExpression('/asterisk:.*?networks:.*?easypanel:/s', $productionCompose);
     }
 
+    public function test_production_compose_processes_media_jobs_emitted_after_recordings_are_ready(): void
+    {
+        $productionCompose = file_get_contents(base_path('docker-compose.production.yml'));
+
+        $this->assertMatchesRegularExpression('/^  queue-media:\R/m', $productionCompose);
+        $this->assertStringContainsString('queue:work --queue=media', $productionCompose);
+    }
+
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void
     {
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');
