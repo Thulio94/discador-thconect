@@ -43,6 +43,8 @@ $productionCompose = Read-RepoFile 'docker-compose.production.yml'
 Assert-Match $dialplan '\[thconect-outbound\]' 'Contexto protegido thconect-outbound ausente.'
 Assert-Match $dialplan 'REGEX\("\^t\[0-9\]\+-e\[0-9\]\{4,5\}\$"' 'Validacao do endpoint tecnico do agente ausente.'
 Assert-Match $dialplan 'Dial\(PJSIP/\$\{THCONECT_AGENT_ENDPOINT\},40,' 'O agente deve tocar por no maximo 40 segundos.'
+Assert-Match $dialplan 'GROUP\(thconect-power-batch\)' 'O bloqueio de lote Power no Asterisk esta ausente.'
+Assert-Match $dialplan 'GROUP\(thconect-agent\)' 'O bloqueio de entrega simultanea ao agente esta ausente.'
 Assert-Match $dialplan 'Set\(SPYGROUP=agent-\$\{ARG1\}\)' 'O grupo isolado de supervisao do agente esta ausente.'
 
 $mixMonitorIndex = $dialplan.IndexOf('MixMonitor(', [StringComparison]::Ordinal)

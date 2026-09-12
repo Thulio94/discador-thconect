@@ -4,12 +4,18 @@ namespace Tests\Feature;
 
 use App\Contracts\Dialer\DialerGateway;
 use App\Models\AsteriskNode;
+use App\Models\AgentStatus;
+use App\Models\Call;
+use App\Models\Campaign;
 use App\Models\Company;
+use App\Models\ContactList;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TelephonyRoute;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\DialerCallRequest;
+use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\DB;
@@ -107,6 +113,210 @@ class TelephonyProductionReadinessTest extends TestCase
             && $request['agent_extension'] === '1301'
             && $request['agent_endpoint'] === "t{$company->id}-e1301"
             && $request['phone'] === '50065531999990001'
+        );
+    }
+
+    public function test_real_route_forwards_the_power_batch_id_to_the_asterisk_bridge(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+
+        $company = Company::create(['name' => 'Empresa lote Power']);
+        $company->licenses()->create([
+            'status' => 'active', 'starts_at' => today()->subDay(), 'ends_at' => today()->addMonth(), 'max_concurrent_calls' => 25,
+        ]);
+        $company->resourceLimit()->create([]);
+        $agent = User::factory()->create([
+            'company_id' => $company->id, 'user_type' => 'agent', 'extension' => '1304', 'status' => 'active',
+        ]);
+        $node = AsteriskNode::create([
+            'name' => 'Asterisk lote Power', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id,
+            'name' => 'Rota lote Power',
+            'tech' => '5006',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $company->telephonyRoutes()->attach($route);
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202)]);
+
+        $batchId = 'power-batch-'.fake()->uuid();
+        $call = app(DialerGateway::class)->originate(new DialerCallRequest(
+            companyId: $company->id,
+            userId: $agent->id,
+            campaignId: null,
+            contactId: null,
+            contactPhoneId: null,
+            phone: '31999990004',
+            channel: 'asterisk_ami',
+            batchId: $batchId,
+        ));
+
+        $this->assertSame($batchId, $call->dial_batch_id);
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://asterisk-bridge.test/v1/calls/originate'
+            && $request['call_id'] === $call->id
+            && $request['batch_id'] === $batchId
+        );
+    }
+
+    public function test_bridge_origination_waits_until_the_power_batch_transaction_is_committed(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+
+        $company = Company::create(['name' => 'Empresa transacao Power']);
+        $company->licenses()->create([
+            'status' => 'active', 'starts_at' => today()->subDay(), 'ends_at' => today()->addMonth(), 'max_concurrent_calls' => 25,
+        ]);
+        $company->resourceLimit()->create([]);
+        $agent = User::factory()->create([
+            'company_id' => $company->id, 'user_type' => 'agent', 'extension' => '1305', 'status' => 'active',
+        ]);
+        $node = AsteriskNode::create([
+            'name' => 'Asterisk transacao Power', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id,
+            'name' => 'Rota transacao Power',
+            'tech' => '5006',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $company->telephonyRoutes()->attach($route);
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202)]);
+
+        DB::transaction(function () use ($company, $agent): void {
+            app(DialerGateway::class)->originate(new DialerCallRequest(
+                companyId: $company->id,
+                userId: $agent->id,
+                campaignId: null,
+                contactId: null,
+                contactPhoneId: null,
+                phone: '31999990005',
+                channel: 'asterisk_ami',
+                batchId: 'power-batch-after-commit',
+            ));
+
+            Http::assertNothingSent();
+        });
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_outbound_dialplan_blocks_duplicate_power_batch_and_agent_deliveries(): void
+    {
+        $dialplan = file_get_contents(base_path('.docker/asterisk/config/extensions.conf'));
+
+        $this->assertStringContainsString('GROUP(thconect-power-batch)', $dialplan);
+        $this->assertStringContainsString('GROUP(thconect-agent)', $dialplan);
+        $this->assertStringContainsString('GROUP_COUNT(${THCONECT_BATCH_ID}@thconect-power-batch)', $dialplan);
+        $this->assertStringContainsString('GROUP_COUNT(${THCONECT_AGENT_ENDPOINT}@thconect-agent)', $dialplan);
+        $this->assertMatchesRegularExpression('/GROUP\(thconect-agent\).*?Dial\(PJSIP\/\$\{THCONECT_AGENT_ENDPOINT\}/s', $dialplan);
+    }
+
+    public function test_initial_three_agent_power_operation_originates_five_route_attempts_per_available_agent(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+
+        $company = Company::create(['name' => 'Empresa carga Power']);
+        $company->licenses()->create([
+            'status' => 'active',
+            'starts_at' => today()->subDay(),
+            'ends_at' => today()->addMonth(),
+            'max_calls_per_available_agent' => 5,
+            'max_concurrent_calls' => 15,
+        ]);
+        $company->resourceLimit()->create([]);
+        $node = AsteriskNode::create([
+            'name' => 'Asterisk carga Power', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id,
+            'name' => 'Rota carga Power',
+            'tech' => '5006',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $company->telephonyRoutes()->attach($route);
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Equipe carga Power',
+            'slug' => 'equipe-carga-power',
+            'status' => 'active',
+        ]);
+        $campaign = Campaign::create([
+            'company_id' => $company->id,
+            'name' => 'Campanha carga Power',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+            'aggressiveness' => 5,
+            'fixed_telephony_route_id' => $route->id,
+            'mobile_telephony_route_id' => $route->id,
+        ]);
+        $campaign->teams()->attach($team, ['company_id' => $company->id]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Lista carga Power',
+            'status' => 'active',
+        ]);
+        $campaign->contactLists()->attach($list, ['company_id' => $company->id]);
+
+        foreach (range(1, 3) as $index) {
+            $agent = User::factory()->create([
+                'company_id' => $company->id,
+                'user_type' => 'agent',
+                'extension' => '14'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                'status' => 'active',
+            ]);
+            $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+            AgentStatus::create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'status' => 'available',
+                'started_at' => now(),
+            ]);
+        }
+
+        foreach (range(1, 15) as $index) {
+            $list->contacts()->create([
+                'company_id' => $company->id,
+                'name' => 'Lead carga Power '.$index,
+                'phone' => '3199999'.str_pad((string) $index, 4, '0', STR_PAD_LEFT),
+                'status' => 'pending',
+            ]);
+        }
+
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202)]);
+
+        $this->assertSame(15, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $calls = Call::query()->where('campaign_id', $campaign->id)->get();
+        $this->assertCount(15, $calls);
+        $this->assertTrue($calls->every(fn (Call $call) => $call->status === 'dialing'));
+        $this->assertCount(3, $calls->pluck('dial_batch_id')->unique()->filter());
+        $this->assertTrue($calls->groupBy('dial_batch_id')->every(fn ($batch) => $batch->count() === 5));
+        Http::assertSentCount(15);
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://asterisk-bridge.test/v1/calls/originate'
+            && $request['route_id'] === $route->id
+            && filled($request['batch_id'])
         );
     }
 

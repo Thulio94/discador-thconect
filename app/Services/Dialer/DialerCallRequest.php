@@ -12,5 +12,6 @@ final readonly class DialerCallRequest
         public ?int $contactPhoneId,
         public string $phone,
         public string $channel = 'simulated',
+        public ?string $batchId = null,
     ) {}
 }

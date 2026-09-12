@@ -2504,6 +2504,80 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('in_call', $secondAgent->fresh()->currentAgentStatus->status);
     }
 
+    public function test_power_batch_originates_every_reserved_attempt_and_keeps_one_batch_per_agent(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$secondAgent] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update([
+            'max_calls_per_available_agent' => 3,
+            'max_concurrent_calls' => 6,
+        ]);
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent, $secondAgent]);
+        $list = ContactList::create([
+            'company_id' => $company->id,
+            'name' => 'Mailing de lote real',
+            'status' => 'active',
+        ]);
+
+        foreach (range(1, 6) as $index) {
+            $list->contacts()->create([
+                'company_id' => $company->id,
+                'name' => 'Lead de lote '.$index,
+                'phone' => '3199999020'.$index,
+                'status' => 'pending',
+            ]);
+        }
+
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $gateway = new class implements DialerGateway {
+            /** @var list<DialerCallRequest> */
+            public array $requests = [];
+
+            public function originate(DialerCallRequest $request): Call
+            {
+                $this->requests[] = $request;
+
+                return Call::create([
+                    'company_id' => $request->companyId,
+                    'user_id' => $request->userId,
+                    'campaign_id' => $request->campaignId,
+                    'contact_id' => $request->contactId,
+                    'contact_phone_id' => $request->contactPhoneId,
+                    'dial_batch_id' => $request->batchId,
+                    'direction' => 'outbound',
+                    'status' => 'dialing',
+                    'channel' => 'asterisk_ami',
+                    'phone' => $request->phone,
+                    'started_at' => now(),
+                ]);
+            }
+
+            public function cancel(DialerCallRequest $request, string $reason): Call
+            {
+                throw new \LogicException('A Power batch must originate every reserved attempt.');
+            }
+
+            public function hangup(Call $call): Call
+            {
+                return $call;
+            }
+        };
+        $this->app->instance(DialerGateway::class, $gateway);
+
+        $this->assertSame(6, app(SimulatedDialerService::class)->runCampaign($campaign));
+
+        $calls = Call::query()->where('campaign_id', $campaign->id)->get();
+        $this->assertCount(6, $calls);
+        $this->assertCount(6, $gateway->requests);
+        $this->assertSame(0, $calls->where('status', 'cancelled')->count());
+        $this->assertTrue($calls->every(fn (Call $call) => $call->status === 'dialing'));
+        $this->assertCount(2, $calls->pluck('dial_batch_id')->unique()->filter());
+        $this->assertTrue($calls->groupBy('dial_batch_id')->every(fn ($batch) => $batch->count() === 3));
+        $this->assertSame('dialing', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame('dialing', $secondAgent->fresh()->currentAgentStatus->status);
+    }
+
     public function test_simulated_dialer_cancelled_batch_phone_remains_pending_after_retry_delay(): void
     {
         [$agent, $company] = $this->tenantUser('agent');

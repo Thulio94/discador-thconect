@@ -188,6 +188,26 @@ func TestAMICorrelationUsesLinkedIDAfterOriginateResponse(t *testing.T) {
 	}
 }
 
+func TestPowerBatchIDIsForwardedToTheAsteriskDialplan(t *testing.T) {
+	variables := originateVariables(originateRequest{
+		CallID:         42,
+		AgentExtension: "1301",
+		AgentEndpoint:  "t3-e1301",
+		BatchID:        "power-batch-42",
+	})
+
+	for _, expected := range []string{
+		"THCONECT_CALL_ID=42",
+		"THCONECT_AGENT_EXTENSION=1301",
+		"THCONECT_AGENT_ENDPOINT=t3-e1301",
+		"THCONECT_BATCH_ID=power-batch-42",
+	} {
+		if !strings.Contains(variables, expected) {
+			t.Fatalf("expected AMI variables to contain %q, got %q", expected, variables)
+		}
+	}
+}
+
 func TestSameAgentConfigIgnoresOnlyExpiry(t *testing.T) {
 	current := agentConfig{UserID: 9, CompanyID: 3, Extension: "1301", Password: "secret", Codecs: "opus,ulaw", ExpiresAt: 10}
 

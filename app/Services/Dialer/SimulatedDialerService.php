@@ -11,6 +11,7 @@ use App\Models\CompanyLicense;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class SimulatedDialerService
 {
@@ -197,7 +198,9 @@ class SimulatedDialerService
     private function createBatch(Campaign $campaign, User $agent, int $batchSize): int
     {
         $created = 0;
-        $winnerCall = null;
+        $batchId = (string) Str::uuid();
+        $hasActiveCall = false;
+        $activeCall = null;
 
         for ($attempt = 0; $attempt < $batchSize; $attempt++) {
             $contactPhone = $this->queue->nextContactPhoneForCampaign($campaign);
@@ -207,8 +210,6 @@ class SimulatedDialerService
             }
 
             $contact = $contactPhone->contact;
-            $isWinner = $created === 0;
-
             $request = new DialerCallRequest(
                 companyId: $campaign->company_id,
                 userId: $agent->id,
@@ -216,27 +217,25 @@ class SimulatedDialerService
                 contactId: $contact->id,
                 contactPhoneId: $contactPhone->id,
                 phone: $contactPhone->phone,
+                batchId: $batchId,
             );
 
-            $call = $isWinner
-                ? $this->gateway->originate($request)
-                : $this->gateway->cancel($request, 'answered_elsewhere');
-
-            if ($isWinner) {
-                $winnerCall = $call;
-            }
+            $call = $this->gateway->originate($request);
+            $isActive = in_array($call->status, Call::ACTIVE_STATUSES, true);
+            $hasActiveCall = $hasActiveCall || $isActive;
+            $activeCall ??= $isActive ? $call : null;
 
             $this->queue->markAttempt(
                 $contact,
                 now()->addMinutes(30),
-                status: $isWinner && in_array($call->status, Call::ACTIVE_STATUSES, true) ? 'dialing' : 'pending',
+                status: $isActive ? 'dialing' : 'pending',
                 contactPhone: $contactPhone,
                 campaign: $campaign,
             );
             $created++;
         }
 
-        if ($created === 0 || ! $winnerCall || ! in_array($winnerCall->status, Call::ACTIVE_STATUSES, true)) {
+        if ($created === 0 || ! $hasActiveCall || ! $activeCall) {
             return 0;
         }
 
@@ -244,7 +243,7 @@ class SimulatedDialerService
 
         $agent->agentStatuses()->create([
             'company_id' => $campaign->company_id,
-            'status' => $winnerCall->channel === 'asterisk_ami' ? 'dialing' : 'in_call',
+            'status' => $activeCall->channel === 'asterisk_ami' ? 'dialing' : 'in_call',
             'started_at' => now(),
         ]);
 

@@ -12,6 +12,7 @@ use App\Exceptions\CapacityExceededException;
 use App\Services\Capacity\ChannelCapacityService;
 use App\Services\Reports\CallReportSnapshot;
 use App\Services\Telephony\AsteriskBridgeClient;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -45,6 +46,7 @@ class AsteriskDialerGateway implements DialerGateway
             $call = Call::create([
                 'company_id' => $request->companyId, 'user_id' => $request->userId,
                 'campaign_id' => $request->campaignId, 'telephony_route_id' => $route->id,
+                'dial_batch_id' => $request->batchId,
                 'contact_id' => $request->contactId, 'contact_phone_id' => $request->contactPhoneId,
                 'direction' => 'outbound', 'status' => 'cancelled', 'channel' => 'capacity_guard',
                 'phone' => $request->phone, 'started_at' => now(), 'ended_at' => now(),
@@ -59,6 +61,7 @@ class AsteriskDialerGateway implements DialerGateway
             'company_id' => $request->companyId,
             'user_id' => $request->userId,
             'campaign_id' => $request->campaignId,
+            'dial_batch_id' => $request->batchId,
             'telephony_route_id' => $route->id,
             'channel_reservation_id' => $reservation->id,
             'contact_id' => $request->contactId,
@@ -73,38 +76,33 @@ class AsteriskDialerGateway implements DialerGateway
         $this->capacity->activate($reservation, $call->id);
         $this->snapshots->capture($call);
 
-        try {
-            $agentExtension = $request->userId
-                ? User::query()
-                    ->where('company_id', $request->companyId)
-                    ->whereKey($request->userId)
-                    ->value('extension')
-                : null;
+        $agentExtension = $request->userId
+            ? User::query()
+                ->where('company_id', $request->companyId)
+                ->whereKey($request->userId)
+                ->value('extension')
+            : null;
 
-            $this->bridge->originate([
-                'company_id' => $request->companyId,
-                'route_id' => $route->id,
-                'call_id' => $call->id,
-                'action_id' => $actionId,
-                'phone' => $route->formattedPhone($request->phone),
-                'channel' => 'PJSIP/'.$route->formattedPhone($request->phone).'@thconect-route-'.$route->id,
-                'context' => $route->dialplan_context,
-                'extension' => $route->dialplan_extension,
-                'caller_id' => $route->caller_id,
-                'agent_extension' => $agentExtension,
-                'agent_endpoint' => 't'.$request->companyId.'-e'.$agentExtension,
-                'recording_file' => sprintf('call-%d.wav', $call->id),
-            ], $route->asteriskNode);
-        } catch (Throwable $exception) {
-            report($exception);
+        $payload = [
+            'company_id' => $request->companyId,
+            'route_id' => $route->id,
+            'call_id' => $call->id,
+            'action_id' => $actionId,
+            'phone' => $route->formattedPhone($request->phone),
+            'channel' => 'PJSIP/'.$route->formattedPhone($request->phone).'@thconect-route-'.$route->id,
+            'context' => $route->dialplan_context,
+            'extension' => $route->dialplan_extension,
+            'caller_id' => $route->caller_id,
+            'agent_extension' => $agentExtension,
+            'agent_endpoint' => 't'.$request->companyId.'-e'.$agentExtension,
+            'recording_file' => sprintf('call-%d.wav', $call->id),
+            'batch_id' => $request->batchId,
+        ];
 
-            $call->update([
-                'status' => 'cancelled',
-                'end_reason' => 'bridge_unavailable',
-                'hangup_party' => 'system',
-                'ended_at' => now(),
-            ]);
-            $this->capacity->release($reservation, 'bridge_unavailable');
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit(fn () => $this->originateCommittedCall($call->id, $route->id, $payload));
+        } else {
+            $this->originateCommittedCall($call->id, $route->id, $payload);
         }
 
         return $call;
@@ -168,5 +166,30 @@ class AsteriskDialerGateway implements DialerGateway
         return $isMobile
             ? ($campaign->mobileTelephonyRoute ?? $campaign->fixedTelephonyRoute)
             : ($campaign->fixedTelephonyRoute ?? $campaign->mobileTelephonyRoute);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function originateCommittedCall(int $callId, int $routeId, array $payload): void
+    {
+        $call = Call::query()->find($callId);
+        $route = TelephonyRoute::query()->with('asteriskNode')->find($routeId);
+
+        if (! $call || ! $route || ! in_array($call->status, Call::ACTIVE_STATUSES, true)) {
+            return;
+        }
+
+        try {
+            $this->bridge->originate($payload, $route->asteriskNode);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $call->update([
+                'status' => 'cancelled',
+                'end_reason' => 'bridge_unavailable',
+                'hangup_party' => 'system',
+                'ended_at' => now(),
+            ]);
+            $this->capacity->release($call->channel_reservation_id, 'bridge_unavailable');
+        }
     }
 }

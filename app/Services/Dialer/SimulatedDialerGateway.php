@@ -12,10 +12,17 @@ class SimulatedDialerGateway implements DialerGateway
 
     public function originate(DialerCallRequest $request): Call
     {
+        // The local fallback models the Asterisk per-agent batch guard. Real
+        // routes originate every leg and Asterisk enforces this guard itself.
+        if ($request->batchId && Call::query()->where('dial_batch_id', $request->batchId)->exists()) {
+            return $this->cancel($request, 'answered_elsewhere');
+        }
+
         $call = Call::create([
             'company_id' => $request->companyId,
             'user_id' => $request->userId,
             'campaign_id' => $request->campaignId,
+            'dial_batch_id' => $request->batchId,
             'contact_id' => $request->contactId,
             'contact_phone_id' => $request->contactPhoneId,
             'direction' => 'outbound',
@@ -36,6 +43,7 @@ class SimulatedDialerGateway implements DialerGateway
             'company_id' => $request->companyId,
             'user_id' => $request->userId,
             'campaign_id' => $request->campaignId,
+            'dial_batch_id' => $request->batchId,
             'contact_id' => $request->contactId,
             'contact_phone_id' => $request->contactPhoneId,
             'direction' => 'outbound',

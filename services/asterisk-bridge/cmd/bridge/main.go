@@ -70,6 +70,7 @@ type originateRequest struct {
 	AgentExtension string `json:"agent_extension"`
 	AgentEndpoint  string `json:"agent_endpoint"`
 	RecordingFile  string `json:"recording_file"`
+	BatchID        string `json:"batch_id"`
 }
 
 type agentConfig struct {
@@ -595,8 +596,21 @@ func (m *routeManager) originate(request originateRequest) error {
 		"Action": "Originate", "ActionID": request.ActionID, "Channel": request.Channel,
 		"Context": request.Context, "Exten": request.Extension, "Priority": "1",
 		"CallerID": request.CallerID, "Async": "true", "Timeout": "45000",
-		"Variable": "THCONECT_CALL_ID=" + strconv.Itoa(request.CallID) + ",THCONECT_AGENT_EXTENSION=" + request.AgentExtension + ",THCONECT_AGENT_ENDPOINT=" + request.AgentEndpoint,
+		"Variable": originateVariables(request),
 	})
+}
+
+func originateVariables(request originateRequest) string {
+	variables := []string{
+		"THCONECT_CALL_ID=" + strconv.Itoa(request.CallID),
+		"THCONECT_AGENT_EXTENSION=" + request.AgentExtension,
+		"THCONECT_AGENT_ENDPOINT=" + request.AgentEndpoint,
+	}
+	if request.BatchID != "" {
+		variables = append(variables, "THCONECT_BATCH_ID="+request.BatchID)
+	}
+
+	return strings.Join(variables, ",")
 }
 
 func (m *routeManager) supervise(request superviseRequest) error {
