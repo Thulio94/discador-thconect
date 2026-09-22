@@ -32,11 +32,13 @@ class GoogleDriveRecordingBackupController extends Controller
             'delete_local_after_backup' => ['nullable', 'boolean'],
         ]);
         $setting = GoogleDriveBackupSetting::current();
+        $folderChanged = $setting->root_folder_name !== $data['root_folder_name'];
         $setting->update([
             'root_folder_name' => $data['root_folder_name'],
+            'root_folder_id' => $folderChanged ? null : $setting->root_folder_id,
             'daily_at' => $data['daily_at'],
             'delete_local_after_backup' => $request->boolean('delete_local_after_backup'),
-            'enabled' => false,
+            'enabled' => $setting->isConnected(),
         ]);
         $audit->record(
             event: 'recording_backup.google_drive_configured',

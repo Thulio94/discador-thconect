@@ -6,6 +6,7 @@ use App\Models\AgentPause;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\User;
+use App\Services\Capacity\ChannelCapacityService;
 use Illuminate\Support\Facades\DB;
 
 final class CallWrapUpService
@@ -13,6 +14,11 @@ final class CallWrapUpService
     // AMI may spend 45 seconds originating the route and Asterisk then rings
     // the browser agent for 40 seconds. Keep the reservation through both legs.
     private const ASTERISK_EVENT_TIMEOUT_SECONDS = 90;
+
+    public function __construct(
+        private readonly ChannelCapacityService $capacity,
+        private readonly MailingQueueService $queue,
+    ) {}
 
     public function expireForUser(User $user): bool
     {
@@ -108,6 +114,9 @@ final class CallWrapUpService
                     'ended_at' => now(),
                 ]);
 
+                $this->capacity->release($call->channel_reservation_id, 'asterisk_event_timeout');
+                $this->queue->recordUnansweredAttempt($call, 'failed');
+
                 if ($call->user_id && $user = User::query()->find($call->user_id)) {
                     $this->releaseAgent($user, $call);
                 }
@@ -123,6 +132,15 @@ final class CallWrapUpService
 
     public function releaseAgent(User $user, ?Call $call = null): void
     {
+        if (Call::query()
+            ->where('company_id', $user->company_id)
+            ->where('user_id', $user->id)
+            ->when($call, fn ($query) => $query->whereKeyNot($call->id))
+            ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
+            ->exists()) {
+            return;
+        }
+
         AgentStatus::query()
             ->where('company_id', $user->company_id)
             ->where('user_id', $user->id)

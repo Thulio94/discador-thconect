@@ -53,6 +53,14 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertStringContainsString('queue:work --queue=media', $productionCompose);
     }
 
+    public function test_production_image_contains_database_backup_tools(): void
+    {
+        $dockerfile = file_get_contents(base_path('.docker/app/Dockerfile.production'));
+
+        $this->assertStringContainsString('mariadb-client', $dockerfile);
+        $this->assertStringContainsString('gzip', $dockerfile);
+    }
+
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void
     {
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');

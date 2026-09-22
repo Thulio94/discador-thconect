@@ -28,7 +28,6 @@ class DispatchGoogleDriveRecordingBackup extends Command
             ->where('recording_disk', 'recordings')
             ->whereNotNull('recording_path')
             ->whereNotNull('recording_available_at')
-            ->whereDate('recording_available_at', '<', today())
             ->pluck('id');
         Bus::batch($ids->map(fn (int $id) => new BackupCallRecordingToGoogleDrive($id))->all())
             ->name('backup-gravacoes-google-drive-'.today()->toDateString())

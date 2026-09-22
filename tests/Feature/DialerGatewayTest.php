@@ -13,13 +13,14 @@ class DialerGatewayTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_container_binds_the_asterisk_gateway_with_simulated_fallback(): void
+    public function test_container_binds_the_asterisk_gateway(): void
     {
         $this->assertInstanceOf(AsteriskDialerGateway::class, app(DialerGateway::class));
     }
 
-    public function test_simulated_gateway_originates_cancels_and_hangs_up_calls(): void
+    public function test_unavailable_route_does_not_create_an_answered_call(): void
     {
+        config()->set('app.force_real_telephony', true);
         $company = Company::create(['name' => 'Empresa Gateway']);
         $gateway = app(DialerGateway::class);
         $request = new DialerCallRequest(
@@ -34,14 +35,9 @@ class DialerGatewayTest extends TestCase
 
         $call = $gateway->originate($request);
 
-        $this->assertSame('in_progress', $call->status);
-        $this->assertSame('manual', $call->channel);
-        $this->assertNotNull($call->answered_at);
-
-        $gateway->hangup($call);
-
-        $this->assertSame('ended', $call->fresh()->status);
-        $this->assertNotNull($call->fresh()->ended_at);
+        $this->assertSame('cancelled', $call->status);
+        $this->assertSame('route_unavailable', $call->end_reason);
+        $this->assertNull($call->answered_at);
 
         $cancelled = $gateway->cancel($request, 'answered_elsewhere');
 

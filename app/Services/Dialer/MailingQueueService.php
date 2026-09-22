@@ -4,6 +4,7 @@ namespace App\Services\Dialer;
 
 use App\Events\CampaignMailingMetricsUpdated;
 use App\Models\Campaign;
+use App\Models\Call;
 use App\Models\CampaignPhoneState;
 use App\Models\Contact;
 use App\Models\ContactList;
@@ -104,7 +105,8 @@ class MailingQueueService
             ->where('campaign_phone_states.company_id', $campaign->company_id)
             ->where('campaign_phone_states.campaign_id', $campaign->id)
             ->whereIn('campaign_phone_states.contact_list_id', $listIds)
-            ->where('campaign_phone_states.status', 'pending')
+            ->whereIn('campaign_phone_states.status', ['pending', 'no_answer', 'failed'])
+            ->when($campaign->max_attempts_per_contact !== null, fn ($query) => $query->where('campaign_phone_states.attempts_count', '<', $campaign->max_attempts_per_contact))
             ->where(function ($query) use ($now): void {
                 $query->whereNull('campaign_phone_states.next_attempt_at')
                     ->orWhere('campaign_phone_states.next_attempt_at', '<=', $now);
@@ -229,6 +231,35 @@ class MailingQueueService
         }
 
         return $contact;
+    }
+
+    public function recordUnansweredAttempt(Call $call, string $status): void
+    {
+        if (! $call->campaign_id || ! $call->contact_phone_id || ! in_array($status, ['no_answer', 'failed'], true)) {
+            return;
+        }
+
+        $campaign = $call->campaign;
+        if (! $campaign || $campaign->company_id !== $call->company_id) {
+            return;
+        }
+
+        $state = CampaignPhoneState::query()
+            ->where('company_id', $call->company_id)
+            ->where('campaign_id', $campaign->id)
+            ->where('contact_phone_id', $call->contact_phone_id)
+            ->first();
+        if (! $state || ! in_array($state->status, ['dialing', 'pending'], true)) {
+            return;
+        }
+
+        $state->update([
+            'status' => $status,
+            'last_result' => $status,
+            'next_attempt_at' => now()->addMinutes(max(0, (int) ($campaign->retry_delay_minutes ?? 30))),
+            'completed_at' => now(),
+        ]);
+        event(new CampaignMailingMetricsUpdated($campaign->company_id, $campaign->id));
     }
 
     public function recycleCampaign(

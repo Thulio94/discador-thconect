@@ -221,13 +221,16 @@ class SimulatedDialerService
             );
 
             $call = $this->gateway->originate($request);
+            if ($call->end_reason === 'route_unavailable') {
+                break;
+            }
             $isActive = in_array($call->status, Call::ACTIVE_STATUSES, true);
             $hasActiveCall = $hasActiveCall || $isActive;
             $activeCall ??= $isActive ? $call : null;
 
             $this->queue->markAttempt(
                 $contact,
-                now()->addMinutes(30),
+                now()->addMinutes(max(0, (int) ($campaign->retry_delay_minutes ?? 30))),
                 status: $isActive ? 'dialing' : 'pending',
                 contactPhone: $contactPhone,
                 campaign: $campaign,

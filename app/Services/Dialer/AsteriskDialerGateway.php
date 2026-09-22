@@ -36,7 +36,11 @@ class AsteriskDialerGateway implements DialerGateway
         $route = $this->routeForPhone($campaign, $request->phone, $request->companyId);
 
         if (! $route?->isReady() || $route->connection_status !== 'online') {
-            return $this->simulated->originate($request);
+            if (app()->environment('testing') && ! config('app.force_real_telephony', false)) {
+                return $this->simulated->originate($request);
+            }
+
+            return $this->simulated->cancel($request, 'route_unavailable');
         }
 
         $company = Company::query()->with(['license', 'resourceLimit'])->findOrFail($request->companyId);
@@ -190,6 +194,9 @@ class AsteriskDialerGateway implements DialerGateway
                 'ended_at' => now(),
             ]);
             $this->capacity->release($call->channel_reservation_id, 'bridge_unavailable');
+            if ($call->campaign_id && $call->contact_phone_id) {
+                app(MailingQueueService::class)->recordUnansweredAttempt($call, 'failed');
+            }
         }
     }
 }

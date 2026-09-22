@@ -17,9 +17,11 @@ class DatabaseBackupService
         $target = Storage::disk('local')->path($path);
         $command = sprintf('mariadb-dump --single-transaction --add-drop-table --routines --events --hex-blob --no-tablespaces -h%s -P%s -u%s %s | gzip -9 > %s',
             escapeshellarg((string) $connection['host']), escapeshellarg((string) ($connection['port'] ?? 3306)), escapeshellarg((string) $connection['username']), escapeshellarg((string) $connection['database']), escapeshellarg($target));
-        $process = Process::fromShellCommandline($command, null, ['MYSQL_PWD' => (string) $connection['password']]);
+        $process = new Process(['bash', '-o', 'pipefail', '-c', $command], null, ['MYSQL_PWD' => (string) $connection['password']]);
         $process->setTimeout(3600)->run();
-        if (! $process->isSuccessful() || ! is_file($target) || filesize($target) === 0) {
+        $integrity = is_file($target) ? new Process(['gzip', '-t', $target]) : null;
+        $integrity?->run();
+        if (! $process->isSuccessful() || ! $integrity?->isSuccessful() || filesize($target) <= 20) {
             @unlink($target);
             throw new RuntimeException('Não foi possível concluir o backup do banco de dados.');
         }
@@ -37,7 +39,7 @@ class DatabaseBackupService
             throw new RuntimeException('O checksum do backup não confere. A restauração foi bloqueada.');
         }
         $command = sprintf('gzip -dc %s | mariadb -h%s -P%s -u%s %s', escapeshellarg($source), escapeshellarg((string) $connection['host']), escapeshellarg((string) ($connection['port'] ?? 3306)), escapeshellarg((string) $connection['username']), escapeshellarg((string) $connection['database']));
-        $process = Process::fromShellCommandline($command, null, ['MYSQL_PWD' => (string) $connection['password']]);
+        $process = new Process(['bash', '-o', 'pipefail', '-c', $command], null, ['MYSQL_PWD' => (string) $connection['password']]);
         $process->setTimeout(3600)->run();
         if (! $process->isSuccessful()) {
             throw new RuntimeException('A restauração do banco falhou; os dados atuais não foram apagados automaticamente.');

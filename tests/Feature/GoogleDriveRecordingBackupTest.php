@@ -76,6 +76,24 @@ class GoogleDriveRecordingBackupTest extends TestCase
         Bus::assertBatched(fn ($batch) => $batch->jobs->contains(fn ($job) => $job instanceof BackupCallRecordingToGoogleDrive));
     }
 
+    public function test_daily_backup_includes_recordings_completed_today_and_schedule_edit_keeps_connection(): void
+    {
+        Bus::fake();
+        config()->set('services.google_drive_backup.client_id', 'test-client');
+        config()->set('services.google_drive_backup.client_secret', 'test-secret');
+        $admin = User::factory()->create(['is_super_admin' => true, 'company_id' => null]);
+        $setting = GoogleDriveBackupSetting::current();
+        $setting->update(['refresh_token' => 'test-refresh', 'enabled' => true]);
+        $this->actingAs($admin)->put(route('super-admin.recording-backup.update'), ['root_folder_name' => $setting->root_folder_name, 'daily_at' => now()->format('H:i')])->assertRedirect();
+        $this->assertTrue($setting->fresh()->enabled);
+        $company = Company::create(['name' => 'Hoje', 'status' => 'active']);
+        $call = Call::create(['company_id' => $company->id, 'phone' => '31999990001', 'direction' => 'outbound', 'status' => 'ended', 'channel' => 'asterisk_ami', 'started_at' => now()->subHour(), 'recording_disk' => 'recordings', 'recording_path' => 'recordings/hoje.wav', 'recording_available_at' => now()->subMinute()]);
+
+        $this->artisan('recordings:dispatch-google-drive-backup')->assertSuccessful();
+
+        Bus::assertBatched(fn ($batch) => $batch->jobs->contains(fn ($job) => $job instanceof BackupCallRecordingToGoogleDrive && $job->callId === $call->id));
+    }
+
     public function test_confirmed_google_drive_upload_moves_recording_and_preserves_a_company_index(): void
     {
         Storage::fake('recordings');

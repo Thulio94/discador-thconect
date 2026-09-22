@@ -49,6 +49,20 @@ class CampaignMailingStateTest extends TestCase
         $this->assertSame(1, $queue->summaryForCampaign($second)['pending']);
     }
 
+    public function test_mailing_does_not_redial_a_phone_after_campaign_attempt_limit(): void
+    {
+        $company = Company::create(['name' => 'Limite de tentativas', 'status' => 'active']);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Lista', 'status' => 'active']);
+        $contact = $list->contacts()->create(['company_id' => $company->id, 'name' => 'Lead', 'phone' => '31999990005', 'status' => 'pending']);
+        $phone = $contact->phones()->create(['company_id' => $company->id, 'phone' => '31999990005', 'status' => 'pending', 'is_primary' => true]);
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Power', 'status' => 'active', 'max_attempts_per_contact' => 1]);
+        $campaign->contactLists()->attach($list, ['company_id' => $company->id, 'weight' => 1]);
+        $queue = app(MailingQueueService::class);
+        $queue->markAttempt($contact, now()->subMinute(), 'pending', $phone, $campaign);
+
+        $this->assertNull($queue->nextContactPhoneForCampaign($campaign));
+    }
+
     public function test_recycling_selected_results_resets_only_the_operational_cycle_and_keeps_call_history_fields(): void
     {
         $company = Company::create(['name' => 'Empresa reciclagem', 'status' => 'active']);

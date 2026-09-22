@@ -39,7 +39,7 @@ FROM base AS runtime
 WORKDIR /var/www/html
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gosu \
+    && apt-get install -y --no-install-recommends gosu mariadb-client gzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

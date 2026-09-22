@@ -8,6 +8,7 @@ use App\Models\Call;
 use App\Models\CallEvent;
 use App\Services\Capacity\ChannelCapacityService;
 use App\Services\Dialer\CallWrapUpService;
+use App\Services\Dialer\MailingQueueService;
 use Illuminate\Support\Arr;
 
 class AsteriskCallEventService
@@ -101,6 +102,10 @@ class AsteriskCallEventService
         }
 
         $call->update($updates);
+
+        if ($event === 'originate_failed' || ($event === 'hangup' && $call->status === 'cancelled')) {
+            app(MailingQueueService::class)->recordUnansweredAttempt($call, $event === 'hangup' ? 'no_answer' : 'failed');
+        }
 
         if ($event === 'originate_failed') {
             $this->releaseAgent($call);

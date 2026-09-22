@@ -5,13 +5,17 @@ namespace Tests\Feature;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\CallEvent;
+use App\Models\ChannelReservation;
 use App\Models\Company;
+use App\Models\Campaign;
+use App\Models\ContactList;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TelephonyRoute;
 use App\Models\User;
 use App\Services\Telephony\AsteriskCallEventService;
 use App\Services\Dialer\CallWrapUpService;
+use App\Services\Dialer\MailingQueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -164,6 +168,29 @@ class TenantTelephonyConfigurationTest extends TestCase
         $this->assertSame('available', $admin->fresh()->currentAgentStatus->status);
     }
 
+    public function test_failed_power_leg_keeps_agent_reserved_for_another_live_leg_and_requeues_its_phone(): void
+    {
+        $agent = $this->tenantAdmin();
+        $company = $agent->company;
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Fila', 'status' => 'active']);
+        $contact = $list->contacts()->create(['company_id' => $company->id, 'name' => 'Lead', 'phone' => '31999990003', 'status' => 'pending']);
+        $phone = $contact->phones()->create(['company_id' => $company->id, 'phone' => '31999990003', 'status' => 'pending', 'is_primary' => true]);
+        $campaign = Campaign::create(['company_id' => $company->id, 'name' => 'Power', 'status' => 'active', 'max_attempts_per_contact' => 2, 'retry_delay_minutes' => 5]);
+        $campaign->contactLists()->attach($list, ['company_id' => $company->id, 'weight' => 1]);
+        $queue = app(MailingQueueService::class);
+        $queue->markAttempt($contact, now()->addMinutes(30), 'dialing', $phone, $campaign);
+        $failed = Call::create(['company_id' => $company->id, 'user_id' => $agent->id, 'campaign_id' => $campaign->id, 'contact_id' => $contact->id, 'contact_phone_id' => $phone->id, 'dial_batch_id' => 'batch-a', 'direction' => 'outbound', 'status' => 'dialing', 'channel' => 'asterisk_ami', 'phone' => $phone->phone, 'started_at' => now()]);
+        Call::create(['company_id' => $company->id, 'user_id' => $agent->id, 'campaign_id' => $campaign->id, 'dial_batch_id' => 'batch-a', 'direction' => 'outbound', 'status' => 'ringing', 'channel' => 'asterisk_ami', 'phone' => '31999990004', 'started_at' => now()]);
+        AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'dialing', 'started_at' => now()]);
+
+        app(AsteriskCallEventService::class)->apply(['company_id' => $company->id, 'call_id' => $failed->id, 'event' => 'originate_failed', 'cause' => 'congestion']);
+
+        $this->assertSame('dialing', $agent->fresh()->currentAgentStatus->status);
+        $state = $queue->stateForCampaignPhone($campaign, $phone)->fresh();
+        $this->assertSame('failed', $state->status);
+        $this->assertNotNull($state->next_attempt_at);
+    }
+
     public function test_stale_ami_call_waits_for_the_route_and_agent_dial_windows_before_releasing_the_agent(): void
     {
         $admin = $this->tenantAdmin();
@@ -203,6 +230,26 @@ class TenantTelephonyConfigurationTest extends TestCase
         ]);
 
         $this->assertSame('cancelled', $call->fresh()->status);
+    }
+
+    public function test_stale_power_call_releases_capacity_and_requeues_its_phone(): void
+    {
+        $agent = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $agent->company_id, 'name' => 'Fila', 'status' => 'active']);
+        $contact = $list->contacts()->create(['company_id' => $agent->company_id, 'name' => 'Lead', 'phone' => '31999990005', 'status' => 'pending']);
+        $phone = $contact->phones()->create(['company_id' => $agent->company_id, 'phone' => '31999990005', 'status' => 'pending', 'is_primary' => true]);
+        $campaign = Campaign::create(['company_id' => $agent->company_id, 'name' => 'Power', 'status' => 'active', 'retry_delay_minutes' => 5]);
+        $campaign->contactLists()->attach($list, ['company_id' => $agent->company_id, 'weight' => 1]);
+        $queue = app(MailingQueueService::class);
+        $queue->markAttempt($contact, now()->addMinutes(30), 'dialing', $phone, $campaign);
+        $reservation = ChannelReservation::create(['company_id' => $agent->company_id, 'campaign_id' => $campaign->id, 'user_id' => $agent->id, 'status' => 'active', 'expires_at' => now()->addHour()]);
+        Call::create(['company_id' => $agent->company_id, 'user_id' => $agent->id, 'campaign_id' => $campaign->id, 'contact_id' => $contact->id, 'contact_phone_id' => $phone->id, 'channel_reservation_id' => $reservation->id, 'direction' => 'outbound', 'status' => 'dialing', 'channel' => 'asterisk_ami', 'phone' => $phone->phone, 'started_at' => now()->subSeconds(91)]);
+        AgentStatus::create(['company_id' => $agent->company_id, 'user_id' => $agent->id, 'status' => 'dialing', 'started_at' => now()->subSeconds(91)]);
+
+        $this->assertSame(1, app(CallWrapUpService::class)->expireDue());
+        $this->assertSame('released', $reservation->fresh()->status);
+        $this->assertSame('failed', $queue->stateForCampaignPhone($campaign, $phone)->fresh()->status);
+        $this->assertNotNull($queue->stateForCampaignPhone($campaign, $phone)->fresh()->next_attempt_at);
     }
 
     public function test_asterisk_event_rejects_expired_or_replayed_payloads(): void
