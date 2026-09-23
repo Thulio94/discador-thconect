@@ -61,6 +61,15 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertStringContainsString('gzip', $dockerfile);
     }
 
+    public function test_pilot_sip_websocket_proxy_uses_its_isolated_asterisk_alias(): void
+    {
+        $nginx = file_get_contents(base_path('.docker/nginx/default.conf'));
+        $compose = file_get_contents(base_path('docker-compose.production.yml'));
+
+        $this->assertStringContainsString('set $asterisk_backend pilot-asterisk:8088;', $nginx);
+        $this->assertMatchesRegularExpression('/^  asterisk:.*?aliases:\R\s+- pilot-asterisk/ms', $compose);
+    }
+
     public function test_manual_call_uses_the_company_real_route_and_agent_extension(): void
     {
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');
