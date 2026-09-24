@@ -209,15 +209,23 @@ teste autorizado; nao usar contatos do mailing como destino de teste.
   limite de 128 MB e terminou por falta de memoria. A execucao direta do
   PHPUnit com 512 MB passou. O teste Go do bridge nao foi executado: Go nao
   esta instalado/disponivel neste host.
-- As mudancas de snapshot e seu teste ainda nao foram publicados nem implantados
-  nesta verificacao. Revalidar na VPS os cartoes e os filtros da Supervisao
-  apos o deploy antes de considerar essa falha encerrada.
+- O commit `23cd585` foi enviado a `main` e o Easypanel concluiu o deploy com
+  rebuild exclusivamente em `pabx-thconect/discador-piloto-teste` (acao
+  `cmug0uybo013j06qd703h6m3t`, status `done`). O log marcou app, MySQL, Redis e
+  Asterisk como saudaveis e os componentes restantes como iniciados. O servico
+  `pabx-thconect1` nao foi alvo do deploy.
+- Depois do deploy, `/up` e `/login` responderam HTTP 200. Nao foi possivel
+  reabrir uma aba autenticada para conferir visualmente os cartoes e filtros;
+  portanto, a divergencia da Supervisao ainda nao esta confirmada como
+  resolvida em producao. O coletor de logs do Easypanel continua retornando
+  HTTP 400.
 - Seguem sem prova real: SIP INVITE/200 OK, audio bidirecional, entrega Power,
   DTMF, desligamento, gravacao MixMonitor e conciliacao AMI/bridge. O coletor
   de logs Easypanel havia retornado HTTP 400 na verificacao anterior. Exigir
   destino de teste controlado e autorizacao antes de originar chamadas.
 
-**Decisao atualizada:** os testes locais de aplicacao passaram, mas a VPS ainda
-nao demonstra estado operacional consistente e o fluxo de telefonia nao foi
-homologado. Nao liberar para producao ate implantar a correcao, repetir a
-validacao administrativa e concluir a homologacao controlada de chamadas.
+**Decisao atualizada:** o ajuste foi implantado no piloto isolado e os
+healthchecks HTTP passaram, mas a correcao visual da Supervisao ainda precisa
+ser confirmada autenticada. O fluxo de telefonia tambem nao foi homologado.
+Nao liberar para producao ate repetir a validacao administrativa na VPS e
+concluir a homologacao controlada de chamadas.
