@@ -269,5 +269,9 @@ concluir a homologacao controlada de chamadas.
   auditadas antes de liberar operacoes de escrita.
 - O teste de invariantes PBX via `scripts/verify-pbx-invariants.ps1 -RunTests`
   nao executou por falta do Docker CLI neste host. A correcao da tela de
-  exportacoes ainda precisa ser publicada e validada no servico piloto; o
-  servico principal `pabx-thconect1` permanece fora do escopo.
+  exportacoes foi publicada exclusivamente em
+  `pabx-thconect/discador-piloto-teste` (acao
+  `cmug1tb1c015d06qdhfz522iu`, status `done`). Pos-deploy, as duas abas
+  alternaram corretamente, nao houve novos erros Alpine e `/up` respondeu
+  `Application up`. O servico principal `pabx-thconect1` permaneceu fora do
+  escopo.
