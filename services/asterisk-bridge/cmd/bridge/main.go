@@ -141,6 +141,10 @@ type routeManager struct {
 	companies     map[int]int
 	recordings    map[int]string
 	recordingSent map[int]bool
+	cancelled     map[int]bool
+	cancelSent    map[int]bool
+	channels      map[int]string
+	webhookQueues []chan map[string]any
 }
 
 func main() {
@@ -455,11 +459,14 @@ func (b *bridge) hangup(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]string{"message": "route is not synchronized"})
 		return
 	}
+	manager := current.(*routeManager)
+	var err error
 	if request.Channel == "" {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "channel is required to hang up a call"})
-		return
+		err = manager.cancelCall(request.CallID, request.CompanyID)
+	} else {
+		err = manager.sendAction(map[string]string{"Action": "Hangup", "Channel": request.Channel})
 	}
-	if err := current.(*routeManager).sendAction(map[string]string{"Action": "Hangup", "Channel": request.Channel}); err != nil {
+	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
 		return
 	}
@@ -493,10 +500,27 @@ func (b *bridge) supervise(w http.ResponseWriter, r *http.Request) {
 }
 
 func newRouteManager(b *bridge, config routeConfig) *routeManager {
-	return &routeManager{bridge: b, config: config, stop: make(chan struct{}), done: make(chan struct{}), actions: map[string]actionRef{}, ids: map[string]int{}, companies: map[int]int{}, recordings: map[int]string{}, recordingSent: map[int]bool{}}
+	return &routeManager{bridge: b, config: config, stop: make(chan struct{}), done: make(chan struct{}), actions: map[string]actionRef{}, ids: map[string]int{}, companies: map[int]int{}, recordings: map[int]string{}, recordingSent: map[int]bool{}, cancelled: map[int]bool{}, cancelSent: map[int]bool{}, channels: map[int]string{}}
 }
 
-func (m *routeManager) start() { go m.connectLoop() }
+func (m *routeManager) start() {
+	m.webhookQueues = make([]chan map[string]any, 8)
+	for i := range m.webhookQueues {
+		queue := make(chan map[string]any, 256)
+		m.webhookQueues[i] = queue
+		go func() {
+			for {
+				select {
+				case payload := <-queue:
+					m.bridge.sendWebhook(payload)
+				case <-m.stop:
+					return
+				}
+			}
+		}()
+	}
+	go m.connectLoop()
+}
 
 func (m *routeManager) close() {
 	close(m.stop)
@@ -600,6 +624,41 @@ func (m *routeManager) originate(request originateRequest) error {
 	})
 }
 
+func (m *routeManager) cancelCall(callID, companyID int) error {
+	if callID < 1 || companyID < 1 {
+		return errors.New("invalid call or company")
+	}
+	m.mu.Lock()
+	if m.companies[callID] != companyID {
+		m.mu.Unlock()
+		return errors.New("call is not active on this route")
+	}
+	m.cancelled[callID] = true
+	channel := m.channels[callID]
+	m.mu.Unlock()
+	if channel != "" {
+		return m.hangupCancelled(callID, channel)
+	}
+	return nil
+}
+
+func (m *routeManager) hangupCancelled(callID int, channel string) error {
+	m.mu.Lock()
+	if m.cancelSent[callID] {
+		m.mu.Unlock()
+		return nil
+	}
+	m.cancelSent[callID] = true
+	m.mu.Unlock()
+	if err := m.sendAction(map[string]string{"Action": "Hangup", "Channel": channel}); err != nil {
+		m.mu.Lock()
+		delete(m.cancelSent, callID)
+		m.mu.Unlock()
+		return err
+	}
+	return nil
+}
+
 func originateVariables(request originateRequest) string {
 	variables := []string{
 		"THCONECT_CALL_ID=" + strconv.Itoa(request.CallID),
@@ -694,6 +753,18 @@ func (m *routeManager) processEvent(message map[string]string) {
 		}
 		m.mu.Unlock()
 	}
+	channel := message["Channel"]
+	if strings.HasPrefix(channel, "PJSIP/thconect-route-") {
+		m.mu.Lock()
+		m.channels[callID] = channel
+		cancelled := m.cancelled[callID]
+		m.mu.Unlock()
+		if cancelled {
+			if err := m.hangupCancelled(callID, channel); err != nil {
+				log.Printf("cancel call %d: %v", callID, err)
+			}
+		}
+	}
 
 	payload := map[string]any{"company_id": companyID, "call_id": callID, "channel": message["Channel"], "uniqueid": uniqueID, "payload": message}
 	switch event {
@@ -723,7 +794,11 @@ func (m *routeManager) processEvent(message map[string]string) {
 		return
 	}
 
-	go m.bridge.sendWebhook(payload)
+	if len(m.webhookQueues) == 0 {
+		go m.bridge.sendWebhook(payload)
+	} else {
+		m.webhookQueues[callID%len(m.webhookQueues)] <- payload
+	}
 	if event == "Hangup" {
 		go m.finishCall(callID, companyID)
 	}
@@ -779,6 +854,9 @@ func (m *routeManager) cleanupCall(callID int) {
 	delete(m.companies, callID)
 	delete(m.recordings, callID)
 	delete(m.recordingSent, callID)
+	delete(m.cancelled, callID)
+	delete(m.cancelSent, callID)
+	delete(m.channels, callID)
 	for actionID, ref := range m.actions {
 		if ref.CallID == callID {
 			delete(m.actions, actionID)

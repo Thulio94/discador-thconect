@@ -53,6 +53,9 @@ class SimulatedDialerService
                 ->first();
 
             $company = $campaign->company()->firstOrFail();
+            if ($company->status !== 'active' || ! $license) {
+                return 0;
+            }
             $company->setRelation('license', $license);
             $campaign->setRelation('company', $company);
             $campaign->load('teams');
@@ -97,13 +100,18 @@ class SimulatedDialerService
 
     public function isCampaignInOperationalSchedule(Campaign $campaign, ?CarbonInterface $moment = null): bool
     {
+        $moment ??= now();
+        if (($campaign->starts_at && $campaign->starts_at->greaterThan($moment))
+            || ($campaign->ends_at && $campaign->ends_at->lessThan($moment))) {
+            return false;
+        }
+
         $schedule = $campaign->operational_schedule ?? [];
 
         if ($schedule === []) {
             return true;
         }
 
-        $moment ??= now();
         $day = $schedule[self::WEEK_DAYS[$moment->dayOfWeek] ?? ''] ?? null;
 
         if (! is_array($day) || empty($day['enabled'])) {
@@ -221,10 +229,13 @@ class SimulatedDialerService
             );
 
             $call = $this->gateway->originate($request);
-            if ($call->end_reason === 'route_unavailable') {
+            if ($call->end_reason === 'route_unavailable' || str_starts_with((string) $call->end_reason, 'capacity_')) {
                 break;
             }
             $isActive = in_array($call->status, Call::ACTIVE_STATUSES, true);
+            if (! $isActive && $call->end_reason !== 'answered_elsewhere') {
+                break;
+            }
             $hasActiveCall = $hasActiveCall || $isActive;
             $activeCall ??= $isActive ? $call : null;
 

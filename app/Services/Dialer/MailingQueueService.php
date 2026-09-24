@@ -262,6 +262,49 @@ class MailingQueueService
         event(new CampaignMailingMetricsUpdated($campaign->company_id, $campaign->id));
     }
 
+    public function recordDelivered(Call $call): void
+    {
+        if (! $call->campaign_id || ! $call->contact_phone_id) {
+            return;
+        }
+
+        $changed = CampaignPhoneState::query()
+            ->where('company_id', $call->company_id)
+            ->where('campaign_id', $call->campaign_id)
+            ->where('contact_phone_id', $call->contact_phone_id)
+            ->whereIn('status', ['dialing', 'pending'])
+            ->update([
+                'status' => 'delivered',
+                'last_result' => 'delivered',
+                'next_attempt_at' => null,
+                'completed_at' => now(),
+            ]);
+
+        if ($changed) {
+            event(new CampaignMailingMetricsUpdated($call->company_id, $call->campaign_id));
+        }
+    }
+
+    public function recordBatchCancellation(Call $call): void
+    {
+        if (! $call->campaign_id || ! $call->contact_phone_id) {
+            return;
+        }
+
+        CampaignPhoneState::query()
+            ->where('company_id', $call->company_id)
+            ->where('campaign_id', $call->campaign_id)
+            ->where('contact_phone_id', $call->contact_phone_id)
+            ->where('status', 'dialing')
+            ->update([
+                'status' => 'pending',
+                'last_result' => null,
+                'next_attempt_at' => now()->addMinutes(max(0, (int) ($call->campaign?->retry_delay_minutes ?? 30))),
+            ]);
+
+        event(new CampaignMailingMetricsUpdated($call->company_id, $call->campaign_id));
+    }
+
     public function recycleCampaign(
         Campaign $campaign,
         ?ContactList $list = null,

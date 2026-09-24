@@ -7,6 +7,48 @@ import (
 	"testing"
 )
 
+func TestCancelCallRejectsAnotherCompany(t *testing.T) {
+	m := newRouteManager(&bridge{}, routeConfig{CompanyID: 2})
+	m.companies[7] = 2
+	if err := m.cancelCall(7, 3); err == nil {
+		t.Fatal("expected cross-company cancellation to be rejected")
+	}
+	if m.cancelled[7] {
+		t.Fatal("cross-company cancellation changed the call")
+	}
+}
+
+func TestCancelCallWaitsForAsteriskChannel(t *testing.T) {
+	m := newRouteManager(&bridge{}, routeConfig{CompanyID: 2})
+	m.companies[7] = 2
+	if err := m.cancelCall(7, 2); err != nil {
+		t.Fatalf("unexpected cancellation error: %v", err)
+	}
+	if !m.cancelled[7] || m.cancelSent[7] {
+		t.Fatal("cancellation should wait for the real route channel")
+	}
+}
+
+func TestWebhooksForOneCallKeepAMIEventOrder(t *testing.T) {
+	m := newRouteManager(&bridge{}, routeConfig{CompanyID: 2})
+	m.actions["call-action"] = actionRef{CallID: 7, CompanyID: 2}
+	m.companies[7] = 2
+	m.webhookQueues = make([]chan map[string]any, 8)
+	for i := range m.webhookQueues {
+		m.webhookQueues[i] = make(chan map[string]any, 2)
+	}
+	m.processEvent(map[string]string{
+		"Event": "OriginateResponse", "ActionID": "call-action", "Response": "Success", "Uniqueid": "call-uniqueid",
+	})
+	m.processEvent(map[string]string{
+		"Event": "DialEnd", "Uniqueid": "call-uniqueid", "DialStatus": "ANSWER",
+	})
+	queue := m.webhookQueues[7%len(m.webhookQueues)]
+	if first, second := <-queue, <-queue; first["event"] != "originate_succeeded" || second["event"] != "answered" {
+		t.Fatalf("call events reached the webhook queue out of order: %v, %v", first, second)
+	}
+}
+
 func TestSupervisionTargetUsesExtensionPrefixForPersistentMonitoring(t *testing.T) {
 	target, err := supervisionTarget(superviseRequest{
 		CompanyID:      1,

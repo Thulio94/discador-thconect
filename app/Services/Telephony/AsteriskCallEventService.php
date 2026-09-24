@@ -2,6 +2,7 @@
 
 namespace App\Services\Telephony;
 
+use App\Jobs\CancelPowerBatchCall;
 use App\Jobs\StoreCallRecording;
 use App\Models\AgentStatus;
 use App\Models\Call;
@@ -10,6 +11,7 @@ use App\Services\Capacity\ChannelCapacityService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\MailingQueueService;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 
 class AsteriskCallEventService
 {
@@ -21,18 +23,44 @@ class AsteriskCallEventService
     /** @param array<string, mixed> $payload */
     public function apply(array $payload): void
     {
+        $cancelIds = DB::transaction(fn (): array => $this->applyLocked($payload), 3);
+
+        foreach ($cancelIds as $callId) {
+            CancelPowerBatchCall::dispatch($callId)->onQueue('telephony')->afterCommit();
+        }
+    }
+
+    /** @param array<string, mixed> $payload
+     * @return array<int, int>
+     */
+    private function applyLocked(array $payload): array
+    {
+        $event = (string) $payload['event'];
+        if ($event === 'answered') {
+            $campaignId = Call::query()->whereKey((int) $payload['call_id'])
+                ->where('company_id', (int) $payload['company_id'])->value('campaign_id');
+            if ($campaignId) {
+                DB::table('campaigns')->where('id', $campaignId)->lockForUpdate()->first();
+            }
+        }
+
         $call = Call::query()
             ->whereKey((int) $payload['call_id'])
             ->where('company_id', (int) $payload['company_id'])
+            ->lockForUpdate()
             ->first();
 
         if (! $call) {
-            return;
+            return [];
         }
 
-        $event = (string) $payload['event'];
+        if ($call->status === 'cancelled' && $call->end_reason === 'power_batch_winner' && $event === 'hangup') {
+            $this->capacity->release($call->channel_reservation_id, 'power_batch_hangup');
+            return [];
+        }
+
         if (in_array($call->status, ['ended', 'cancelled'], true) && $event !== 'recording_ready') {
-            return;
+            return [];
         }
 
         $callEvent = CallEvent::query()->firstOrCreate([
@@ -47,9 +75,10 @@ class AsteriskCallEventService
         ]);
 
         if (! $callEvent->wasRecentlyCreated) {
-            return;
+            return [];
         }
 
+        $cancelIds = [];
         $previousStatus = $call->status;
         $updates = [
             'telephony_channel' => $payload['channel'] ?? $call->telephony_channel,
@@ -57,22 +86,48 @@ class AsteriskCallEventService
             'provider_payload' => $payload,
         ];
 
-        if ($event === 'originate_succeeded') {
+        if ($event === 'originate_succeeded' && $call->answered_at === null && in_array($call->status, ['dialing', 'ringing'], true)) {
             $updates['status'] = 'ringing';
         }
 
-        if ($event === 'answered') {
+        if ($event === 'answered' && $call->answered_at === null) {
+            $winnerExists = $call->dial_batch_id && Call::query()
+                ->where('company_id', $call->company_id)
+                ->where('dial_batch_id', $call->dial_batch_id)
+                ->whereKeyNot($call->id)
+                ->whereNotNull('answered_at')
+                ->exists();
+
+            if ($winnerExists) {
+                $this->cancelBatchCall($call);
+                return [$call->id];
+            }
+
             $updates['status'] = 'in_progress';
             $updates['answered_at'] = $call->answered_at ?? now();
             $this->capacity->activate($call->channel_reservation_id, $call->id);
             $this->moveAgentTo($call, 'in_call');
+
+            if ($call->dial_batch_id) {
+                $siblings = Call::query()
+                    ->where('company_id', $call->company_id)
+                    ->where('dial_batch_id', $call->dial_batch_id)
+                    ->whereKeyNot($call->id)
+                    ->whereIn('status', Call::ACTIVE_STATUSES)
+                    ->lockForUpdate()
+                    ->get();
+                foreach ($siblings as $sibling) {
+                    $this->cancelBatchCall($sibling);
+                    $cancelIds[] = $sibling->id;
+                }
+            }
         }
 
         if ($event === 'amd') {
             $updates['amd_result'] = $payload['amd_result'] ?? null;
         }
 
-        if ($event === 'originate_failed') {
+        if ($event === 'originate_failed' && $call->answered_at === null) {
             $updates['status'] = 'cancelled';
             $updates['end_reason'] = $this->failureReason((string) ($payload['cause'] ?? 'originate_failed'));
             $updates['hangup_party'] = 'carrier';
@@ -103,11 +158,15 @@ class AsteriskCallEventService
 
         $call->update($updates);
 
-        if ($event === 'originate_failed' || ($event === 'hangup' && $call->status === 'cancelled')) {
+        if ($event === 'answered' && $call->status === 'in_progress') {
+            app(MailingQueueService::class)->recordDelivered($call);
+        }
+
+        if (($event === 'originate_failed' && $call->status === 'cancelled') || ($event === 'hangup' && $call->status === 'cancelled')) {
             app(MailingQueueService::class)->recordUnansweredAttempt($call, $event === 'hangup' ? 'no_answer' : 'failed');
         }
 
-        if ($event === 'originate_failed') {
+        if ($event === 'originate_failed' && $call->status === 'cancelled') {
             $this->releaseAgent($call);
         } elseif ($event === 'hangup' && $call->status === 'wrap_up') {
             $this->moveAgentTo($call, 'wrap_up');
@@ -116,8 +175,27 @@ class AsteriskCallEventService
         }
 
         if ($event === 'recording_ready') {
-            StoreCallRecording::dispatch($call->id)->onQueue('media');
+            StoreCallRecording::dispatch($call->id)->onQueue('media')->afterCommit();
         }
+
+        return $cancelIds;
+    }
+
+    private function cancelBatchCall(Call $call): void
+    {
+        $call->update([
+            'status' => 'cancelled',
+            'end_reason' => 'power_batch_winner',
+            'hangup_party' => 'system',
+            'ended_at' => now(),
+        ]);
+        if ($call->channel_reservation_id) {
+            DB::table('channel_reservations')
+                ->where('id', $call->channel_reservation_id)
+                ->whereIn('status', ['reserved', 'active'])
+                ->update(['expires_at' => now()->addSeconds(90)]);
+        }
+        app(MailingQueueService::class)->recordBatchCancellation($call);
     }
 
     private function moveAgentTo(Call $call, string $status): void

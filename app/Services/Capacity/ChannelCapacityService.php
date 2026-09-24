@@ -118,7 +118,9 @@ class ChannelCapacityService
             ->whereIn('status', self::ACTIVE_STATUSES)
             ->where(function ($query): void {
                 $query->where('expires_at', '<=', now())
-                    ->orWhereHas('call', fn ($call) => $call->whereIn('status', ['ended', 'cancelled']));
+                    ->orWhereHas('call', fn ($call) => $call->where('status', 'ended')
+                        ->orWhere(fn ($query) => $query->where('status', 'cancelled')
+                            ->where('end_reason', '!=', 'power_batch_winner')));
             })
             ->update(['status' => 'released', 'released_at' => now(), 'release_reason' => 'reconciled']);
     }

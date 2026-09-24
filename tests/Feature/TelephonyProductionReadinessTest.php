@@ -7,6 +7,8 @@ use App\Models\AsteriskNode;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
+use App\Models\CampaignPhoneState;
+use App\Models\ChannelReservation;
 use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Permission;
@@ -16,6 +18,9 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\DialerCallRequest;
 use App\Services\Dialer\SimulatedDialerService;
+use App\Services\Telephony\AsteriskCallEventService;
+use App\Jobs\CancelPowerBatchCall;
+use App\Services\Telephony\AsteriskBridgeClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\DB;
@@ -469,6 +474,102 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertSame('digest', $route->authentication_mode);
         $this->assertSame(5061, $route->sip_port);
         $this->assertSame('pai', $route->caller_id_header);
+    }
+
+    private function freshPowerRegressionScenario(): Campaign
+    {
+        $this->test_initial_three_agent_power_operation_originates_five_route_attempts_per_available_agent();
+        $campaign = Campaign::query()->firstOrFail();
+        Call::query()->delete();
+        ChannelReservation::query()->delete();
+        CampaignPhoneState::query()->update(['status' => 'pending', 'attempts_count' => 0, 'next_attempt_at' => null]);
+        AgentStatus::query()->update(['status' => 'available']);
+
+        return $campaign;
+    }
+
+    public function test_power_does_not_consume_mailing_attempts_when_route_capacity_is_exhausted(): void
+    {
+        $campaign = $this->freshPowerRegressionScenario();
+        $campaign->fixedTelephonyRoute->update(['max_concurrent_channels' => 2]);
+        app(SimulatedDialerService::class)->runCampaign($campaign);
+
+        $this->assertSame(2, Call::query()->where('status', 'dialing')->count());
+        $this->assertSame(2, (int) CampaignPhoneState::query()->sum('attempts_count'));
+    }
+
+    public function test_power_does_not_originate_with_expired_license(): void
+    {
+        $campaign = $this->freshPowerRegressionScenario();
+        $campaign->company->licenses()->update(['ends_at' => today()->subDay()]);
+
+        $this->assertSame(0, app(SimulatedDialerService::class)->runCampaign($campaign));
+    }
+
+    public function test_power_cancels_other_calls_when_a_batch_has_a_winner(): void
+    {
+        $this->test_initial_three_agent_power_operation_originates_five_route_attempts_per_available_agent();
+        $winner = Call::query()->firstOrFail();
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $winner->company_id, 'call_id' => $winner->id,
+            'event' => 'answered', 'uniqueid' => 'batch-winner',
+        ]);
+
+        $this->assertSame('in_progress', $winner->fresh()->status);
+        $this->assertSame(0, Call::query()->where('dial_batch_id', $winner->dial_batch_id)
+            ->whereKeyNot($winner->id)->whereIn('status', Call::ACTIVE_STATUSES)->count());
+        $this->assertSame(4, Call::query()->where('dial_batch_id', $winner->dial_batch_id)
+            ->where('end_reason', 'power_batch_winner')->count());
+
+        $loser = Call::query()->where('end_reason', 'power_batch_winner')->firstOrFail();
+        $this->assertSame('active', $loser->channelReservation->fresh()->status);
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $loser->company_id, 'call_id' => $loser->id,
+            'event' => 'answered', 'uniqueid' => 'late-loser',
+        ]);
+        $this->assertSame('cancelled', $loser->fresh()->status);
+        (new CancelPowerBatchCall($loser->id))->handle(app(AsteriskBridgeClient::class));
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://asterisk-bridge.test/v1/calls/hangup'
+            && (int) $request['call_id'] === $loser->id);
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $loser->company_id, 'call_id' => $loser->id,
+            'event' => 'hangup', 'uniqueid' => 'cancelled-loser',
+        ]);
+        $this->assertSame('released', $loser->channelReservation->fresh()->status);
+    }
+
+    public function test_power_does_not_start_campaign_before_start_date(): void
+    {
+        $campaign = $this->freshPowerRegressionScenario();
+        $campaign->update(['starts_at' => now()->addDay()]);
+
+        $this->assertSame(0, app(SimulatedDialerService::class)->runCampaign($campaign));
+    }
+
+    public function test_late_originate_event_does_not_regress_answered_call(): void
+    {
+        $this->test_initial_three_agent_power_operation_originates_five_route_attempts_per_available_agent();
+        $call = Call::query()->firstOrFail();
+        $events = app(AsteriskCallEventService::class);
+        $payload = ['company_id' => $call->company_id, 'call_id' => $call->id, 'uniqueid' => 'late-originate'];
+        $events->apply($payload + ['event' => 'answered']);
+        $events->apply($payload + ['event' => 'originate_succeeded']);
+
+        $this->assertSame('in_progress', $call->fresh()->status);
+    }
+
+    public function test_answered_call_moves_the_mailing_phone_to_delivered(): void
+    {
+        $this->test_initial_three_agent_power_operation_originates_five_route_attempts_per_available_agent();
+        $call = Call::query()->firstOrFail();
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $call->company_id, 'call_id' => $call->id,
+            'event' => 'answered', 'uniqueid' => 'mailing-delivery',
+        ]);
+
+        $state = CampaignPhoneState::query()->where('campaign_id', $call->campaign_id)
+            ->where('contact_phone_id', $call->contact_phone_id)->firstOrFail();
+        $this->assertSame('delivered', $state->status);
     }
 
     private function routePayload(array $overrides = []): array
