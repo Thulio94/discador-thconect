@@ -275,3 +275,31 @@ concluir a homologacao controlada de chamadas.
   alternaram corretamente, nao houve novos erros Alpine e `/up` respondeu
   `Application up`. O servico principal `pabx-thconect1` permaneceu fora do
   escopo.
+
+## Validacao do agente 1002 em 24/09/2026
+
+- O login `energia1` foi redirecionado para `/tenant/agent`, com equipe
+  Energia 01 e ramal 1002. A pagina apresentou os controles e o historico sem
+  erro 403/500.
+- O microfone ja estava autorizado no navegador. A tela passou de
+  `Preparando microfone...` para `Conectado e pronto para chamadas`. No codigo,
+  esse texto corresponde ao estado `registered`, definido pelo evento
+  `registered` do JsSIP; portanto, nesta sessao o endpoint WebRTC registrou no
+  Asterisk. O estado permaneceu pronto durante a verificacao.
+- O status foi alternado de Offline para Disponivel e de volta a Offline sem
+  recarregar a pagina; o timer zerou ao retornar offline. Nenhuma chamada foi
+  originada. A campanha continua ativa, mas fora da agenda, sem contato
+  entregue ao agente.
+- O log via `queryComposeServiceLogs` continuou indisponivel (HTTP 400). O
+  monitor do Easypanel listou os containers do piloto, inclusive Asterisk,
+  asterisk-bridge, Reverb e `queue-telephony`, mas metricas de container nao
+  comprovam sinalizacao de chamada ou audio.
+- Ainda falta uma chamada de teste para numero controlado: SIP INVITE,
+  resposta da operadora, 200 OK/entrega ao agente, audio bidirecional, DTMF,
+  desligamento e arquivo MixMonitor nao foram homologados. Nao usar numeros do
+  mailing como destino de teste.
+
+**Estado:** login e registro do ramal foram confirmados; o ciclo de chamada e
+midia permanece pendente. O agente foi devolvido ao estado Offline. Nao
+aprovar producao ate concluir a chamada controlada, correlacionar logs e
+validar a gravacao.
