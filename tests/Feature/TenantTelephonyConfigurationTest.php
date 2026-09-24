@@ -44,7 +44,9 @@ class TenantTelephonyConfigurationTest extends TestCase
             ->get(route('tenant.telephony.index'))
             ->assertOk()
             ->assertSee('Rota centralizada')
-            ->assertSee('Tech')
+            ->assertSee('Operadora não informada')
+            ->assertDontSee('5006')
+            ->assertDontSee('sbc.solutionsvoip.com.br')
             ->assertDontSee('Configuracao de telefonia')
             ->assertDontSee('segredo');
     }

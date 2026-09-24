@@ -110,6 +110,10 @@ export function createPollingRegion(
         },
 
         formatElapsed(startedAtSeconds, endedAtSeconds = null) {
+            if (startedAtSeconds === null || startedAtSeconds === undefined || startedAtSeconds === '') {
+                return '00:00:00';
+            }
+
             const startedAt = Number(startedAtSeconds);
             const endedAt = endedAtSeconds === null
                 ? this.nowSeconds

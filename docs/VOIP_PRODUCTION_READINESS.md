@@ -141,16 +141,35 @@ O piloto pode ser liberado somente quando:
   estavam em execucao; nginx, Asterisk, app, MySQL e Redis tinham health check
   saudavel. O coletor de logs do Easypanel retornou HTTP 400, portanto os
   logs de chamadas nao puderam ser auditados por esse canal.
-- A tela mostrava mais de 332 horas em `Offline`. A regressao e a correcao
-  zeram o tempo offline no HTML, no estado JSON e no relogio do navegador.
-- O navegador de automacao permaneceu em `Preparando microfone...`. Sem
-  permissao e dispositivo de audio confirmados, nao houve registro de ramal
-  verificavel nem transicao para `Disponivel` nessa sessao.
+- A tela de supervisao mostrava mais de 497 mil horas em `Offline`. A causa
+  confirmada era o formatador JavaScript converter `null` para Unix epoch,
+  embora o backend ja enviasse tempo Offline zerado. A regressao agora exige
+  `00:00:00` para inicio nulo.
+- O navegador de automacao passou de `Preparando microfone...` para
+  `Conectado e pronto para chamadas` depois da permissao. O estado de registro
+  SIP continua sem prova por CLI; conferir o contato PJSIP em homologacao.
+- O login de administrador de teste abriu dashboard, usuarios, equipes, perfis,
+  listas, campanhas, agente, supervisao, telefonia, configuracoes e as nove
+  visoes de relatorios sem resposta 500/403. As leituras foram somente consulta;
+  nenhuma campanha, equipe, usuario, rota ou configuracao foi alterada.
+- Na pagina de telefonia do administrador, a versao atualmente publicada ainda
+  exibia o identificador TECH da rota. O HTML foi corrigido localmente para
+  mostrar apenas operadora e nome; um teste de regressao comprova que TECH e
+  host do tronco nao aparecem. Essa protecao so estara ativa na VPS depois do
+  deploy desta versao.
+- A tela do agente agora oferece nova tentativa quando a permissao de microfone
+  fica pendente ou falha. Tentativas antigas nao podem iniciar registro SIP
+  depois de uma nova tentativa ou do fechamento do painel.
+- O relatorio de aproveitamento exibiu 10 chamadas historicas, zero atendidas,
+  zero entregues e uma tabulada; os estados incluem `wrap_up_timeout` e
+  `asterisk_event_timeout`. Como os logs do Easypanel nao puderam ser lidos, a
+  causa dessas linhas historicas ainda precisa de correlacao com AMI/bridge.
 - Sem numero de destino controlado confirmado, nao foi originada chamada real.
   Portanto SIP INVITE/200 OK, RTP bidirecional, AMD da rota, entrega ao agente,
   MixMonitor, historico e distribuicao Power permanecem sem homologacao real.
-- Testes locais apos a correcao: 356 PHP aprovados, 1 ignorado; 38 frontend
-  aprovados; build Vite e invariantes PBX aprovados. O PHP local precisou de
+- Testes locais apos as correcoes: 356 PHP aprovados, 1 ignorado; 40 frontend
+  aprovados; build Vite, invariantes PBX e `npm audit --omit=dev` aprovados
+  (zero vulnerabilidades). O PHP local precisou de
   512 MB para o teste de exportacao XLSX.
 
 **Decisao:** o piloto nao esta homologado para producao. Repetir as etapas

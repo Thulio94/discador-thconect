@@ -87,7 +87,8 @@
         >
             <div class="min-w-0">
                 <p class="font-semibold">Audio do ramal</p>
-                <p class="text-xs" style="color: var(--fg-muted);" x-text="({ preparing: 'Preparando microfone...', registered: 'Conectado e pronto para chamadas', reconnecting: 'Reconectando o ramal...', failed: 'Ramal desconectado', 'microphone-denied': 'Microfone bloqueado no navegador', unsupported: 'Navegador sem suporte a WebRTC', 'playback-blocked': 'Reproducao de audio bloqueada', offline: 'Audio desconectado' })[state] ?? 'Verificando audio'"></p>
+                <p class="text-xs" style="color: var(--fg-muted);" x-text="({ preparing: 'Preparando microfone...', 'microphone-pending': 'Permita o uso do microfone para conectar o ramal', registered: 'Conectado e pronto para chamadas', reconnecting: 'Reconectando o ramal...', failed: 'Ramal desconectado', 'microphone-denied': 'Microfone bloqueado no navegador', unsupported: 'Navegador sem suporte a WebRTC', 'playback-blocked': 'Reproducao de audio bloqueada', offline: 'Audio desconectado' })[state] ?? 'Verificando audio'"></p>
+                <button type="button" class="mt-1 text-xs font-semibold underline" x-show="['microphone-pending', 'microphone-denied', 'failed'].includes(state)" x-on:click="retry()">Tentar novamente</button>
             </div>
             <span class="h-3 w-3 shrink-0 rounded-full" x-bind:style="`background: ${registered ? 'var(--status-success)' : state === 'preparing' || state === 'reconnecting' ? 'var(--status-warning)' : 'var(--status-danger)'}`"></span>
             <audio data-agent-remote-audio autoplay playsinline class="hidden"></audio>

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAgentSoftphone } from '../../resources/js/agent-softphone.js';
 
-function harness({ acceptIncoming = true, acceptIncomingNow = null } = {}) {
+function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia, setTimeout, clearTimeout } = {}) {
     const handlers = {};
     const sessionHandlers = {};
     let answered = false;
@@ -19,15 +19,15 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null } = {}) {
     class UA { constructor() { return ua; } }
     const dependencies = {
         fetch: async () => ({ ok: true, json: async () => ({ websocket_url: 'wss://example.test/sip-ws', uri: 'sip:t1-e1301@example.test', endpoint: 't1-e1301', password: 'A'.repeat(48) }) }),
-        getUserMedia: async () => ({ getTracks: () => [{ stop: () => {} }] }),
+        getUserMedia: getUserMedia ?? (async () => ({ getTracks: () => [{ stop: () => {} }] })),
         loadJsSIP: async () => ({ WebSocketInterface, UA }),
         attachRemoteStream: async () => {},
         toast: () => {},
-        setTimeout: (callback) => {
+        setTimeout: setTimeout ?? ((callback) => {
             failureCallback = callback;
             return 1;
-        },
-        clearTimeout: () => {},
+        }),
+        clearTimeout: clearTimeout ?? (() => {}),
         setInterval: () => 1,
         clearInterval: () => {},
         markOffline: async () => { offlineUpdates += 1; },
@@ -97,4 +97,55 @@ test('does not reload the page when a disconnected ramal is marked offline', asy
     assert.equal(context.softphone.state, 'failed');
     assert.equal(context.offlineUpdates(), 1);
     assert.equal(context.reconciliations(), 1);
+});
+
+test('allows retry after microphone permission stalls without registering a stale attempt', async () => {
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+    const timers = [];
+    const pendingPermissions = [];
+    const clearedTimers = [];
+    let stoppedTracks = 0;
+    const context = harness({
+        getUserMedia: () => new Promise((resolve) => pendingPermissions.push(resolve)),
+        setTimeout: (callback) => {
+            timers.push(callback);
+            return timers.length;
+        },
+        clearTimeout: (timer) => clearedTimers.push(timer),
+    });
+
+    const firstAttempt = context.softphone.start();
+    timers[0]();
+    assert.equal(context.softphone.state, 'microphone-pending');
+
+    const retry = context.softphone.retry();
+    pendingPermissions[0]({ getTracks: () => [{ stop: () => { stoppedTracks += 1; } }] });
+    await firstAttempt;
+    assert.equal(context.softphone.registered, false);
+    assert.equal(stoppedTracks, 1);
+    assert.equal(clearedTimers.includes(2), false);
+
+    pendingPermissions[1]({ getTracks: () => [{ stop: () => { stoppedTracks += 1; } }] });
+    await retry;
+    assert.equal(context.softphone.state, 'registered');
+    assert.equal(stoppedTracks, 2);
+    assert.equal(clearedTimers.includes(2), true);
+});
+
+test('does not register when the panel closes during microphone permission', async () => {
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+    let grantPermission;
+    const context = harness({
+        getUserMedia: () => new Promise((resolve) => { grantPermission = resolve; }),
+    });
+
+    const start = context.softphone.start();
+    context.softphone.stop();
+    grantPermission({ getTracks: () => [{ stop: () => {} }] });
+    await start;
+
+    assert.equal(context.softphone.registered, false);
+    assert.equal(context.softphone.state, 'offline');
 });

@@ -41,7 +41,9 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
         activeSession: null,
         iceServers: [],
         failureTimer: null,
+        preparationTimer: null,
         renewalTimer: null,
+        startAttempt: 0,
         stopped: false,
 
         async start() {
@@ -50,13 +52,29 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 return;
             }
 
+            const attempt = ++this.startAttempt;
+            this.setState('preparing');
+            const preparationTimer = dependencies.setTimeout(() => {
+                if (this.isCurrentAttempt(attempt) && this.state === 'preparing') {
+                    this.setState('microphone-pending');
+                }
+            }, 12000);
+            this.preparationTimer = preparationTimer;
+
             try {
                 const permissionStream = await dependencies.getUserMedia({ audio: true, video: false });
+                this.cancelPreparation(preparationTimer);
+                if (!this.isCurrentAttempt(attempt)) {
+                    permissionStream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
                 permissionStream.getTracks().forEach((track) => track.stop());
 
                 const credentials = await this.requestCredentials();
+                if (!this.isCurrentAttempt(attempt)) return;
                 this.iceServers = credentials.ice_servers ?? [];
                 const JsSIP = await dependencies.loadJsSIP();
+                if (!this.isCurrentAttempt(attempt)) return;
                 const socket = new JsSIP.WebSocketInterface(credentials.websocket_url);
                 this.ua = new JsSIP.UA({
                     sockets: [socket],
@@ -71,20 +89,34 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 });
 
                 this.ua.on('registered', () => {
+                    if (!this.isCurrentAttempt(attempt)) return;
                     this.cancelFailure();
                     this.registered = true;
                     this.setState('registered');
                 });
                 this.ua.on('unregistered', () => {
+                    if (!this.isCurrentAttempt(attempt)) return;
                     this.registered = false;
                     this.setState(this.stopped ? 'offline' : 'reconnecting');
                 });
-                this.ua.on('disconnected', () => this.scheduleFailure());
-                this.ua.on('registrationFailed', () => this.scheduleFailure());
-                this.ua.on('newRTCSession', (event) => this.handleSession(event));
+                this.ua.on('disconnected', () => {
+                    if (this.isCurrentAttempt(attempt)) this.scheduleFailure();
+                });
+                this.ua.on('registrationFailed', () => {
+                    if (this.isCurrentAttempt(attempt)) this.scheduleFailure();
+                });
+                this.ua.on('newRTCSession', (event) => {
+                    if (this.isCurrentAttempt(attempt)) {
+                        this.handleSession(event);
+                    } else {
+                        event.session.terminate({ status_code: 480, reason_phrase: 'Agent session ended' });
+                    }
+                });
                 this.ua.start();
                 this.renewalTimer = dependencies.setInterval(() => this.renew(), 60000);
             } catch (error) {
+                this.cancelPreparation(preparationTimer);
+                if (!this.isCurrentAttempt(attempt)) return;
                 this.registered = false;
                 this.setState(error?.name === 'NotAllowedError' ? 'microphone-denied' : 'failed');
                 dependencies.toast({
@@ -93,6 +125,38 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                     severity: 'error',
                 });
             }
+        },
+
+        isCurrentAttempt(attempt) {
+            return !this.stopped && this.startAttempt === attempt;
+        },
+
+        cancelPreparation(timer = this.preparationTimer) {
+            if (timer !== null) {
+                dependencies.clearTimeout(timer);
+            }
+            if (this.preparationTimer === timer) {
+                this.preparationTimer = null;
+            }
+        },
+
+        async retry() {
+            if (this.registered || this.activeSession) return;
+
+            this.startAttempt += 1;
+            this.cancelPreparation();
+            this.cancelFailure();
+            if (this.renewalTimer !== null) {
+                dependencies.clearInterval(this.renewalTimer);
+                this.renewalTimer = null;
+            }
+            const previousUa = this.ua;
+            this.ua = null;
+            this.registered = false;
+            previousUa?.stop();
+            this.stopped = false;
+
+            return this.start();
         },
 
         async requestCredentials() {
@@ -203,6 +267,8 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
 
         stop() {
             this.stopped = true;
+            this.startAttempt += 1;
+            this.cancelPreparation();
             this.cancelFailure();
             if (this.renewalTimer !== null) {
                 dependencies.clearInterval(this.renewalTimer);

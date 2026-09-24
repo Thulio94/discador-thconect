@@ -149,6 +149,7 @@ test('runs one supervision clock and formats elapsed time as hh:mm:ss', () => {
     region.start();
     assert.equal(context.intervals.length, 1);
     assert.equal(context.intervals[0].delay, 1000);
+    assert.equal(region.formatElapsed(null), '00:00:00');
     assert.equal(region.formatElapsed(900), '00:01:40');
 
     context.setTime(3_701_000);
