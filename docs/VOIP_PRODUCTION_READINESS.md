@@ -222,6 +222,12 @@ teste autorizado; nao usar contatos do mailing como destino de teste.
 - Sem sessao, `/dashboard`, `/tenant/agent`, `/tenant/campaigns` e
   `/tenant/supervision` retornaram HTTP 302 para `/login`, confirmando o
   middleware de autenticacao nas rotas administrativas e do agente.
+- A URL WSS configurada no Easypanel (`wss://ws.discador-teste.169.58.168.174.nip.io/ws`)
+  aceitou handshake TLS/WebSocket com o subprotocolo SIP e o Origin do app; a
+  conexao abriu e encerrou normalmente. Um probe WebSocket generico sem
+  subprotocolo `sip` recebeu HTTP 400, comportamento esperado para este
+  endpoint, e nao foi contado como falha. Isso valida somente o transporte
+  WSS; registro SIP, autenticacao do ramal e SDP/RTP ainda nao foram provados.
 - O `getComposeIssues` do Easypanel sinaliza publicacao de portas no Asterisk
   tanto do piloto quanto do servico principal, e no TURN do principal. O aviso
   e generico e nao prova colisao. A configuracao efetiva do piloto anuncia
