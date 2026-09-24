@@ -219,6 +219,9 @@ teste autorizado; nao usar contatos do mailing como destino de teste.
   portanto, a divergencia da Supervisao ainda nao esta confirmada como
   resolvida em producao. O coletor de logs do Easypanel continua retornando
   HTTP 400.
+- Sem sessao, `/dashboard`, `/tenant/agent`, `/tenant/campaigns` e
+  `/tenant/supervision` retornaram HTTP 302 para `/login`, confirmando o
+  middleware de autenticacao nas rotas administrativas e do agente.
 - Seguem sem prova real: SIP INVITE/200 OK, audio bidirecional, entrega Power,
   DTMF, desligamento, gravacao MixMonitor e conciliacao AMI/bridge. O coletor
   de logs Easypanel havia retornado HTTP 400 na verificacao anterior. Exigir
