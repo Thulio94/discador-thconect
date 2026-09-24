@@ -177,8 +177,16 @@ final class SupervisionSnapshot
                     ->all());
 
                 return $user;
-            })
-            ->when(
+            });
+
+        $statusCounts = $agents->countBy('supervision_status');
+        $activeCallsCount = $agents->sum(
+            fn (User $user): int => $user->calls
+                ->whereIn('status', Call::ACTIVE_STATUSES)
+                ->count()
+        );
+
+        $agents = $agents->when(
                 $status !== '',
                 fn ($collection) => $collection->filter(
                     fn (User $user): bool => $user->supervision_status === $status
@@ -186,32 +194,6 @@ final class SupervisionSnapshot
             )
             ->sortBy(fn (User $user): int => $user->supervision_status === 'offline' ? 1 : 0)
             ->values();
-
-        $statuses = User::query()
-            ->where('company_id', $companyId)
-            ->where('user_type', 'agent')
-            ->with('currentAgentStatus')
-            ->when($teamId, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $teamId): void {
-                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->where('team_user.team_id', $teamId);
-            }))
-            ->when($allowedTeamIds !== null && $teamId === null, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $allowedTeamIds): void {
-                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->whereIn('team_user.team_id', $allowedTeamIds);
-            }))
-            ->get()
-            ->map(
-                fn (User $user): string => $user->currentAgentStatus?->status ?? 'offline'
-            );
-
-        $scopedAgentIds = User::query()
-            ->where('company_id', $companyId)
-            ->where('user_type', 'agent')
-            ->when($teamId, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $teamId): void {
-                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->where('team_user.team_id', $teamId);
-            }))
-            ->when($allowedTeamIds !== null && $teamId === null, fn ($query) => $query->whereIn('users.id', function ($teamQuery) use ($companyId, $allowedTeamIds): void {
-                $teamQuery->select('team_user.user_id')->from('team_user')->where('team_user.company_id', $companyId)->where('team_user.membership_type', 'agent')->whereIn('team_user.team_id', $allowedTeamIds);
-            }))
-            ->pluck('users.id');
 
         return [
             'agents' => $agents,
@@ -233,26 +215,12 @@ final class SupervisionSnapshot
                 ? null
                 : 'O SuperAdmin precisa atribuir e testar uma rota Asterisk para habilitar a monitoria.',
             'metrics' => [
-                'available' => $statuses->filter(
-                    fn (string $value): bool => $value === 'available'
-                )->count(),
-                'paused' => $statuses->filter(
-                    fn (string $value): bool => $value === 'paused'
-                )->count(),
-                'in_call' => $statuses->filter(
-                    fn (string $value): bool => $value === 'in_call'
-                )->count(),
-                'wrap_up' => $statuses->filter(
-                    fn (string $value): bool => $value === 'wrap_up'
-                )->count(),
-                'offline' => $statuses->filter(
-                    fn (string $value): bool => $value === 'offline'
-                )->count(),
-                'active_calls' => Call::query()
-                    ->where('company_id', $companyId)
-                    ->whereIn('user_id', $scopedAgentIds)
-                    ->whereIn('status', Call::ACTIVE_STATUSES)
-                    ->count(),
+                'available' => $statusCounts->get('available', 0),
+                'paused' => $statusCounts->get('paused', 0),
+                'in_call' => $statusCounts->get('in_call', 0),
+                'wrap_up' => $statusCounts->get('wrap_up', 0),
+                'offline' => $statusCounts->get('offline', 0),
+                'active_calls' => $activeCallsCount,
             ],
             'recentCalls' => Call::query()
                 ->where('company_id', $companyId)

@@ -185,3 +185,39 @@ O piloto pode ser liberado somente quando:
 **Decisao:** o piloto nao esta homologado para producao. Repetir as etapas
 controladas acima em um navegador com microfone liberado e com destino de
 teste autorizado; nao usar contatos do mailing como destino de teste.
+
+## Continuacao da validacao em 24/09/2026
+
+- A conta administrativa de teste autenticou e abriu Dashboard, Campanhas,
+  Usuarios, Equipes, Relatorios e Telefonia sem erro visivel. A rota na tela
+  da empresa exibiu apenas nome e operadora; nenhuma alteracao foi salva.
+- A campanha `Energia - Bahia` segue ativa com 8.780 contatos pendentes. O
+  agente permaneceu Offline durante a verificacao; nenhuma chamada foi
+  originada.
+- A Supervisao ainda exibiu resumo de 5 agentes em pausa, enquanto os cinco
+  cartoes apareceram como Offline. O dashboard, em uma leitura proxima, mostrou
+  zero em disponiveis, chamadas e pausas. Essa divergencia operacional exige
+  nova confirmacao apos o proximo deploy e leitura consistente do estado.
+- Correcoes locais em `SupervisionSnapshot` calculam os contadores a partir da
+  mesma colecao carregada para os cartoes. Um teste de regressao injeta uma
+  mudanca de status durante a consulta e verifica que a mesma resposta nao
+  mistura snapshots. O teste focado passou: 10 testes e 91 assercoes.
+- Validacao local: PHPUnit completo com PHP 8.5 e 512 MB passou (358 testes,
+  357 aprovados, 1 ignorado, 2.090 assercoes); frontend 40/40; build Vite,
+  invariantes PBX e auditoria npm de dependencias de producao passaram.
+- O primeiro comando Artisan para a suite completa iniciou o gerador XLSX com
+  limite de 128 MB e terminou por falta de memoria. A execucao direta do
+  PHPUnit com 512 MB passou. O teste Go do bridge nao foi executado: Go nao
+  esta instalado/disponivel neste host.
+- As mudancas de snapshot e seu teste ainda nao foram publicados nem implantados
+  nesta verificacao. Revalidar na VPS os cartoes e os filtros da Supervisao
+  apos o deploy antes de considerar essa falha encerrada.
+- Seguem sem prova real: SIP INVITE/200 OK, audio bidirecional, entrega Power,
+  DTMF, desligamento, gravacao MixMonitor e conciliacao AMI/bridge. O coletor
+  de logs Easypanel havia retornado HTTP 400 na verificacao anterior. Exigir
+  destino de teste controlado e autorizacao antes de originar chamadas.
+
+**Decisao atualizada:** os testes locais de aplicacao passaram, mas a VPS ainda
+nao demonstra estado operacional consistente e o fluxo de telefonia nao foi
+homologado. Nao liberar para producao ate implantar a correcao, repetir a
+validacao administrativa e concluir a homologacao controlada de chamadas.

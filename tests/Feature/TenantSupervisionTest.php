@@ -13,8 +13,10 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\TelephonyRoute;
 use App\Models\User;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -114,6 +116,52 @@ class TenantSupervisionTest extends TestCase
             ->assertSee('Agente Disponivel')
             ->assertSee('Agente Pausado')
             ->assertDontSee('Agente Em Chamada');
+    }
+
+    public function test_supervision_metrics_and_agent_cards_share_one_status_snapshot(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Fotografia Consistente');
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $agentStatusRelationReads = 0;
+        $statusChangedDuringSnapshot = false;
+        DB::listen(function (QueryExecuted $query) use ($company, $agent, &$agentStatusRelationReads, &$statusChangedDuringSnapshot): void {
+            if (
+                ! $statusChangedDuringSnapshot
+                && str_starts_with(strtolower(ltrim($query->sql)), 'select')
+                && str_contains(strtolower($query->sql), 'agent_statuses')
+                && str_contains(strtolower($query->sql), 'user_id" in (')
+            ) {
+                $agentStatusRelationReads++;
+                if ($agentStatusRelationReads !== 1) {
+                    return;
+                }
+
+                $statusChangedDuringSnapshot = true;
+                AgentStatus::create([
+                    'company_id' => $company->id,
+                    'user_id' => $agent->id,
+                    'status' => 'paused',
+                    'started_at' => now(),
+                ]);
+            }
+        });
+
+        $response = $this->actingAs($supervisor)->get(route('tenant.supervision.index'));
+
+        $response->assertOk();
+        $this->assertSame(1, $agentStatusRelationReads);
+        $this->assertTrue($statusChangedDuringSnapshot);
+        $this->assertSame('available', $response->viewData('agents')->first()->supervision_status);
+        $this->assertSame(1, $response->viewData('metrics')['available']);
+        $this->assertSame(0, $response->viewData('metrics')['paused']);
+        $this->assertSame('paused', $agent->currentAgentStatus()->value('status'));
     }
 
     public function test_supervision_shows_operational_times_current_campaign_and_alerts(): void
