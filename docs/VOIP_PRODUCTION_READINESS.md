@@ -152,14 +152,24 @@ O piloto pode ser liberado somente quando:
   listas, campanhas, agente, supervisao, telefonia, configuracoes e as nove
   visoes de relatorios sem resposta 500/403. As leituras foram somente consulta;
   nenhuma campanha, equipe, usuario, rota ou configuracao foi alterada.
-- Na pagina de telefonia do administrador, a versao atualmente publicada ainda
-  exibia o identificador TECH da rota. O HTML foi corrigido localmente para
-  mostrar apenas operadora e nome; um teste de regressao comprova que TECH e
-  host do tronco nao aparecem. Essa protecao so estara ativa na VPS depois do
-  deploy desta versao.
-- A tela do agente agora oferece nova tentativa quando a permissao de microfone
-  fica pendente ou falha. Tentativas antigas nao podem iniciar registro SIP
-  depois de uma nova tentativa ou do fechamento do painel.
+- O commit `67c4868` foi publicado na `main` e implantado no Compose
+  `pabx-thconect/discador-piloto-teste`; a acao Easypanel concluiu com sucesso.
+  O endpoint `/up` respondeu HTTP 200 e os 13 conteineres do piloto estavam
+  ativos; app, nginx, Asterisk, bridge, MySQL e Redis estavam saudaveis.
+- Depois do deploy, a pagina de telefonia da empresa mostra somente nome e
+  operadora. O identificador TECH e o host tecnico nao aparecem no texto
+  renderizado.
+- Os cinco contadores Offline da supervisao agora exibem `00:00:00` apos
+  recarga, sem o valor de centenas de milhares de horas.
+- Foi detectada uma divergencia operacional ainda aberta: o resumo da
+  supervisao indica cinco agentes em pausa, mas os cinco cartoes mostram
+  `Offline`; o filtro `Em pausa` nao encontra agentes. A escuta Spy tambem esta
+  desabilitada com a mensagem de que falta atribuir e testar uma rota Asterisk.
+  Nao foi alterada a presenca dos agentes nem a configuracao da rota.
+- A versao publicada oferece nova tentativa quando a permissao de microfone
+  fica pendente ou falha. Testes comprovam que tentativas antigas nao iniciam
+  registro SIP depois de uma nova tentativa ou do fechamento do painel; a
+  verificacao visual desse botao no login de agente ainda esta pendente.
 - O relatorio de aproveitamento exibiu 10 chamadas historicas, zero atendidas,
   zero entregues e uma tabulada; os estados incluem `wrap_up_timeout` e
   `asterisk_event_timeout`. Como os logs do Easypanel nao puderam ser lidos, a
