@@ -82,6 +82,18 @@ class TenantRbacNavigationTest extends TestCase
             ->assertSee(route('tenant.settings.index'), false);
     }
 
+    public function test_administrator_role_explains_its_full_access_without_permissions_pivot(): void
+    {
+        $admin = $this->tenantUser('company_admin', isAdmin: true);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.roles.index'))
+            ->assertOk()
+            ->assertSee('Acesso total para administradores')
+            ->assertSee('Administradores associados recebem acesso total aos modulos.')
+            ->assertDontSee('0 permissoes |');
+    }
+
     public function test_super_admin_navigation_has_no_tenant_modules(): void
     {
         $superAdmin = User::factory()->create([

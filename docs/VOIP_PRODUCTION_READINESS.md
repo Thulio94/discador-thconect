@@ -263,18 +263,23 @@ concluir a homologacao controlada de chamadas.
 - A campanha `Energia - Bahia` aparece ativa, mas fora da agenda configurada;
   portanto nao e elegivel para discagem neste momento. A verificacao nao
   iniciou nem pausou campanha.
-- O perfil Administrador aparece com zero permissoes associadas, embora as
-  rotas de leitura dos modulos administrativos tenham funcionado para a conta.
-  A semantica dessa contagem e a matriz efetiva de autorizacao ainda devem ser
-  auditadas antes de liberar operacoes de escrita.
+- O perfil Administrador aparecia com zero permissoes associadas. A auditoria
+  confirmou que `company_admin` com papel `is_admin` recebe acesso total pela
+  regra de autorizacao, enquanto outros tipos associados ao papel continuam
+  sujeitos as permissoes individuais. A tela agora explica esse acesso total
+  na listagem e nos detalhes, sem alterar a matriz de autorizacao. Teste RBAC:
+  6 testes/26 assercoes; suite completa: 360 testes, 359 aprovados, 1
+  ignorado, 2.100 assercoes. A nova apresentacao ainda depende de confirmacao
+  visual pos-deploy.
 - O teste de invariantes PBX via `scripts/verify-pbx-invariants.ps1 -RunTests`
   nao executou por falta do Docker CLI neste host. A correcao da tela de
   exportacoes foi publicada exclusivamente em
   `pabx-thconect/discador-piloto-teste` (acao
   `cmug1tb1c015d06qdhfz522iu`, status `done`). Pos-deploy, as duas abas
   alternaram corretamente, nao houve novos erros Alpine e `/up` respondeu
-  `Application up`. O servico principal `pabx-thconect1` permaneceu fora do
-  escopo.
+  `Application up`. O ajuste de apresentacao RBAC descrito acima ainda sera
+  implantado no piloto. O servico principal `pabx-thconect1` permanece fora
+  do escopo.
 
 ## Validacao do agente 1002 em 24/09/2026
 

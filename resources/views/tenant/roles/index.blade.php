@@ -28,7 +28,7 @@
                                     <span class="rounded-full px-2 py-1 text-xs" style="background: var(--primary-soft); color: var(--primary);">Administrativo</span>
                                 @endif
                             </div>
-                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $role->permissions->count() }} permissoes | {{ $role->users_count }} usuarios</p>
+                            <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $role->is_admin ? 'Acesso total para administradores' : $role->permissions->count().' permissoes' }} | {{ $role->users_count }} usuarios</p>
                         </div>
                         <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="view" label="Visualizar" x-data x-on:click="$dispatch('open-modal', 'role-view-{{ $role->id }}')" />
@@ -53,7 +53,7 @@
                             <div><p class="font-semibold">Usuarios</p><p class="mt-1" style="color: var(--fg-muted);">{{ $role->users_count }}</p></div>
                             <div><p class="font-semibold">Permissoes</p><p class="mt-1" style="color: var(--fg-muted);">{{ $role->permissions->count() }}</p></div>
                         </div>
-                        <div><p class="font-semibold">Acessos concedidos</p><p class="mt-1" style="color: var(--fg-muted);">{{ $role->permissions->pluck('name')->join(', ') ?: 'Nenhuma permissao' }}</p></div>
+                        <div><p class="font-semibold">Acessos concedidos</p><p class="mt-1" style="color: var(--fg-muted);">{{ $role->is_admin ? 'Administradores associados recebem acesso total aos modulos.' : ($role->permissions->pluck('name')->join(', ') ?: 'Nenhuma permissao') }}</p></div>
                     </div>
                 </x-ui.modal>
 
