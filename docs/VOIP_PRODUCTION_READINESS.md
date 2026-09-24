@@ -246,3 +246,28 @@ healthchecks HTTP passaram, mas a correcao visual da Supervisao ainda precisa
 ser confirmada autenticada. O fluxo de telefonia tambem nao foi homologado.
 Nao liberar para producao ate repetir a validacao administrativa na VPS e
 concluir a homologacao controlada de chamadas.
+
+## Validacao administrativa em 24/09/2026
+
+- O login administrativo de teste autenticou e abriu Dashboard, Usuarios,
+  Equipes, Perfis, Listas, Campanhas, Agente, Supervisao, Relatorios,
+  Telefonia, Configuracoes e Integracoes sem 403/500 visivel. Os modulos foram
+  apenas consultados; nenhum cadastro, estado ou configuracao foi alterado.
+- As nove visoes de relatorio carregaram. A rota `report=overview` retornou
+  404 porque nao e uma opcao valida do catalogo; nao e um relatorio suportado.
+- A aba Historico de exportacoes apresentou erros Alpine: `@js($initialTab)`
+  chegou literalmente no atributo `x-data` do componente Blade, impedindo a
+  inicializacao das abas. A view passou o estado para um elemento HTML interno
+  e foi coberta por teste para as abas `files` e `schedules`. A suite focada de
+  relatorios passou (18 testes, 122 assercoes) e `npm run build` passou.
+- A campanha `Energia - Bahia` aparece ativa, mas fora da agenda configurada;
+  portanto nao e elegivel para discagem neste momento. A verificacao nao
+  iniciou nem pausou campanha.
+- O perfil Administrador aparece com zero permissoes associadas, embora as
+  rotas de leitura dos modulos administrativos tenham funcionado para a conta.
+  A semantica dessa contagem e a matriz efetiva de autorizacao ainda devem ser
+  auditadas antes de liberar operacoes de escrita.
+- O teste de invariantes PBX via `scripts/verify-pbx-invariants.ps1 -RunTests`
+  nao executou por falta do Docker CLI neste host. A correcao da tela de
+  exportacoes ainda precisa ser publicada e validada no servico piloto; o
+  servico principal `pabx-thconect1` permanece fora do escopo.

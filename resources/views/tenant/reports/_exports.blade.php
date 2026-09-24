@@ -8,7 +8,8 @@
     $dispositions = $options['dispositions'];
 @endphp
 
-<x-ui.card x-data="{ tab: @js($initialTab) }">
+<x-ui.card>
+    <div x-data="{ tab: '{{ $initialTab }}' }">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-lg font-semibold">Histórico de exportações</h2>
@@ -79,6 +80,7 @@
             @endforelse
         </div>
         <div class="mt-4">{{ $schedules->links() }}</div>
+    </div>
     </div>
 </x-ui.card>
 

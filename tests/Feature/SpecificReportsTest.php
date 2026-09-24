@@ -31,6 +31,23 @@ class SpecificReportsTest extends TestCase
         }
     }
 
+    public function test_export_history_initial_tab_is_rendered_as_valid_alpine_data(): void
+    {
+        [$user] = $this->tenantUser();
+
+        $this->actingAs($user)
+            ->get(route('tenant.reports.index', ['report' => 'exports']))
+            ->assertOk()
+            ->assertSee("x-data=\"{ tab: 'files' }\"", false)
+            ->assertDontSee('@js($initialTab)', false);
+
+        $this->actingAs($user)
+            ->get(route('tenant.reports.index', ['report' => 'exports', 'tab' => 'schedules']))
+            ->assertOk()
+            ->assertSee("x-data=\"{ tab: 'schedules' }\"", false)
+            ->assertDontSee('@js($initialTab)', false);
+    }
+
     public function test_call_report_is_scoped_to_company_and_paginated_at_twenty_five_rows(): void
     {
         [$user, $company] = $this->tenantUser();
