@@ -1,7 +1,7 @@
 # Homologacao VoIP na VPS
 
-Este roteiro cobre o primeiro ambiente em uma unica VPS, com ate 5 agentes e
-ate 5 tentativas por agente disponivel. O teto teorico e de 25 chamadas
+Este roteiro cobre o piloto em uma unica VPS, com ate 3 agentes e
+ate 5 chamadas por agente disponivel. O teto teorico e de 15 chamadas
 simultaneas, mas a liberacao deve ser gradual e depende da capacidade contratada
 na operadora SIP.
 
@@ -110,8 +110,8 @@ Execute nesta ordem:
 3. Confirme status em tempo real no agente e na supervisao.
 4. Confirme protocolo, duracao, origem do desligamento e arquivo de gravacao
    maior que 44 bytes.
-5. Repita com 5 chamadas simultaneas.
-6. Suba em etapas para 10, 15 e 25 chamadas, observando CPU, memoria, perda,
+5. Repita com ate 5 chamadas por agente disponivel.
+6. Suba em etapas para 5, 10 e 15 chamadas, observando CPU, memoria, perda,
    jitter, fila e recusas SIP.
 7. Execute queda e retorno do bridge e do Asterisk e confirme que rotas e
    estados sao recuperados sem duplicar chamadas.
@@ -127,8 +127,32 @@ O piloto pode ser liberado somente quando:
 
 - HTTPS e WebSocket funcionarem sem conteudo inseguro;
 - nenhum segredo ou porta interna estiver publico;
-- os cinco ramais permanecerem registrados;
-- 25 chamadas simultaneas passarem no teste gradual sem audio unilateral;
+- os tres ramais de teste permanecerem registrados;
+- ate 15 chamadas simultaneas passarem no teste gradual sem audio unilateral;
 - supervisao, DTMF, desligamento, protocolo e gravacao estiverem corretos;
 - reinicios recuperarem a configuracao da rota;
 - backup do banco e dos volumes tiver restauracao testada.
+
+## Verificacao do piloto em 24/09/2026
+
+- Login de teste do agente: autenticou e abriu `/tenant/agent`; o link do
+  dashboard abriu a visao individual, sem 403.
+- `/up` respondeu HTTP 200. Os conteineres do Compose isolado do discador
+  estavam em execucao; nginx, Asterisk, app, MySQL e Redis tinham health check
+  saudavel. O coletor de logs do Easypanel retornou HTTP 400, portanto os
+  logs de chamadas nao puderam ser auditados por esse canal.
+- A tela mostrava mais de 332 horas em `Offline`. A regressao e a correcao
+  zeram o tempo offline no HTML, no estado JSON e no relogio do navegador.
+- O navegador de automacao permaneceu em `Preparando microfone...`. Sem
+  permissao e dispositivo de audio confirmados, nao houve registro de ramal
+  verificavel nem transicao para `Disponivel` nessa sessao.
+- Sem numero de destino controlado confirmado, nao foi originada chamada real.
+  Portanto SIP INVITE/200 OK, RTP bidirecional, AMD da rota, entrega ao agente,
+  MixMonitor, historico e distribuicao Power permanecem sem homologacao real.
+- Testes locais apos a correcao: 356 PHP aprovados, 1 ignorado; 38 frontend
+  aprovados; build Vite e invariantes PBX aprovados. O PHP local precisou de
+  512 MB para o teste de exportacao XLSX.
+
+**Decisao:** o piloto nao esta homologado para producao. Repetir as etapas
+controladas acima em um navegador com microfone liberado e com destino de
+teste autorizado; nao usar contatos do mailing como destino de teste.

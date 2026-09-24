@@ -188,3 +188,27 @@ test('marks the current availability action as unavailable while keeping pause c
     assert.equal(sync.isCurrentStatus('available'), false);
     assert.equal(sync.pauseActionLabel(), 'Alterar pausa');
 });
+
+test('offline elapsed time stays at zero across polling and clock ticks', async () => {
+    const context = harness({
+        agent_status: 'offline',
+        status_elapsed_seconds: 92000,
+        call_active: false,
+        call_status: null,
+        call: null,
+    });
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        initialState: {
+            agent_status: 'offline',
+            status_elapsed_seconds: 86000,
+        },
+    }, context.dependencies);
+
+    sync.start();
+    assert.equal(sync.statusElapsedSeconds, 0);
+    context.intervals.find(({ delay }) => delay === 1000).callback();
+    assert.equal(sync.statusElapsedSeconds, 0);
+    await sync.check();
+    assert.equal(sync.statusElapsedSeconds, 0);
+});

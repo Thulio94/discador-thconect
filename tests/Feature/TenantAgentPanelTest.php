@@ -1149,6 +1149,26 @@ class TenantAgentPanelTest extends TestCase
             ->assertJsonPath('status_elapsed_seconds', 0);
     }
 
+    public function test_offline_agent_elapsed_time_is_zero_in_page_and_live_state(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'offline',
+            'started_at' => now()->subDays(14),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertViewHas('statusElapsedSeconds', 0);
+        $this->actingAs($agent)
+            ->getJson(route('tenant.agent.state'))
+            ->assertOk()
+            ->assertJsonPath('status_elapsed_seconds', 0);
+    }
+
     public function test_power_campaign_marks_an_asterisk_agent_as_dialing_until_the_call_is_answered(): void
     {
         [$agent, $company] = $this->tenantUser('agent');

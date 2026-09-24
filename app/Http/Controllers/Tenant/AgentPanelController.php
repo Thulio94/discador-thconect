@@ -67,7 +67,7 @@ class AgentPanelController extends Controller
         return view('tenant.agent.index', [
             'currentStatus' => $activeStatus?->status ?? 'offline',
             'statusStartedAt' => $activeStatus?->started_at,
-            'statusElapsedSeconds' => $activeStatus?->started_at
+            'statusElapsedSeconds' => $activeStatus?->status !== 'offline' && $activeStatus?->started_at
                 ? max(0, (int) $activeStatus->started_at->diffInSeconds(now()))
                 : 0,
             'currentCall' => $currentCall,
@@ -804,7 +804,7 @@ class AgentPanelController extends Controller
         return [
             'signature' => $this->stateSignature($user),
             'agent_status' => $status?->status ?? 'offline',
-            'status_elapsed_seconds' => $status?->started_at
+            'status_elapsed_seconds' => $status?->status !== 'offline' && $status?->started_at
                 ? max(0, (int) $status->started_at->diffInSeconds(now()))
                 : 0,
             'call_active' => $call !== null && in_array($call->status, Call::ACTIVE_STATUSES, true),

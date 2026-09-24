@@ -28,7 +28,9 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
             this.applyState(config.initialState ?? {});
             this.unsubscribe = config.subscribe?.(() => this.check(true)) ?? null;
             this.timerId = dependencies.setInterval(() => this.check(), this.intervalMs);
-            this.clockTimerId = dependencies.setInterval(() => this.statusElapsedSeconds += 1, 1000);
+            this.clockTimerId = dependencies.setInterval(() => {
+                if (this.agentStatus !== 'offline') this.statusElapsedSeconds += 1;
+            }, 1000);
         },
 
         async check(force = false) {
@@ -74,7 +76,9 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
 
             this.signature = state.signature ?? this.signature;
             this.agentStatus = state.agent_status ?? this.agentStatus;
-            this.statusElapsedSeconds = Number(state.status_elapsed_seconds ?? this.statusElapsedSeconds);
+            this.statusElapsedSeconds = this.agentStatus === 'offline'
+                ? 0
+                : Number(state.status_elapsed_seconds ?? this.statusElapsedSeconds);
             this.callActive = Boolean(state.call_active);
             this.callStatus = state.call_status ?? null;
             this.call = state.call ?? null;
