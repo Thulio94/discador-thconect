@@ -222,6 +222,14 @@ teste autorizado; nao usar contatos do mailing como destino de teste.
 - Sem sessao, `/dashboard`, `/tenant/agent`, `/tenant/campaigns` e
   `/tenant/supervision` retornaram HTTP 302 para `/login`, confirmando o
   middleware de autenticacao nas rotas administrativas e do agente.
+- O `getComposeIssues` do Easypanel sinaliza publicacao de portas no Asterisk
+  tanto do piloto quanto do servico principal, e no TURN do principal. O aviso
+  e generico e nao prova colisao. A configuracao efetiva do piloto anuncia
+  RTP em `12200-12399/udp`; as variaveis expostas pelo principal nao incluem
+  intervalo RTP, portanto nao foi possivel comprovar que os ranges nao se
+  sobrepoem. Nao alterei portas, firewall ou o servico principal. Antes de
+  homologar audio, conferir o `rtp.conf`/mapeamento ativo do Asterisk principal
+  e comparar o intervalo completo no host.
 - Seguem sem prova real: SIP INVITE/200 OK, audio bidirecional, entrega Power,
   DTMF, desligamento, gravacao MixMonitor e conciliacao AMI/bridge. O coletor
   de logs Easypanel havia retornado HTTP 400 na verificacao anterior. Exigir
