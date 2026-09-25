@@ -269,8 +269,10 @@ concluir a homologacao controlada de chamadas.
   sujeitos as permissoes individuais. A tela agora explica esse acesso total
   na listagem e nos detalhes, sem alterar a matriz de autorizacao. Teste RBAC:
   6 testes/26 assercoes; suite completa: 360 testes, 359 aprovados, 1
-  ignorado, 2.100 assercoes. A nova apresentacao ainda depende de confirmacao
-  visual pos-deploy.
+  ignorado, 2.100 assercoes. O commit `028707e` foi publicado na `main` e
+  implantado no servico isolado `pabx-thconect/discador-piloto-teste` (acao
+  `cmug2a2w3015o06qdeyl5871b`, status `done`). A confirmacao visual autenticada
+  da nova apresentacao ainda esta pendente.
 - O teste de invariantes PBX via `scripts/verify-pbx-invariants.ps1 -RunTests`
   nao executou por falta do Docker CLI neste host. A correcao da tela de
   exportacoes foi publicada exclusivamente em
@@ -290,7 +292,12 @@ concluir a homologacao controlada de chamadas.
   `Preparando microfone...` para `Conectado e pronto para chamadas`. No codigo,
   esse texto corresponde ao estado `registered`, definido pelo evento
   `registered` do JsSIP; portanto, nesta sessao o endpoint WebRTC registrou no
-  Asterisk. O estado permaneceu pronto durante a verificacao.
+  Asterisk. Em uma observacao posterior, o estado mudou para `Ramal
+  desconectado`; clicar em `Tentar novamente` voltou a mostrar `Conectado e
+  pronto para chamadas`. Como a sessao do navegador foi encerrada antes de
+  uma observacao prolongada, a estabilidade da reconexao nao foi comprovada.
+  O teste confirma recuperacao pontual pela interface, nao estabilidade do
+  transporte/registro.
 - O status foi alternado de Offline para Disponivel e de volta a Offline sem
   recarregar a pagina; o timer zerou ao retornar offline. Nenhuma chamada foi
   originada. A campanha continua ativa, mas fora da agenda, sem contato
@@ -305,6 +312,8 @@ concluir a homologacao controlada de chamadas.
   mailing como destino de teste.
 
 **Estado:** login e registro do ramal foram confirmados; o ciclo de chamada e
-midia permanece pendente. O agente foi devolvido ao estado Offline. Nao
-aprovar producao ate concluir a chamada controlada, correlacionar logs e
-validar a gravacao.
+midia permanece pendente. O agente ficou Offline durante os testes e nenhuma
+chamada foi originada. Foi observada uma queda do registro, seguida de
+reconexao pontual pelo botao; a estabilidade por periodo prolongado permanece
+pendente. Nao aprovar producao ate concluir a observacao continua, a chamada
+controlada, correlacionar logs e validar a gravacao.

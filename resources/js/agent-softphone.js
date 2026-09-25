@@ -1,3 +1,5 @@
+const SIP_RECOVERY_GRACE_MS = 45_000;
+
 function defaultDependencies() {
     return {
         fetch: (...args) => window.fetch(...args),
@@ -239,7 +241,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                             .finally(() => dependencies.reconcile());
                     }
                 }
-            }, 10000);
+            }, SIP_RECOVERY_GRACE_MS);
         },
 
         cancelFailure() {

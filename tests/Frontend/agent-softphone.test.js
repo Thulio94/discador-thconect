@@ -8,6 +8,7 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
     let answered = false;
     let terminated = false;
     let failureCallback;
+    const timerDelays = [];
     let offlineUpdates = 0;
     let reconciliations = 0;
     const ua = {
@@ -23,7 +24,8 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         loadJsSIP: async () => ({ WebSocketInterface, UA }),
         attachRemoteStream: async () => {},
         toast: () => {},
-        setTimeout: setTimeout ?? ((callback) => {
+        setTimeout: setTimeout ?? ((callback, delay) => {
+            timerDelays.push(delay);
             failureCallback = callback;
             return 1;
         }),
@@ -52,6 +54,7 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         answered: () => answered,
         terminated: () => terminated,
         triggerFailure: () => failureCallback?.(),
+        timerDelays,
         offlineUpdates: () => offlineUpdates,
         reconciliations: () => reconciliations,
     };
@@ -97,6 +100,18 @@ test('does not reload the page when a disconnected ramal is marked offline', asy
     assert.equal(context.softphone.state, 'failed');
     assert.equal(context.offlineUpdates(), 1);
     assert.equal(context.reconciliations(), 1);
+});
+
+test('allows JsSIP transport recovery before declaring the ramal disconnected', async () => {
+    const context = harness();
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+    await context.softphone.start();
+
+    context.handlers.disconnected();
+
+    assert.equal(context.softphone.state, 'reconnecting');
+    assert.ok(context.timerDelays.at(-1) >= 40_000);
 });
 
 test('allows retry after microphone permission stalls without registering a stale attempt', async () => {
