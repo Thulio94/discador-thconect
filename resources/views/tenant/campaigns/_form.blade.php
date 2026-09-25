@@ -254,7 +254,7 @@
         <div class="grid gap-2 text-sm sm:grid-cols-4">
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Modo</p>
-                <p class="mt-1 font-semibold">{{ old('dialing_mode', $campaign?->dialing_mode ?? 'preview') }}</p>
+                <p class="mt-1 font-semibold">{{ old('dialing_mode', $campaign?->dialing_mode ?? 'power') }}</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Telefones</p>
@@ -282,7 +282,7 @@
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">AMD</p>
-                <p class="mt-1 font-semibold">{{ $amdMode === 'simulated' ? 'Simulado' : 'Desativado' }}</p>
+                <p class="mt-1 font-semibold">{{ ['disabled' => 'Desativado', 'simulated' => 'Simulado', 'asterisk' => 'Asterisk / rota'][$amdMode] ?? 'Desativado' }}</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Rotas</p>
