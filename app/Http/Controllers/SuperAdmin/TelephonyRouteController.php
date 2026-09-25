@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
-use App\Models\TelephonyRoute;
 use App\Models\AsteriskNode;
+use App\Models\TelephonyRoute;
 use App\Services\Telephony\AsteriskBridgeClient;
+use Closure;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Closure;
 use Throwable;
 
 class TelephonyRouteController extends Controller
@@ -81,7 +81,7 @@ class TelephonyRouteController extends Controller
             ]);
 
             return redirect()->route('super-admin.telephony-routes.index')
-                ->with('status', 'AMI conectado, PJSIP recarregado e endpoint SIP respondeu ao teste sem originar chamada.');
+                ->with('status', 'O endpoint SIP respondeu a OPTIONS. TECH e chamada externa ainda nao foram validados.');
         } catch (Throwable $exception) {
             report($exception);
             $telephonyRoute->update([

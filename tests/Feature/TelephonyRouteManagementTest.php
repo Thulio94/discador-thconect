@@ -14,6 +14,48 @@ class TelephonyRouteManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_route_status_explains_that_options_does_not_validate_tech_or_outbound_calls(): void
+    {
+        TelephonyRoute::create([
+            'name' => 'Rota OPTIONS',
+            'tech' => '5001',
+            'host' => '201.23.69.26',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('super-admin.telephony-routes.index'))
+            ->assertOk()
+            ->assertSee('SIP responde (OPTIONS)')
+            ->assertSee('TECH e chamada externa ainda nao validados');
+    }
+
+    public function test_successful_route_check_reports_only_sip_options_reachability(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+        $node = AsteriskNode::create([
+            'name' => 'No de teste', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id, 'name' => 'Rota OPTIONS', 'tech' => '5001', 'host' => '201.23.69.26',
+            'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'enabled' => true,
+        ]);
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['connected' => true, 'sip_status' => 'SIP/2.0 200 OK'])]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('super-admin.telephony-routes.test', $route))
+            ->assertRedirect(route('super-admin.telephony-routes.index'))
+            ->assertSessionHas('status', 'O endpoint SIP respondeu a OPTIONS. TECH e chamada externa ainda nao foram validados.');
+    }
+
     public function test_super_admin_can_create_an_ip_authenticated_route(): void
     {
         $this->actingAs($this->superAdmin())

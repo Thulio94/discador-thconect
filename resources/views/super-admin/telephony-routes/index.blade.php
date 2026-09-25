@@ -17,7 +17,7 @@
 
         <div class="mt-5 grid gap-3">
             @forelse ($routes as $route)
-                @php($status = ['online' => 'SIP acessivel', 'pending_test' => 'Aguardando teste', 'error' => 'Com falha', 'not_configured' => 'Desativada'][$route->connection_status] ?? 'Nao configurada')
+                @php($status = ['online' => 'SIP responde (OPTIONS)', 'pending_test' => 'Aguardando teste', 'error' => 'Com falha', 'not_configured' => 'Desativada'][$route->connection_status] ?? 'Nao configurada')
                 <div class="rounded-lg border p-4" style="border-color: var(--border); background: var(--surface);">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
@@ -28,6 +28,7 @@
                             </div>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $route->provider ?: 'Operadora nao informada' }} · {{ filled($route->tech) ? 'Tech '.$route->tech : 'Sem Tech' }} · {{ $route->host }} · {{ $route->companies_count }} empresa{{ $route->companies_count === 1 ? '' : 's' }} vinculada{{ $route->companies_count === 1 ? '' : 's' }}</p>
                             <p class="mt-2 text-xs" style="color: var(--fg-muted);">Discagem: {{ filled($route->tech) ? ($route->tech.' + 55 + DDD + telefone') : ($route->dial_prefix.' + DDD + telefone') }} · {{ strtoupper($route->transport) }} · {{ strtoupper($route->authentication_mode === 'ip' ? 'liberacao por IP' : 'registro SIP') }}</p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">O teste de OPTIONS verifica o IP e a porta; TECH e chamada externa ainda nao validados.</p>
                         </div>
                         <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="edit" label="Editar rota" x-data x-on:click="$dispatch('open-modal', 'telephony-route-edit-{{ $route->id }}')" />
@@ -51,7 +52,7 @@
                     </form>
                 </x-ui.modal>
                 <x-ui.modal name="telephony-route-test-{{ $route->id }}" title="Testar rota" max-width="lg">
-                    <p class="text-sm" style="color: var(--fg-muted);">Este teste valida o Asterisk e se o endpoint SIP pode ser alcancado. Ele nao realiza uma chamada externa nem confirma a autorizacao da operadora.</p>
+                    <p class="text-sm" style="color: var(--fg-muted);">Este teste valida o Asterisk e se o endpoint SIP responde a OPTIONS. Ele nao usa o TECH, nao realiza chamada externa e nao confirma a autorizacao da operadora.</p>
                     <form method="POST" action="{{ route('super-admin.telephony-routes.test', $route) }}" class="mt-5 flex justify-end gap-2">
                         @csrf
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'telephony-route-test-{{ $route->id }}')">Cancelar</x-ui.button>
