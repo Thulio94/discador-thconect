@@ -317,3 +317,35 @@ chamada foi originada. Foi observada uma queda do registro, seguida de
 reconexao pontual pelo botao; a estabilidade por periodo prolongado permanece
 pendente. Nao aprovar producao ate concluir a observacao continua, a chamada
 controlada, correlacionar logs e validar a gravacao.
+
+## Recuperacao do agente apos deploy em 25/09/2026
+
+- A falha de reconexao motivou um teste frontend que primeiro falhou: o prazo
+  de falha era 10 s, menor que o maximo de 30 s configurado para a recuperacao
+  do transporte JsSIP. O codigo agora concede 45 s antes de declarar o ramal
+  desconectado; durante esse prazo as chamadas continuam bloqueadas se nao
+  houver registro.
+- Suite frontend passou: 41/41; build Vite e `git diff --check` passaram. O
+  commit `73e848f` foi enviado a `main`.
+- Easypanel concluiu o deploy no servico isolado
+  `pabx-thconect/discador-piloto-teste` (acao
+  `cmug7aqd3016h06qdc0js2du0`, status `done`). O log marcou app, Asterisk,
+  Redis, Reverb, filas, scheduler, bridge e nginx iniciados/saudaveis. `/up` e
+  `/login` responderam HTTP 200. Nenhuma acao foi direcionada ao servico
+  `pabx-thconect1`.
+- Pos-deploy, o administrador de teste abriu Dashboard e Perfis sem erro. Na
+  listagem e nos detalhes do perfil Administrador apareceram, respectivamente,
+  `Acesso total para administradores` e `Administradores associados recebem
+  acesso total aos modulos.` A matriz de autorizacao nao foi alterada.
+- Pos-deploy, o agente 1002 autenticou e o JsSIP mostrou `Conectado e pronto
+  para chamadas`; permaneceu assim por 45 s observados, ainda Offline. Nao
+  houve atualizacao/reload da pagina nem chamada originada.
+- Esse intervalo nao prova estabilidade de longo prazo. O endpoint de logs do
+  Easypanel segue retornando HTTP 400 nas consultas anteriores; sem logs nao
+  foi possivel atribuir a causa da queda inicial.
+
+**Decisao:** correcao de tolerancia de reconexao publicada e verificada em
+janela curta; o piloto ainda nao esta homologado. A campanha segue fora da
+agenda. SIP INVITE/200 OK, audio RTP bidirecional, distribuicao Power, DTMF,
+desligamento, AMI/historico e MixMonitor dependem de chamada a um destino
+controlado, autorizacao explicita e correlacao de logs.
