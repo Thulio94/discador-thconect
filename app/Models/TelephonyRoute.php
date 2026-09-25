@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -87,10 +87,10 @@ class TelephonyRoute extends Model
             ? $digits
             : '55'.$digits;
 
-        if (blank($this->tech)) {
-            return (filled($this->dial_prefix) ? $this->dial_prefix : '').substr($e164, 2);
+        if (filled($this->tech)) {
+            return $this->tech.$e164;
         }
 
-        return (filled($this->dial_prefix) ? $this->dial_prefix : $this->tech).$e164;
+        return (filled($this->dial_prefix) ? $this->dial_prefix : '').substr($e164, 2);
     }
 }

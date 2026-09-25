@@ -12,6 +12,35 @@ class DialerSmokeLoadCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_smoke_load_limits_one_agent_to_two_simulated_attempts(): void
+    {
+        $this->artisan('dialer:smoke-load', [
+            '--agents' => '1',
+            '--calls-per-agent' => 2,
+        ])
+            ->expectsOutputToContain('Teste isolado')
+            ->expectsOutputToContain('Carga simulada concluida')
+            ->assertSuccessful();
+
+        $this->assertSame(0, Company::query()->count());
+        $this->assertSame(0, User::query()->count());
+        $this->assertSame(0, Call::query()->count());
+    }
+
+    public function test_smoke_load_never_uses_real_telephony_even_when_forced(): void
+    {
+        config()->set('app.force_real_telephony', true);
+
+        $this->artisan('dialer:smoke-load', [
+            '--agents' => '1',
+            '--calls-per-agent' => 2,
+        ])
+            ->expectsOutputToContain('Carga simulada concluida')
+            ->assertSuccessful();
+
+        $this->assertSame(0, Call::query()->count());
+    }
+
     public function test_smoke_load_runs_multiple_scenarios_and_rolls_back_every_fixture(): void
     {
         $this->artisan('dialer:smoke-load', [

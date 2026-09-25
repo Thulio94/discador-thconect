@@ -11,6 +11,9 @@ use App\Models\ContactList;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\MailingQueueService;
+use App\Services\Dialer\SimulatedDialerGateway;
 use App\Services\Dialer\SimulatedDialerService;
 use App\Services\Users\ExtensionAllocator;
 use Illuminate\Console\Command;
@@ -27,9 +30,12 @@ class RunDialerSmokeLoad extends Command
     protected $description = 'Executa uma carga simulada e reversivel do discador sem originar chamadas reais';
 
     public function handle(
-        SimulatedDialerService $dialer,
+        AgentCapacityService $capacity,
+        MailingQueueService $queue,
+        SimulatedDialerGateway $gateway,
         ExtensionAllocator $extensions,
     ): int {
+        $dialer = new SimulatedDialerService($capacity, $queue, $gateway);
         $agentCounts = collect(explode(',', (string) $this->option('agents')))
             ->map(fn (string $value): int => (int) trim($value))
             ->filter()

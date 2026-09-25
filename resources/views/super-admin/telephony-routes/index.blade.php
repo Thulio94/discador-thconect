@@ -27,7 +27,7 @@
                                 @if (! $route->enabled)<span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: var(--surface-muted); color: var(--fg-muted);">Desativada</span>@endif
                             </div>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $route->provider ?: 'Operadora nao informada' }} · {{ filled($route->tech) ? 'Tech '.$route->tech : 'Sem Tech' }} · {{ $route->host }} · {{ $route->companies_count }} empresa{{ $route->companies_count === 1 ? '' : 's' }} vinculada{{ $route->companies_count === 1 ? '' : 's' }}</p>
-                            <p class="mt-2 text-xs" style="color: var(--fg-muted);">Discagem: {{ filled($route->tech) ? ((filled($route->dial_prefix) ? $route->dial_prefix : $route->tech).' + 55 + DDD + telefone') : ($route->dial_prefix.' + DDD + telefone') }} · {{ strtoupper($route->transport) }} · {{ strtoupper($route->authentication_mode === 'ip' ? 'liberacao por IP' : 'registro SIP') }}</p>
+                            <p class="mt-2 text-xs" style="color: var(--fg-muted);">Discagem: {{ filled($route->tech) ? ($route->tech.' + 55 + DDD + telefone') : ($route->dial_prefix.' + DDD + telefone') }} · {{ strtoupper($route->transport) }} · {{ strtoupper($route->authentication_mode === 'ip' ? 'liberacao por IP' : 'registro SIP') }}</p>
                         </div>
                         <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="edit" label="Editar rota" x-data x-on:click="$dispatch('open-modal', 'telephony-route-edit-{{ $route->id }}')" />

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AsteriskNode;
 use App\Models\Company;
 use App\Models\TelephonyRoute;
 use App\Models\User;
@@ -64,6 +65,23 @@ class TelephonyRouteManagementTest extends TestCase
         $this->assertSame('031999990001', $route->formattedPhone('(31) 99999-0001'));
     }
 
+    public function test_tech_prefix_takes_precedence_over_national_prefix_when_both_are_configured(): void
+    {
+        $route = TelephonyRoute::create([
+            'name' => 'Rota com Tech e prefixo anterior',
+            'tech' => '5001',
+            'dial_prefix' => '0',
+            'host' => '201.23.69.26',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+        ]);
+
+        $this->assertSame('50015581982143238', $route->formattedPhone('81982143238'));
+    }
+
     public function test_route_without_tech_requires_a_national_dial_prefix(): void
     {
         $this->actingAs($this->superAdmin())
@@ -83,7 +101,7 @@ class TelephonyRouteManagementTest extends TestCase
     public function test_super_admin_sees_the_safe_sip_rejection_when_a_route_test_fails(): void
     {
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');
-        $node = \App\Models\AsteriskNode::create([
+        $node = AsteriskNode::create([
             'name' => 'No de teste', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
         ]);
         $route = TelephonyRoute::create([
