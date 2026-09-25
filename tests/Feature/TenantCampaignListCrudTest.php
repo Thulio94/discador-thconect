@@ -432,6 +432,41 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertDontSee('>Pausar<', false);
     }
 
+    public function test_new_campaign_form_does_not_inherit_an_existing_campaign_configuration(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista da campanha existente']);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id,
+            'name' => 'Campanha ativa existente',
+            'dialing_mode' => 'power',
+            'status' => 'active',
+        ]);
+        $campaign->teams()->attach($team, ['company_id' => $admin->company_id]);
+        $campaign->contactLists()->attach($list, ['company_id' => $admin->company_id]);
+
+        $response = $this->actingAs($admin)->get(route('tenant.campaigns.index'))->assertOk();
+        $document = new \DOMDocument();
+        $previousErrorSetting = libxml_use_internal_errors(true);
+        $document->loadHTML($response->getContent());
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousErrorSetting);
+
+        $xpath = new \DOMXPath($document);
+        $createModal = $xpath->query('//div[@data-ui-modal and contains(@x-data, "campaign-create")]')->item(0);
+        $this->assertNotNull($createModal);
+
+        $name = $xpath->query('.//input[@name="name"]', $createModal)->item(0);
+        $status = $xpath->query('.//select[@name="status"]/option[@selected]', $createModal)->item(0);
+        $selectedTeam = $xpath->query('.//input[@name="team_ids[]"][@checked]', $createModal)->length;
+        $selectedList = $xpath->query('.//input[@name="list_ids[]"][@checked]', $createModal)->length;
+
+        $this->assertSame('', $name?->getAttribute('value'));
+        $this->assertSame('draft', $status?->getAttribute('value'));
+        $this->assertSame(0, $selectedTeam);
+        $this->assertSame(0, $selectedList);
+    }
+
     public function test_campaign_index_reads_legacy_mailing_without_materializing_phone_states(): void
     {
         [$admin, $team] = $this->tenantAdmin();

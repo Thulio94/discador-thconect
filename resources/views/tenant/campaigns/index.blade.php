@@ -286,7 +286,7 @@
                     </ul>
                 </div>
             @endif
-            @include('tenant.campaigns._form', ['teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
+            @include('tenant.campaigns._form', ['campaign' => null, 'teams' => $teams, 'lists' => $lists, 'telephonyRoutes' => $telephonyRoutes])
             <div class="mt-5 flex justify-end">
                 <x-ui.button type="submit">Criar campanha</x-ui.button>
             </div>
