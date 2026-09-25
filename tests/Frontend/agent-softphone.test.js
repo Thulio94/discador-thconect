@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAgentSoftphone } from '../../resources/js/agent-softphone.js';
 
-function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia, setTimeout, clearTimeout } = {}) {
+function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia, setTimeout, clearTimeout, raw = (value) => value } = {}) {
     const handlers = {};
     const sessionHandlers = {};
     let answered = false;
@@ -11,10 +11,11 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
     const timerDelays = [];
     let offlineUpdates = 0;
     let reconciliations = 0;
+    let uaStopReceiver = null;
     const ua = {
         on: (event, callback) => { handlers[event] = callback; },
         start: () => handlers.registered?.(),
-        stop: () => {},
+        stop: function () { uaStopReceiver = this; },
     };
     class WebSocketInterface {}
     class UA { constructor() { return ua; } }
@@ -32,6 +33,7 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         clearTimeout: clearTimeout ?? (() => {}),
         setInterval: () => 1,
         clearInterval: () => {},
+        raw,
         markOffline: async () => { offlineUpdates += 1; },
         reconcile: () => { reconciliations += 1; },
     };
@@ -57,6 +59,8 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         timerDelays,
         offlineUpdates: () => offlineUpdates,
         reconciliations: () => reconciliations,
+        ua,
+        uaStopReceiver: () => uaStopReceiver,
     };
 }
 
@@ -163,4 +167,17 @@ test('does not register when the panel closes during microphone permission', asy
 
     assert.equal(context.softphone.registered, false);
     assert.equal(context.softphone.state, 'offline');
+});
+
+test('keeps the JsSIP user agent outside Alpine reactivity before stopping it', async () => {
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+    const rawValues = [];
+    const context = harness({ raw: (value) => { rawValues.push(value); return value; } });
+
+    await context.softphone.start();
+    context.softphone.stop();
+
+    assert.deepEqual(rawValues, [context.ua]);
+    assert.equal(context.uaStopReceiver(), context.ua);
 });

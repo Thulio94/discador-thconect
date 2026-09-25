@@ -8,6 +8,7 @@ function defaultDependencies() {
             const module = await import('jssip');
             return module.default ?? module;
         },
+        raw: (value) => globalThis.Alpine?.raw?.(value) ?? value,
         attachRemoteStream: async (stream) => {
             const audio = document.querySelector('[data-agent-remote-audio]');
             if (!audio) return;
@@ -78,7 +79,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 const JsSIP = await dependencies.loadJsSIP();
                 if (!this.isCurrentAttempt(attempt)) return;
                 const socket = new JsSIP.WebSocketInterface(credentials.websocket_url);
-                this.ua = new JsSIP.UA({
+                this.ua = dependencies.raw(new JsSIP.UA({
                     sockets: [socket],
                     uri: credentials.uri,
                     authorization_user: credentials.endpoint,
@@ -88,7 +89,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                     connection_recovery_min_interval: 2,
                     connection_recovery_max_interval: 30,
                     session_timers: false,
-                });
+                }));
 
                 this.ua.on('registered', () => {
                     if (!this.isCurrentAttempt(attempt)) return;
@@ -199,7 +200,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 return;
             }
 
-            this.activeSession = session;
+            this.activeSession = dependencies.raw(session);
             this.syncActiveSession();
             session.on('peerconnection', ({ peerconnection }) => {
                 peerconnection.addEventListener('track', ({ streams }) => {
