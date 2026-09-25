@@ -1149,6 +1149,33 @@ class TenantAgentPanelTest extends TestCase
             ->assertJsonPath('status_elapsed_seconds', 0);
     }
 
+    public function test_agent_live_state_explains_a_recent_failure_to_connect_the_agent_extension(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990001',
+            'end_reason' => '3 - No route to destination',
+            'started_at' => now()->subSeconds(10),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('tenant.agent.state'))
+            ->assertOk()
+            ->assertJsonPath('call_failure', 'Não foi possível conectar ao ramal. Verifique o áudio e tente novamente.');
+    }
+
     public function test_offline_agent_elapsed_time_is_zero_in_page_and_live_state(): void
     {
         [$agent] = $this->tenantUser('agent');
@@ -1257,7 +1284,7 @@ class TenantAgentPanelTest extends TestCase
         $this->actingAs($agent)
             ->get(route('tenant.agent.index'))
             ->assertOk()
-            ->assertSee('A ligação não foi aceita pela operadora. Tente novamente ou avise o administrador.');
+            ->assertSee('A rota recusou a ligação. Avise o administrador.');
     }
 
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void

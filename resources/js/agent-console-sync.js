@@ -23,6 +23,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         call: config.initialState?.call ?? null,
         callActive: Boolean(config.initialState?.call_active),
         callStatus: config.initialState?.call_status ?? null,
+        callFailureMessage: config.initialState?.call_failure ?? null,
 
         start() {
             this.applyState(config.initialState ?? {});
@@ -82,6 +83,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
             this.callActive = Boolean(state.call_active);
             this.callStatus = state.call_status ?? null;
             this.call = state.call ?? null;
+            this.callFailureMessage = state.call_failure ?? null;
 
             const softphone = globalThis.Alpine?.store?.('softphone');
             if (softphone) {

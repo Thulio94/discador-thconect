@@ -129,6 +129,34 @@ test('uses the realtime event to fetch and apply state without a navigation', as
     assert.equal(listener, null);
 });
 
+test('shows and clears an asynchronous call failure from realtime state', async () => {
+    const context = harness({
+        signature: 'call-failed',
+        agent_status: 'available',
+        status_elapsed_seconds: 8,
+        call_active: false,
+        call_status: null,
+        call: null,
+        call_failure: 'Não foi possível conectar ao ramal. Verifique o áudio e tente novamente.',
+    });
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        signature: 'call-started',
+        initialState: { call_failure: null },
+    }, context.dependencies);
+
+    await sync.check();
+    assert.equal(sync.callFailureMessage, 'Não foi possível conectar ao ramal. Verifique o áudio e tente novamente.');
+
+    context.dependencies.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ signature: 'failure-cleared', call_failure: null }),
+    });
+    await sync.check();
+    assert.equal(sync.callFailureMessage, null);
+});
+
 test('changes agent availability through JSON without navigating away from the softphone', async () => {
     let request;
     const sync = createAgentConsoleSync({

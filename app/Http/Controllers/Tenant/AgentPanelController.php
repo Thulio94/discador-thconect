@@ -140,11 +140,37 @@ class AgentPanelController extends Controller
 
     private function callFailureMessage(Call $call): string
     {
-        return match ($call->end_reason) {
-            'asterisk_event_timeout' => 'A ligação não recebeu resposta. Tente novamente ou avise o administrador.',
-            'provider_authentication_required' => 'A ligação não foi aceita pela operadora. Tente novamente ou avise o administrador.',
-            default => 'A ligação não foi aceita pela operadora. Tente novamente ou avise o administrador.',
-        };
+        $reason = strtolower((string) $call->end_reason);
+
+        if (str_contains($reason, 'capacity_')) {
+            return 'Todos os canais de ligação estão ocupados. Aguarde e tente novamente.';
+        }
+
+        if (str_contains($reason, 'no route') || str_contains($reason, 'unreachable')
+            || str_contains($reason, 'endpoint') || str_contains($reason, 'contact')
+            || preg_match('/(^|\D)3(\D|$)/', $reason)) {
+            return 'Não foi possível conectar ao ramal. Verifique o áudio e tente novamente.';
+        }
+
+        if (str_contains($reason, 'auth') || str_contains($reason, '401')
+            || str_contains($reason, '407') || str_contains($reason, 'unauthorized')) {
+            return 'A rota recusou a ligação. Avise o administrador.';
+        }
+
+        if (str_contains($reason, 'busy') || preg_match('/(^|\D)17(\D|$)/', $reason)) {
+            return 'O destino está ocupado. Tente novamente mais tarde.';
+        }
+
+        if (str_contains($reason, 'decline') || preg_match('/(^|\D)21(\D|$)/', $reason)) {
+            return 'A ligação foi recusada pelo destino. Tente novamente mais tarde.';
+        }
+
+        if ($reason === 'asterisk_event_timeout' || str_contains($reason, 'timeout')
+            || str_contains($reason, 'no answer') || preg_match('/(^|\D)(18|19)(\D|$)/', $reason)) {
+            return 'A ligação não foi atendida. Você pode continuar o atendimento.';
+        }
+
+        return 'A chamada não foi completada. Aguarde e tente novamente ou avise o administrador.';
     }
 
     public function softphoneSession(Request $request, AgentWebRtcService $webRtc): JsonResponse
@@ -783,11 +809,18 @@ class AgentPanelController extends Controller
             })
             ->latest('updated_at')
             ->first(['id', 'updated_at']);
+        $recentFailure = $user->calls()
+            ->where('channel', 'asterisk_ami')
+            ->where('status', 'cancelled')
+            ->where('ended_at', '>=', now()->subMinutes(5))
+            ->latest('ended_at')
+            ->first(['id', 'updated_at']);
 
         return hash('sha256', json_encode([
             'status' => [$status?->id, $status?->status, $status?->updated_at?->getTimestamp()],
             'active_call' => [$call?->id, $call?->status, $call?->updated_at?->getTimestamp()],
             'latest_call' => [$latestCall?->id, $latestCall?->updated_at?->getTimestamp()],
+            'recent_failure' => [$recentFailure?->id, $recentFailure?->updated_at?->getTimestamp()],
             'callback' => [$latestCallback?->id, $latestCallback?->updated_at?->getTimestamp()],
         ], JSON_THROW_ON_ERROR));
     }
@@ -800,6 +833,12 @@ class AgentPanelController extends Controller
             ->with(['campaign:id,name,service_fields_schema', 'contact:id,name,contact_list_id', 'contact.contactList:id,name'])
             ->latest('id')
             ->first();
+        $recentFailure = $user->calls()
+            ->where('channel', 'asterisk_ami')
+            ->where('status', 'cancelled')
+            ->where('ended_at', '>=', now()->subMinutes(5))
+            ->latest('ended_at')
+            ->first();
 
         return [
             'signature' => $this->stateSignature($user),
@@ -809,6 +848,7 @@ class AgentPanelController extends Controller
                 : 0,
             'call_active' => $call !== null && in_array($call->status, Call::ACTIVE_STATUSES, true),
             'call_status' => $call?->status,
+            'call_failure' => $recentFailure ? $this->callFailureMessage($recentFailure) : null,
             'call' => $call ? [
                 'id' => $call->id,
                 'phone' => $call->phone,
