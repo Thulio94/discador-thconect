@@ -458,12 +458,19 @@ class TenantCampaignListCrudTest extends TestCase
 
         $name = $xpath->query('.//input[@name="name"]', $createModal)->item(0);
         $status = $xpath->query('.//select[@name="status"]/option[@selected]', $createModal)->item(0);
+        $modeInput = $xpath->query('.//select[@name="dialing_mode"]', $createModal)->item(0);
+        $amdInput = $xpath->query('.//select[@name="amd_mode"]', $createModal)->item(0);
         $reviewMode = $xpath->query('.//div[p[normalize-space()="Modo"]]/p[2]', $createModal)->item(0);
+        $reviewAmd = $xpath->query('.//div[p[normalize-space()="AMD"]]/p[2]', $createModal)->item(0);
         $selectedTeam = $xpath->query('.//input[@name="team_ids[]"][@checked]', $createModal)->length;
         $selectedList = $xpath->query('.//input[@name="list_ids[]"][@checked]', $createModal)->length;
 
         $this->assertSame('', $name?->getAttribute('value'));
         $this->assertSame('draft', $status?->getAttribute('value'));
+        $this->assertSame('dialingMode', $modeInput?->getAttribute('x-model'));
+        $this->assertSame('amdMode', $amdInput?->getAttribute('x-model'));
+        $this->assertSame('dialingMode', $reviewMode?->getAttribute('x-text'));
+        $this->assertSame('amdModeLabel()', $reviewAmd?->getAttribute('x-text'));
         $this->assertSame('power', trim($reviewMode?->textContent ?? ''));
         $this->assertSame(0, $selectedTeam);
         $this->assertSame(0, $selectedList);

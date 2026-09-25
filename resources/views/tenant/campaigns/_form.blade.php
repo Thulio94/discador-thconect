@@ -24,7 +24,16 @@
     ];
 @endphp
 
-<div class="grid gap-4">
+<div
+    class="grid gap-4"
+    x-data="{
+        dialingMode: @js(old('dialing_mode', $campaign?->dialing_mode ?? 'power')),
+        amdMode: @js($amdMode),
+        amdModeLabel() {
+            return { disabled: 'Desativado', simulated: 'Simulado', asterisk: 'Asterisk / rota' }[this.amdMode] ?? 'Desativado';
+        },
+    }"
+>
     @if ($errors->any())
         <div class="rounded-lg border p-4 text-sm" role="alert" style="border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border)); background: color-mix(in srgb, var(--status-danger) 8%, var(--surface));">
             <p class="font-semibold">A campanha nao foi salva.</p>
@@ -72,7 +81,7 @@
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label class="grid gap-1 text-sm">
             <span class="font-semibold">Modo</span>
-            <select name="dialing_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+            <select name="dialing_mode" x-model="dialingMode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                 <option value="power" @selected(old('dialing_mode', $campaign?->dialing_mode ?? 'power') === 'power')>Power</option>
                 <option value="preview" @selected(old('dialing_mode', $campaign?->dialing_mode) === 'preview')>Preview</option>
             </select>
@@ -144,7 +153,7 @@
         <div class="grid gap-4 rounded-lg border p-3 md:grid-cols-2" style="border-color: var(--border);">
             <label class="grid gap-1 text-sm">
                 <span class="font-semibold">AMD</span>
-                <select name="amd_mode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
+                <select name="amd_mode" x-model="amdMode" class="rounded-lg border px-3 py-2" style="border-color: var(--border); background: var(--surface); color: var(--fg);">
                     <option value="disabled" @selected($amdMode === 'disabled')>Desativado</option>
                     <option value="simulated" @selected($amdMode === 'simulated')>Simulado</option>
                     <option value="asterisk" @selected($amdMode === 'asterisk')>Asterisk / rota</option>
@@ -254,7 +263,7 @@
         <div class="grid gap-2 text-sm sm:grid-cols-4">
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Modo</p>
-                <p class="mt-1 font-semibold">{{ old('dialing_mode', $campaign?->dialing_mode ?? 'power') }}</p>
+                <p class="mt-1 font-semibold" x-text="dialingMode">{{ old('dialing_mode', $campaign?->dialing_mode ?? 'power') }}</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Telefones</p>
@@ -282,7 +291,7 @@
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">AMD</p>
-                <p class="mt-1 font-semibold">{{ ['disabled' => 'Desativado', 'simulated' => 'Simulado', 'asterisk' => 'Asterisk / rota'][$amdMode] ?? 'Desativado' }}</p>
+                <p class="mt-1 font-semibold" x-text="amdModeLabel()">{{ ['disabled' => 'Desativado', 'simulated' => 'Simulado', 'asterisk' => 'Asterisk / rota'][$amdMode] ?? 'Desativado' }}</p>
             </div>
             <div>
                 <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Rotas</p>
