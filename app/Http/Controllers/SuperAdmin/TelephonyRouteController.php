@@ -75,13 +75,13 @@ class TelephonyRouteController extends Controller
                 ->each(fn ($company) => $bridge->synchronize($telephonyRoute, $company->id));
 
             $telephonyRoute->update([
-                'connection_status' => 'online',
+                'connection_status' => 'pending_test',
                 'last_checked_at' => now(),
                 'last_error' => null,
             ]);
 
             return redirect()->route('super-admin.telephony-routes.index')
-                ->with('status', 'O endpoint SIP respondeu a OPTIONS. TECH e chamada externa ainda nao foram validados.');
+                ->with('status', 'O IP SIP respondeu. A TECH sera validada na primeira chamada de teste.');
         } catch (Throwable $exception) {
             report($exception);
             $telephonyRoute->update([

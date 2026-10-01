@@ -17,18 +17,18 @@
 
         <div class="mt-5 grid gap-3">
             @forelse ($routes as $route)
-                @php($status = ['online' => 'SIP responde (OPTIONS)', 'pending_test' => 'Aguardando teste', 'error' => 'Com falha', 'not_configured' => 'Desativada'][$route->connection_status] ?? 'Nao configurada')
+                @php($status = ['online' => 'Chamada externa validada', 'pending_test' => 'Aguardando chamada de teste', 'error' => 'Com falha', 'not_configured' => 'Desativada'][$route->connection_status] ?? 'Nao configurada')
                 <div class="rounded-lg border p-4" style="border-color: var(--border); background: var(--surface);">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <h3 class="font-semibold">{{ $route->name }}</h3>
-                                <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: {{ $route->connection_status === 'online' ? 'color-mix(in srgb, var(--status-success) 14%, var(--surface))' : ($route->connection_status === 'error' ? 'color-mix(in srgb, var(--status-danger) 12%, var(--surface))' : 'var(--surface-muted)') }}; color: var(--fg);">{{ $status }}</span>
+                                <span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: {{ $route->connection_status === 'error' ? 'color-mix(in srgb, var(--status-danger) 12%, var(--surface))' : 'var(--surface-muted)' }}; color: {{ $route->connection_status === 'error' ? 'var(--status-danger)' : 'var(--fg-muted)' }};">{{ $status }}</span>
                                 @if (! $route->enabled)<span class="rounded-full px-2 py-1 text-xs font-semibold" style="background: var(--surface-muted); color: var(--fg-muted);">Desativada</span>@endif
                             </div>
                             <p class="mt-1 text-sm" style="color: var(--fg-muted);">{{ $route->provider ?: 'Operadora nao informada' }} · {{ filled($route->tech) ? 'Tech '.$route->tech : 'Sem Tech' }} · {{ $route->host }} · {{ $route->companies_count }} empresa{{ $route->companies_count === 1 ? '' : 's' }} vinculada{{ $route->companies_count === 1 ? '' : 's' }}</p>
                             <p class="mt-2 text-xs" style="color: var(--fg-muted);">Discagem: {{ filled($route->tech) ? ($route->tech.' + 55 + DDD + telefone') : ($route->dial_prefix.' + DDD + telefone') }} · {{ strtoupper($route->transport) }} · {{ strtoupper($route->authentication_mode === 'ip' ? 'liberacao por IP' : 'registro SIP') }}</p>
-                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">O teste de OPTIONS verifica o IP e a porta; TECH e chamada externa ainda nao validados.</p>
+                            <p class="mt-1 text-xs" style="color: var(--fg-muted);">OPTIONS confirma apenas IP e porta; nao valida a TECH nem a chamada externa.</p>
                         </div>
                         <div class="flex shrink-0 gap-2">
                             <x-ui.action icon="edit" label="Editar rota" x-data x-on:click="$dispatch('open-modal', 'telephony-route-edit-{{ $route->id }}')" />
@@ -52,7 +52,7 @@
                     </form>
                 </x-ui.modal>
                 <x-ui.modal name="telephony-route-test-{{ $route->id }}" title="Testar rota" max-width="lg">
-                    <p class="text-sm" style="color: var(--fg-muted);">Este teste valida o Asterisk e se o endpoint SIP responde a OPTIONS. Ele nao usa o TECH, nao realiza chamada externa e nao confirma a autorizacao da operadora.</p>
+                    <p class="text-sm" style="color: var(--fg-muted);">Este teste valida o Asterisk e o IP SIP. A rota so fica validada depois que uma chamada real de saida for aceita pelo provedor.</p>
                     <form method="POST" action="{{ route('super-admin.telephony-routes.test', $route) }}" class="mt-5 flex justify-end gap-2">
                         @csrf
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'telephony-route-test-{{ $route->id }}')">Cancelar</x-ui.button>

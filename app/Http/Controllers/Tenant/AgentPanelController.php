@@ -152,6 +152,22 @@ class AgentPanelController extends Controller
             return 'Não foi possível conectar ao ramal. Verifique o áudio e tente novamente.';
         }
 
+        if (str_contains($reason, 'provider_route_rejected')) {
+            return 'A operadora recusou a ligação. Avise o administrador para revisar a rota.';
+        }
+
+        if (str_contains($reason, 'provider_destination_rejected')) {
+            return 'A operadora recusou o número ou a configuração da rota. Avise o administrador.';
+        }
+
+        if (str_contains($reason, 'provider_route_unavailable')) {
+            return 'A operadora não respondeu. Avise o administrador para verificar a rota.';
+        }
+
+        if (str_contains($reason, 'route_auth_configuration_error')) {
+            return 'A rota está com uma configuração de autenticação inválida. Avise o administrador.';
+        }
+
         if (str_contains($reason, 'auth') || str_contains($reason, '401')
             || str_contains($reason, '407') || str_contains($reason, 'unauthorized')) {
             return 'A rota recusou a ligação. Avise o administrador.';

@@ -103,7 +103,7 @@ class TelephonyProductionReadinessTest extends TestCase
         $route = TelephonyRoute::create([
             'asterisk_node_id' => $node->id,
             'name' => 'Rota manual real',
-            'tech' => '5006',
+            'tech' => '5001',
             'host' => 'sip.example.test',
             'transport' => 'udp',
             'authentication_mode' => 'ip',
@@ -111,7 +111,7 @@ class TelephonyProductionReadinessTest extends TestCase
             'dialplan_extension' => 's',
             'codecs' => 'alaw',
             'enabled' => true,
-            'connection_status' => 'online',
+            'connection_status' => 'pending_test',
         ]);
         $company->telephonyRoutes()->attach($route);
 
@@ -123,7 +123,7 @@ class TelephonyProductionReadinessTest extends TestCase
             campaignId: null,
             contactId: null,
             contactPhoneId: null,
-            phone: '31999990001',
+            phone: '81982143238',
             channel: 'manual',
         ));
 
@@ -134,7 +134,7 @@ class TelephonyProductionReadinessTest extends TestCase
             && $request['company_id'] === $company->id
             && $request['agent_extension'] === '1301'
             && $request['agent_endpoint'] === "t{$company->id}-e1301"
-            && $request['phone'] === '50065531999990001'
+            && $request['phone'] === '50015581982143238'
         );
     }
 

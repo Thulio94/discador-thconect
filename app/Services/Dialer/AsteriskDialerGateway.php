@@ -35,7 +35,9 @@ class AsteriskDialerGateway implements DialerGateway
             : null;
         $route = $this->routeForPhone($campaign, $request->phone, $request->companyId);
 
-        if (! $route?->isReady() || $route->connection_status !== 'online') {
+        $manualRouteValidation = $campaign === null && $route?->connection_status === 'pending_test';
+
+        if (! $route?->isReady() || ($route->connection_status !== 'online' && ! $manualRouteValidation)) {
             if (app()->environment('testing') && ! config('app.force_real_telephony', false)) {
                 return $this->simulated->originate($request);
             }
@@ -153,13 +155,19 @@ class AsteriskDialerGateway implements DialerGateway
     private function routeForPhone(?Campaign $campaign, string $phone, int $companyId): ?TelephonyRoute
     {
         if (! $campaign) {
-            return Company::query()
+            $routes = Company::query()
                 ->find($companyId)?->telephonyRoutes()
                 ->with('asteriskNode')
                 ->where('enabled', true)
-                ->where('connection_status', 'online')
+                ->whereIn('connection_status', ['online', 'pending_test'])
                 ->orderBy('priority')
-                ->orderBy('telephony_routes.id')
+                ->orderBy('telephony_routes.id');
+
+            if (! $routes) {
+                return null;
+            }
+
+            return $routes->orderByRaw("CASE WHEN connection_status = 'online' THEN 0 ELSE 1 END")
                 ->first();
         }
 

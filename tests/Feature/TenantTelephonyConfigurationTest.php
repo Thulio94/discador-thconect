@@ -138,6 +138,203 @@ class TenantTelephonyConfigurationTest extends TestCase
         $this->assertSame('ringing', $call->fresh()->status);
     }
 
+    public function test_provider_rejection_marks_the_route_unavailable_with_a_simple_message(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota teste com rejeicao',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_failed',
+            'cause' => '21',
+            'payload' => ['TechCause' => 'SIP/2.0 403 Forbidden'],
+        ]);
+
+        $this->assertSame('error', $route->fresh()->connection_status);
+        $this->assertSame('A operadora recusou a ligacao. Avise o administrador para revisar a rota.', $route->fresh()->last_error);
+        $this->assertSame('provider_route_rejected', $call->fresh()->end_reason);
+    }
+
+    public function test_unknown_destination_or_tech_rejection_is_visible_as_a_route_failure(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota teste destino recusado',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'pending_test',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_failed',
+            'cause' => '0',
+            'payload' => ['TechCause' => 'SIP/2.0 404 Not Found'],
+        ]);
+
+        $this->assertSame('error', $route->fresh()->connection_status);
+        $this->assertSame('provider_destination_rejected', $call->fresh()->end_reason);
+        $this->assertStringContainsString('numero ou a TECH', $route->fresh()->last_error);
+    }
+
+    public function test_successful_outbound_call_validates_the_route(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota pendente validada em chamada',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'pending_test',
+            'last_error' => 'Teste de saida pendente',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_succeeded',
+            'action_id' => 'test-route-5001',
+        ]);
+
+        $this->assertSame('online', $route->fresh()->connection_status);
+        $this->assertNull($route->fresh()->last_error);
+        $this->assertSame('ringing', $call->fresh()->status);
+    }
+
+    public function test_busy_or_no_answer_does_not_mark_the_route_unavailable(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota teste destino ocupado',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_failed',
+            'cause' => '19 - No answer',
+        ]);
+
+        $this->assertSame('online', $route->fresh()->connection_status);
+        $this->assertNull($route->fresh()->last_error);
+        $this->assertSame('19 - No answer', $call->fresh()->end_reason);
+    }
+
+    public function test_missing_pjsip_auth_ids_marks_the_route_as_failed(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota teste sem autenticacao PJSIP',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'online',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_failed',
+            'cause' => 'There were no auth ids available',
+        ]);
+
+        $this->assertSame('error', $route->fresh()->connection_status);
+        $this->assertSame('A rota apresentou erro de autenticacao. Avise o administrador para revisar a configuracao.', $route->fresh()->last_error);
+        $this->assertSame('route_auth_configuration_error', $call->fresh()->end_reason);
+    }
+
     public function test_failed_originate_releases_agent_instead_of_leaving_in_call(): void
     {
         $admin = $this->tenantAdmin();

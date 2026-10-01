@@ -7,6 +7,7 @@ use App\Jobs\StoreCallRecording;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\CallEvent;
+use App\Models\TelephonyRoute;
 use App\Services\Capacity\ChannelCapacityService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\MailingQueueService;
@@ -88,6 +89,7 @@ class AsteriskCallEventService
 
         if ($event === 'originate_succeeded' && $call->answered_at === null && in_array($call->status, ['dialing', 'ringing'], true)) {
             $updates['status'] = 'ringing';
+            $this->markRouteValidated($call);
         }
 
         if ($event === 'answered' && $call->answered_at === null) {
@@ -128,11 +130,13 @@ class AsteriskCallEventService
         }
 
         if ($event === 'originate_failed' && $call->answered_at === null) {
+            $cause = $this->originateFailureCause($payload);
             $updates['status'] = 'cancelled';
-            $updates['end_reason'] = $this->failureReason((string) ($payload['cause'] ?? 'originate_failed'));
+            $updates['end_reason'] = $this->failureReason($cause);
             $updates['hangup_party'] = 'carrier';
             $updates['ended_at'] = now();
             $this->capacity->release($call->channel_reservation_id, 'originate_failed');
+            $this->markRouteRejected($call, $cause);
         }
 
         if ($event === 'hangup') {
@@ -263,10 +267,85 @@ class AsteriskCallEventService
     {
         $normalized = strtolower($cause);
 
+        if (str_contains($normalized, 'no auth ids available')) {
+            return 'route_auth_configuration_error';
+        }
+
+        if (preg_match('/(?:sip\/2\.0\s*)?403(?:\D|$)/i', $cause) === 1) {
+            return 'provider_route_rejected';
+        }
+
+        if (preg_match('/(?:sip\/2\.0\s*)?(404|484)(?:\D|$)/i', $cause) === 1) {
+            return 'provider_destination_rejected';
+        }
+
+        if (preg_match('/(?:sip\/2\.0\s*)?(408|5\d\d)(?:\D|$)/i', $cause) === 1) {
+            return 'provider_route_unavailable';
+        }
+
+        if (preg_match('/(?:sip\/2\.0\s*)?(401|407)(?:\D|$)/i', $cause) === 1) {
+            return 'provider_authentication_required';
+        }
+
         if (str_contains($normalized, 'auth') || str_contains($normalized, '401') || str_contains($normalized, '407') || str_contains($normalized, 'unauthorized')) {
             return 'provider_authentication_required';
         }
 
         return $cause;
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function originateFailureCause(array $payload): string
+    {
+        $cause = (string) ($payload['cause'] ?? 'originate_failed');
+        $techCause = Arr::get($payload, 'payload.TechCause');
+
+        if (is_string($techCause) && $techCause !== '') {
+            return trim($cause.' '.$techCause);
+        }
+
+        return $cause;
+    }
+
+    private function markRouteRejected(Call $call, string $cause): void
+    {
+        $reason = $this->failureReason($cause);
+        $message = match ($reason) {
+            'route_auth_configuration_error' => 'A rota apresentou erro de autenticacao. Avise o administrador para revisar a configuracao.',
+            'provider_route_rejected' => 'A operadora recusou a ligacao. Avise o administrador para revisar a rota.',
+            'provider_destination_rejected' => 'A operadora recusou o numero ou a TECH da rota. Avise o administrador para conferir a discagem.',
+            'provider_route_unavailable' => 'A operadora nao respondeu a ligacao. Avise o administrador para conferir a rota.',
+            'provider_authentication_required' => 'A operadora solicitou uma credencial nao configurada. Avise o administrador para revisar a rota.',
+            default => null,
+        };
+
+        if (! $message || ! $call->telephony_route_id) {
+            return;
+        }
+
+        TelephonyRoute::query()
+            ->whereKey($call->telephony_route_id)
+            ->whereHas('companies', fn ($query) => $query->whereKey($call->company_id))
+            ->update([
+                'connection_status' => 'error',
+                'last_checked_at' => now(),
+                'last_error' => $message,
+            ]);
+    }
+
+    private function markRouteValidated(Call $call): void
+    {
+        if (! $call->telephony_route_id) {
+            return;
+        }
+
+        TelephonyRoute::query()
+            ->whereKey($call->telephony_route_id)
+            ->whereHas('companies', fn ($query) => $query->whereKey($call->company_id))
+            ->update([
+                'connection_status' => 'online',
+                'last_checked_at' => now(),
+                'last_error' => null,
+            ]);
     }
 }
