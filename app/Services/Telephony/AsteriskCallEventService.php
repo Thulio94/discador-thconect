@@ -61,6 +61,10 @@ class AsteriskCallEventService
         }
 
         if (in_array($call->status, ['ended', 'cancelled'], true) && $event !== 'recording_ready') {
+            if ($event === 'hangup' && $call->answered_at === null) {
+                $this->markRouteRejected($call, $this->originateFailureCause($payload), pendingOnly: true);
+            }
+
             return [];
         }
 
@@ -142,6 +146,9 @@ class AsteriskCallEventService
         if ($event === 'hangup') {
             $answered = $call->answered_at !== null || $previousStatus === 'in_progress';
             $needsDisposition = $answered && $call->user_id && ! in_array($previousStatus, ['ended', 'cancelled', 'wrap_up'], true);
+            if (! $answered) {
+                $this->markRouteRejected($call, $this->originateFailureCause($payload), pendingOnly: true);
+            }
             $updates['status'] = $needsDisposition ? 'wrap_up' : ($answered ? 'ended' : 'cancelled');
             $updates['end_reason'] = $payload['cause'] ?? $call->end_reason;
             $updates['hangup_party'] = $call->hangup_party ?? $this->hangupParty($payload);
@@ -307,7 +314,7 @@ class AsteriskCallEventService
         return $cause;
     }
 
-    private function markRouteRejected(Call $call, string $cause): void
+    private function markRouteRejected(Call $call, string $cause, bool $pendingOnly = false): void
     {
         $reason = $this->failureReason($cause);
         $message = match ($reason) {
@@ -323,14 +330,19 @@ class AsteriskCallEventService
             return;
         }
 
-        TelephonyRoute::query()
+        $query = TelephonyRoute::query()
             ->whereKey($call->telephony_route_id)
-            ->whereHas('companies', fn ($query) => $query->whereKey($call->company_id))
-            ->update([
-                'connection_status' => 'error',
-                'last_checked_at' => now(),
-                'last_error' => $message,
-            ]);
+            ->whereHas('companies', fn ($query) => $query->whereKey($call->company_id));
+
+        if ($pendingOnly) {
+            $query->where('connection_status', 'pending_test');
+        }
+
+        $query->update([
+            'connection_status' => 'error',
+            'last_checked_at' => now(),
+            'last_error' => $message,
+        ]);
     }
 
     private function markRouteValidated(Call $call): void

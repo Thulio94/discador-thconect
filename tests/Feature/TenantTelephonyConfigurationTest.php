@@ -218,6 +218,55 @@ class TenantTelephonyConfigurationTest extends TestCase
         $this->assertStringContainsString('numero ou a TECH', $route->fresh()->last_error);
     }
 
+    public function test_hangup_tech_cause_still_marks_a_pending_route_after_originate_failure(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota rejeitada no evento Hangup',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'pending_test',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+        $events = app(AsteriskCallEventService::class);
+
+        $events->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_failed',
+            'cause' => '3',
+            'uniqueid' => 'route-rejected-uniqueid',
+        ]);
+        $events->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'hangup',
+            'cause' => 'No route to destination',
+            'payload' => ['TechCause' => 'SIP/2.0 403 Forbidden'],
+            'uniqueid' => 'route-rejected-uniqueid',
+        ]);
+
+        $this->assertSame('error', $route->fresh()->connection_status);
+        $this->assertSame('A operadora recusou a ligacao. Avise o administrador para revisar a rota.', $route->fresh()->last_error);
+        $this->assertSame('cancelled', $call->fresh()->status);
+    }
+
     public function test_successful_outbound_call_validates_the_route(): void
     {
         $admin = $this->tenantAdmin();
@@ -256,6 +305,18 @@ class TenantTelephonyConfigurationTest extends TestCase
         $this->assertSame('online', $route->fresh()->connection_status);
         $this->assertNull($route->fresh()->last_error);
         $this->assertSame('ringing', $call->fresh()->status);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'hangup',
+            'cause' => 'User endpoint rejected the call',
+            'payload' => ['TechCause' => 'SIP/2.0 403 Forbidden'],
+            'uniqueid' => 'agent-leg-rejected',
+        ]);
+
+        $this->assertSame('online', $route->fresh()->connection_status);
+        $this->assertNull($route->fresh()->last_error);
     }
 
     public function test_busy_or_no_answer_does_not_mark_the_route_unavailable(): void
