@@ -243,7 +243,11 @@ class AgentPanelController extends Controller
         return response()->json(['accepted' => true])->header('Cache-Control', 'no-store, private');
     }
 
-    public function status(Request $request, AgentCapacityService $capacity): RedirectResponse|JsonResponse
+    public function status(
+        Request $request,
+        AgentCapacityService $capacity,
+        AgentWebRtcPresenceService $presence,
+    ): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(['available', 'offline'])],
@@ -251,6 +255,16 @@ class AgentPanelController extends Controller
 
         $user = $request->user();
         $this->wrapUps->expireForUser($user);
+
+        if ($data['status'] === 'available' && $user->user_type === 'agent' && ! $presence->isRegistered($user)) {
+            $message = 'O ramal ainda não está conectado. Aguarde a conexão do áudio antes de ficar disponível.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['status' => $message]);
+        }
 
         if ($this->wrapUps->hasPendingForUser($user)) {
             return back()->withErrors(['status' => 'Conclua a tabulacao pendente antes de mudar seu status.']);

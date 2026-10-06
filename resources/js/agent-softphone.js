@@ -32,19 +32,25 @@ function defaultDependencies() {
             },
             body: JSON.stringify({ status: 'offline' }),
         }),
-        reportPresence: (url, csrfToken, connectionId, registered) => window.fetch(url, {
-            method: 'POST',
-            credentials: 'same-origin',
-            cache: 'no-store',
-            keepalive: true,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: JSON.stringify({ connection_id: connectionId, registered }),
-        }),
+        reportPresence: async (url, csrfToken, connectionId, registered) => {
+            const response = await window.fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                keepalive: true,
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ connection_id: connectionId, registered }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Softphone presence failed with ${response.status}`);
+            }
+        },
         reconcile: () => window.dispatchEvent(new CustomEvent('agent-console:reconcile')),
     };
 }
@@ -53,6 +59,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
     return {
         state: 'preparing',
         registered: false,
+        sipRegistered: false,
         ua: null,
         activeSession: null,
         iceServers: [],
@@ -111,24 +118,29 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
 
                 this.ua.on('registered', () => {
                     if (!this.isCurrentAttempt(attempt)) return;
-                    this.cancelFailure();
-                    this.registered = true;
-                    this.setState('registered');
-                    this.reportPresence(true);
+                    this.sipRegistered = true;
+                    this.registered = false;
+                    this.setState('presence-pending');
+                    this.confirmPresence(attempt);
                     if (this.presenceTimer !== null) dependencies.clearInterval(this.presenceTimer);
-                    this.presenceTimer = dependencies.setInterval(() => this.reportPresence(this.registered), 20000);
+                    this.presenceTimer = dependencies.setInterval(() => this.confirmPresence(attempt), 20000);
                 });
                 this.ua.on('unregistered', () => {
                     if (!this.isCurrentAttempt(attempt)) return;
+                    this.sipRegistered = false;
                     this.registered = false;
-                    this.reportPresence(false);
+                    this.reportPresence(false).catch(() => {});
                     this.setState(this.stopped ? 'offline' : 'reconnecting');
                 });
                 this.ua.on('disconnected', () => {
-                    if (this.isCurrentAttempt(attempt)) this.scheduleFailure();
+                    if (!this.isCurrentAttempt(attempt)) return;
+                    this.sipRegistered = false;
+                    this.scheduleFailure();
                 });
                 this.ua.on('registrationFailed', () => {
-                    if (this.isCurrentAttempt(attempt)) this.scheduleFailure();
+                    if (!this.isCurrentAttempt(attempt)) return;
+                    this.sipRegistered = false;
+                    this.scheduleFailure();
                 });
                 this.ua.on('newRTCSession', (event) => {
                     if (this.isCurrentAttempt(attempt)) {
@@ -182,7 +194,8 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
             const previousUa = this.ua;
             this.ua = null;
             this.registered = false;
-            this.reportPresence(false);
+            this.sipRegistered = false;
+            this.reportPresence(false).catch(() => {});
             previousUa?.stop();
             this.stopped = false;
 
@@ -211,7 +224,23 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
         reportPresence(registered) {
             if (!config.presenceUrl) return Promise.resolve();
             return dependencies.reportPresence(config.presenceUrl, config.csrfToken, this.connectionId, registered)
-                .catch(() => {});
+                .then(() => undefined);
+        },
+
+        async confirmPresence(attempt) {
+            if (!this.isCurrentAttempt(attempt) || !this.sipRegistered) return;
+
+            try {
+                await this.reportPresence(true);
+                if (!this.isCurrentAttempt(attempt) || !this.sipRegistered) return;
+                this.cancelFailure();
+                this.registered = true;
+                this.setState('registered');
+            } catch {
+                this.registered = false;
+                this.setState('reconnecting');
+                if (this.failureTimer === null) this.scheduleFailure();
+            }
         },
 
         async renew() {
@@ -260,11 +289,12 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
 
         scheduleFailure() {
             this.registered = false;
-            this.reportPresence(false);
+            this.reportPresence(false).catch(() => {});
             this.setState('reconnecting');
             this.cancelFailure();
             this.failureTimer = dependencies.setTimeout(() => {
                 if (!this.registered && !this.stopped) {
+                    this.sipRegistered = false;
                     this.setState('failed');
                     dependencies.toast({
                         title: 'Ramal desconectado',
@@ -321,7 +351,8 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
             this.ua?.stop();
             this.ua = null;
             this.registered = false;
-            this.reportPresence(false);
+            this.sipRegistered = false;
+            this.reportPresence(false).catch(() => {});
             this.setState('offline');
         },
     };

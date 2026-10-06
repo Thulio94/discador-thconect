@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAgentSoftphone } from '../../resources/js/agent-softphone.js';
 
-function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia, setTimeout, clearTimeout, raw = (value) => value } = {}) {
+function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia, setTimeout, clearTimeout, raw = (value) => value, reportPresence } = {}) {
     const handlers = {};
     const sessionHandlers = {};
     let answered = false;
@@ -37,7 +37,10 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         raw,
         markOffline: async () => { offlineUpdates += 1; },
         reconcile: () => { reconciliations += 1; },
-        reportPresence: async (_url, _csrf, _connectionId, registered) => { reportedPresence.push(registered); },
+        reportPresence: async (...args) => {
+            reportedPresence.push(args[3]);
+            return reportPresence ? reportPresence(...args) : undefined;
+        },
     };
     const softphone = createAgentSoftphone({
         sessionUrl: '/session',
@@ -73,9 +76,26 @@ test('registers the agent endpoint only after microphone permission', async () =
     globalThis.RTCPeerConnection = class {};
     globalThis.WebSocket = class {};
     await context.softphone.start();
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(context.softphone.registered, true);
     assert.equal(context.softphone.state, 'registered');
     assert.deepEqual(context.reportedPresence(), [true]);
+});
+
+test('does not advertise a registered softphone when the server rejects its presence heartbeat', async () => {
+    const context = harness({
+        reportPresence: async (_url, _csrf, _connectionId, registered) => {
+            if (registered) throw new Error('presence endpoint rejected the request');
+        },
+    });
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+
+    await context.softphone.start();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(context.softphone.registered, false);
+    assert.notEqual(context.softphone.state, 'registered');
 });
 
 test('removes live SIP presence immediately when the WebSocket disconnects', async () => {

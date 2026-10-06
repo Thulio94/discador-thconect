@@ -95,6 +95,22 @@ class TenantAgentPanelTest extends TestCase
             ->assertSee('x-show="agentStatus === \'offline\'"', false);
     }
 
+    public function test_agent_cannot_become_available_without_a_fresh_registered_softphone(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        $agent->webRtcPresences()->update([
+            'registered' => false,
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patchJson(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'O ramal ainda não está conectado. Aguarde a conexão do áudio antes de ficar disponível.');
+
+        $this->assertNull($agent->fresh()->currentAgentStatus);
+    }
+
     public function test_agent_panel_prefers_open_presence_over_a_newer_closed_status_record(): void
     {
         [$agent] = $this->tenantUser('agent');

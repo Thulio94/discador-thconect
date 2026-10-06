@@ -239,19 +239,6 @@ func (b *bridge) testRoute(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
-	if err := b.provisionRoutes(b.currentRouteConfigs(config)); err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
-		return
-	}
-	defer func() {
-		if err := b.provisionCurrentRoutes(); err != nil {
-			log.Printf("failed to restore synchronized PJSIP routes after test: %v", err)
-			return
-		}
-		if err := reloadPJSIP(config); err != nil {
-			log.Printf("failed to reload synchronized PJSIP routes after test: %v", err)
-		}
-	}()
 	if err := testAMI(config); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
 		return
@@ -954,10 +941,39 @@ func (b *bridge) sendWebhook(payload map[string]any) {
 }
 
 func testAMI(config routeConfig) error {
-	if err := reloadPJSIP(config); err != nil {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(config.Host, strconv.Itoa(config.Port)), 5*time.Second)
+	if err != nil {
 		return err
 	}
-	return nil
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(8 * time.Second)); err != nil {
+		return err
+	}
+	reader := bufio.NewReader(conn)
+	if err := readAMIGreeting(reader); err != nil {
+		return err
+	}
+	if err := writeAMIAction(conn, map[string]string{"Action": "Login", "Username": config.Username, "Secret": config.Secret, "Events": "off"}); err != nil {
+		return err
+	}
+	response, err := readAMIMessage(reader)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(response["Response"], "Success") {
+		return fmt.Errorf("AMI login rejected: %s", response["Message"])
+	}
+	if err := writeAMIAction(conn, map[string]string{"Action": "Command", "Command": "core show version"}); err != nil {
+		return err
+	}
+	commandResponse, err := readAMIMessage(reader)
+	if err != nil {
+		return err
+	}
+	if !oneOf(strings.ToLower(commandResponse["Response"]), "success", "follows") {
+		return errors.New("Asterisk rejected the AMI diagnostics command")
+	}
+	return writeAMIAction(conn, map[string]string{"Action": "Logoff"})
 }
 
 func reloadPJSIP(config routeConfig) error {

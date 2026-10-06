@@ -3,6 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"net"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -217,6 +220,63 @@ func TestReadAMIGreetingRejectsUnexpectedProtocol(t *testing.T) {
 
 	if err := readAMIGreeting(reader); err == nil {
 		t.Fatal("expected invalid AMI greeting to be rejected")
+	}
+}
+
+func TestRouteCheckUsesReadOnlyAMICommandInsteadOfReloadingPJSIP(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	_, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := make(chan map[string]string, 1)
+	serverErrors := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serverErrors <- err
+			return
+		}
+		defer conn.Close()
+		_, _ = conn.Write([]byte("Asterisk Call Manager/10.0.0\r\n"))
+		reader := bufio.NewReader(conn)
+		login, err := readAMIMessage(reader)
+		if err != nil {
+			serverErrors <- err
+			return
+		}
+		if login["Action"] != "Login" {
+			serverErrors <- errors.New("expected AMI login")
+			return
+		}
+		_, _ = conn.Write([]byte("Response: Success\r\nMessage: Authentication accepted\r\n\r\n"))
+		command, err := readAMIMessage(reader)
+		if err != nil {
+			serverErrors <- err
+			return
+		}
+		commands <- command
+		_, _ = conn.Write([]byte("Response: Follows\r\nPrivilege: Command\r\n\r\nAsterisk version\r\n--END COMMAND--\r\n\r\n"))
+	}()
+
+	if err := testAMI(routeConfig{Host: "127.0.0.1", Port: port, Username: "test", Secret: "secret"}); err != nil {
+		t.Fatalf("route AMI check failed: %v", err)
+	}
+	select {
+	case command := <-commands:
+		if command["Action"] != "Command" || command["Command"] != "core show version" {
+			t.Fatalf("route check must not reload PJSIP; got AMI action %#v", command)
+		}
+	case err := <-serverErrors:
+		t.Fatalf("mock AMI server failed: %v", err)
 	}
 }
 
