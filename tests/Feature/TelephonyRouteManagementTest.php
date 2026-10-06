@@ -58,6 +58,63 @@ class TelephonyRouteManagementTest extends TestCase
         $this->assertSame('pending_test', $route->fresh()->connection_status);
     }
 
+    public function test_options_health_check_does_not_resynchronize_routes_or_reload_pjsip(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+        $node = AsteriskNode::create([
+            'name' => 'No de teste', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id, 'name' => 'Rota compartilhada', 'tech' => '5001', 'host' => '201.23.69.26',
+            'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'enabled' => true,
+        ]);
+        foreach (['Empresa um', 'Empresa dois'] as $name) {
+            Company::create(['name' => $name])->telephonyRoutes()->attach($route);
+        }
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['connected' => true, 'sip_status' => 'SIP/2.0 200 OK'])]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('super-admin.telephony-routes.test', $route))
+            ->assertRedirect(route('super-admin.telephony-routes.index'));
+
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request): bool => $request->url() === 'http://asterisk-bridge.test/v1/routes/test');
+    }
+
+    public function test_editing_a_route_synchronizes_the_saved_configuration_to_each_linked_company(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        $node = AsteriskNode::create([
+            'name' => 'No de teste', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id, 'name' => 'Rota editada', 'tech' => '5005', 'host' => '201.23.69.26',
+            'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'enabled' => true,
+        ]);
+        $company = Company::create(['name' => 'Empresa vinculada']);
+        $company->telephonyRoutes()->attach($route);
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['synchronized' => true])]);
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('super-admin.telephony-routes.update', $route), [
+                'name' => 'Rota editada', 'tech' => '5001', 'host' => '201.23.69.26', 'sip_port' => 5060,
+                'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+                'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'qualify_frequency' => 15,
+                'registration_expiration' => 3600, 'priority' => 100, 'asterisk_node_id' => $node->id,
+                'enabled' => '1',
+            ])
+            ->assertRedirect(route('super-admin.telephony-routes.index'));
+
+        $this->assertSame('5001', $route->fresh()->tech);
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request): bool => $request->method() === 'PUT'
+            && $request->url() === 'http://asterisk-bridge.test/v1/routes/'.$company->id
+            && $request['route_id'] === $route->id);
+    }
+
     public function test_successful_options_recheck_does_not_downgrade_a_previously_validated_route(): void
     {
         config()->set('services.asterisk_bridge.token', 'bridge-test-token');

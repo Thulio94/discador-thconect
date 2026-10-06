@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCancelCallRejectsAnotherCompany(t *testing.T) {
@@ -277,6 +278,71 @@ func TestRouteCheckUsesReadOnlyAMICommandInsteadOfReloadingPJSIP(t *testing.T) {
 		}
 	case err := <-serverErrors:
 		t.Fatalf("mock AMI server failed: %v", err)
+	}
+}
+
+func TestRouteEventListenerDoesNotReloadPJSIPWhenReconnecting(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	_, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextAction := make(chan map[string]string, 1)
+	serverErrors := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serverErrors <- err
+			return
+		}
+		defer conn.Close()
+		_, _ = conn.Write([]byte("Asterisk Call Manager/10.0.0\r\n"))
+		reader := bufio.NewReader(conn)
+		login, err := readAMIMessage(reader)
+		if err != nil {
+			serverErrors <- err
+			return
+		}
+		if login["Action"] != "Login" {
+			serverErrors <- errors.New("expected AMI login")
+			return
+		}
+		_, _ = conn.Write([]byte("Response: Success\r\nMessage: Authentication accepted\r\n\r\n"))
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		action, err := readAMIMessage(reader)
+		if err == nil {
+			nextAction <- action
+			return
+		}
+		if timeout, ok := err.(net.Error); !ok || !timeout.Timeout() {
+			serverErrors <- err
+			return
+		}
+		nextAction <- nil
+	}()
+
+	manager := newRouteManager(&bridge{}, routeConfig{Host: "127.0.0.1", Port: port, Username: "test", Secret: "secret"})
+	err = manager.connectOnce()
+	if err == nil {
+		t.Fatal("expected the mock AMI connection to close after checking for unexpected commands")
+	}
+	select {
+	case action := <-nextAction:
+		if action != nil {
+			t.Fatalf("event listener unexpectedly sent an AMI action after login: %#v", action)
+		}
+	case err := <-serverErrors:
+		t.Fatalf("mock AMI server failed: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the mock AMI server")
 	}
 }
 

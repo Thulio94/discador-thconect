@@ -35,7 +35,7 @@ class TelephonyRouteController extends Controller
             ->with('status', 'Rota de telefonia criada. Vincule-a a uma empresa antes de ativar chamadas reais.');
     }
 
-    public function update(Request $request, TelephonyRoute $telephonyRoute): RedirectResponse
+    public function update(Request $request, TelephonyRoute $telephonyRoute, AsteriskBridgeClient $bridge): RedirectResponse
     {
         $data = $this->validated($request, $telephonyRoute);
 
@@ -44,6 +44,22 @@ class TelephonyRouteController extends Controller
         }
 
         $telephonyRoute->update($data);
+
+        try {
+            $telephonyRoute->companies()
+                ->select('companies.id')
+                ->each(fn ($company) => $bridge->synchronize($telephonyRoute, $company->id));
+        } catch (Throwable $exception) {
+            report($exception);
+            $telephonyRoute->update([
+                'connection_status' => 'error',
+                'last_checked_at' => now(),
+                'last_error' => 'A rota foi salva, mas nao foi aplicada no Asterisk.',
+            ]);
+
+            return redirect()->route('super-admin.telephony-routes.index')
+                ->withErrors(['telephony_route' => 'A rota foi salva, mas nao foi aplicada no Asterisk. Revise a conexao da ponte e tente novamente.']);
+        }
 
         return redirect()->route('super-admin.telephony-routes.index')
             ->with('status', 'Rota de telefonia atualizada.');
@@ -71,10 +87,6 @@ class TelephonyRouteController extends Controller
 
         try {
             $bridge->testRoute($telephonyRoute);
-
-            $telephonyRoute->companies()
-                ->select('companies.id')
-                ->each(fn ($company) => $bridge->synchronize($telephonyRoute, $company->id));
 
             $telephonyRoute->update([
                 'connection_status' => $wasOutboundValidated ? 'online' : 'pending_test',

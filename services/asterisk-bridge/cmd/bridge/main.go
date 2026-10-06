@@ -180,6 +180,10 @@ func main() {
 	}
 	if err := b.restoreRoutes(); err != nil {
 		log.Printf("route state restore failed: %v", err)
+	} else if len(b.currentRouteConfigs()) > 0 {
+		if err := b.reloadFromAnyRoute(); err != nil {
+			log.Printf("PJSIP startup reload failed: %v", err)
+		}
 	}
 	go b.expiredAgentLoop()
 
@@ -261,9 +265,12 @@ func (b *bridge) syncRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodDelete {
+		var reloadConfig *routeConfig
 		b.routes.Range(func(key, value any) bool {
 			manager := value.(*routeManager)
 			if manager.config.CompanyID == companyID {
+				config := manager.config
+				reloadConfig = &config
 				b.routes.Delete(key)
 				manager.close()
 			}
@@ -272,6 +279,12 @@ func (b *bridge) syncRoute(w http.ResponseWriter, r *http.Request) {
 		if err := b.provisionCurrentRoutes(); err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
 			return
+		}
+		if reloadConfig != nil {
+			if err := reloadPJSIP(*reloadConfig); err != nil {
+				writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+				return
+			}
 		}
 		if err := b.persistRoutes(); err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
@@ -302,6 +315,10 @@ func (b *bridge) syncRoute(w http.ResponseWriter, r *http.Request) {
 		current.(*routeManager).close()
 	}
 	if err := b.provisionCurrentRoutes(); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+		return
+	}
+	if err := reloadPJSIP(config); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
 		return
 	}
@@ -565,12 +582,6 @@ func (m *routeManager) connectOnce() error {
 	}
 	if !strings.EqualFold(response["Response"], "Success") {
 		return fmt.Errorf("AMI login rejected: %s", response["Message"])
-	}
-	if err := writeAMIAction(conn, map[string]string{"Action": "Command", "Command": "pjsip reload"}); err != nil {
-		return err
-	}
-	if _, err := readAMIMessage(reader); err != nil {
-		return err
 	}
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err
