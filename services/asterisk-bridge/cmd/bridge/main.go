@@ -777,10 +777,17 @@ func (m *routeManager) processEvent(message map[string]string) {
 			payload["cause"] = firstNonEmpty(message["Reason"], message["Message"], "originate_failed")
 		}
 	case "DialEnd":
-		if !strings.EqualFold(message["DialStatus"], "ANSWER") {
+		if strings.EqualFold(message["DialStatus"], "ANSWER") {
+			payload["event"] = "answered"
+		} else if strings.HasPrefix(message["DestChannel"], fmt.Sprintf("PJSIP/t%d-e", companyID)) {
+			payload["event"] = "agent_delivery_failed"
+			payload["cause"] = firstNonEmpty(message["DialStatus"], "agent_unreachable")
+			if techCause := message["TechCause"]; techCause != "" {
+				payload["cause"] = fmt.Sprintf("%s (%s)", payload["cause"], techCause)
+			}
+		} else {
 			return
 		}
-		payload["event"] = "answered"
 	case "UserEvent":
 		if message["UserEvent"] != "THCONECTAMD" {
 			return

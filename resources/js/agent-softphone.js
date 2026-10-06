@@ -32,6 +32,19 @@ function defaultDependencies() {
             },
             body: JSON.stringify({ status: 'offline' }),
         }),
+        reportPresence: (url, csrfToken, connectionId, registered) => window.fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            keepalive: true,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ connection_id: connectionId, registered }),
+        }),
         reconcile: () => window.dispatchEvent(new CustomEvent('agent-console:reconcile')),
     };
 }
@@ -46,6 +59,11 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
         failureTimer: null,
         preparationTimer: null,
         renewalTimer: null,
+        presenceTimer: null,
+        connectionId: globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+            const random = Math.random() * 16 | 0;
+            return (char === 'x' ? random : (random & 0x3 | 0x8)).toString(16);
+        }),
         startAttempt: 0,
         stopped: false,
 
@@ -96,10 +114,14 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                     this.cancelFailure();
                     this.registered = true;
                     this.setState('registered');
+                    this.reportPresence(true);
+                    if (this.presenceTimer !== null) dependencies.clearInterval(this.presenceTimer);
+                    this.presenceTimer = dependencies.setInterval(() => this.reportPresence(this.registered), 20000);
                 });
                 this.ua.on('unregistered', () => {
                     if (!this.isCurrentAttempt(attempt)) return;
                     this.registered = false;
+                    this.reportPresence(false);
                     this.setState(this.stopped ? 'offline' : 'reconnecting');
                 });
                 this.ua.on('disconnected', () => {
@@ -153,9 +175,14 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 dependencies.clearInterval(this.renewalTimer);
                 this.renewalTimer = null;
             }
+            if (this.presenceTimer !== null) {
+                dependencies.clearInterval(this.presenceTimer);
+                this.presenceTimer = null;
+            }
             const previousUa = this.ua;
             this.ua = null;
             this.registered = false;
+            this.reportPresence(false);
             previousUa?.stop();
             this.stopped = false;
 
@@ -179,6 +206,12 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 throw new Error(`Softphone session failed with ${response.status}`);
             }
             return response.json();
+        },
+
+        reportPresence(registered) {
+            if (!config.presenceUrl) return Promise.resolve();
+            return dependencies.reportPresence(config.presenceUrl, config.csrfToken, this.connectionId, registered)
+                .catch(() => {});
         },
 
         async renew() {
@@ -227,6 +260,7 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
 
         scheduleFailure() {
             this.registered = false;
+            this.reportPresence(false);
             this.setState('reconnecting');
             this.cancelFailure();
             this.failureTimer = dependencies.setTimeout(() => {
@@ -277,12 +311,17 @@ export function createAgentSoftphone(config, dependencies = defaultDependencies(
                 dependencies.clearInterval(this.renewalTimer);
                 this.renewalTimer = null;
             }
+            if (this.presenceTimer !== null) {
+                dependencies.clearInterval(this.presenceTimer);
+                this.presenceTimer = null;
+            }
             this.activeSession?.terminate();
             this.activeSession = null;
             this.syncActiveSession();
             this.ua?.stop();
             this.ua = null;
             this.registered = false;
+            this.reportPresence(false);
             this.setState('offline');
         },
     };

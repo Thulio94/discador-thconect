@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\RunPowerCampaign;
 use App\Models\AgentStatus;
+use App\Models\AgentWebRtcPresence;
 use App\Models\Campaign;
 use App\Models\Company;
 use App\Models\ContactList;
@@ -18,6 +19,7 @@ use App\Support\Tenant\PermissionMatrix;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -133,6 +135,13 @@ class CampaignMailingStateTest extends TestCase
         $company->licenses()->create(['status' => 'active', 'starts_at' => today()->subDay(), 'ends_at' => today()->addDay(), 'max_calls_per_available_agent' => 5, 'max_concurrent_calls' => 5]);
         $role = Role::create(['company_id' => $company->id, 'name' => 'Agente', 'slug' => 'agente-power']);
         $agent = User::factory()->create(['company_id' => $company->id, 'role_id' => $role->id, 'user_type' => 'agent', 'status' => 'active']);
+        AgentWebRtcPresence::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'connection_id' => (string) Str::uuid(),
+            'registered' => true,
+            'last_seen_at' => now(),
+        ]);
         $team = Team::create(['company_id' => $company->id, 'name' => 'Power', 'slug' => 'power', 'status' => 'active', 'operational_type' => 'power']);
         $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'available', 'started_at' => now()]);

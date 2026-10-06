@@ -67,6 +67,8 @@ class TelephonyRouteController extends Controller
             return back()->withErrors(['telephony_route' => 'Habilite a rota e preencha o dominio. Para autenticacao por registro, informe tambem usuario e senha SIP.']);
         }
 
+        $wasOutboundValidated = $telephonyRoute->connection_status === 'online';
+
         try {
             $bridge->testRoute($telephonyRoute);
 
@@ -75,13 +77,15 @@ class TelephonyRouteController extends Controller
                 ->each(fn ($company) => $bridge->synchronize($telephonyRoute, $company->id));
 
             $telephonyRoute->update([
-                'connection_status' => 'pending_test',
+                'connection_status' => $wasOutboundValidated ? 'online' : 'pending_test',
                 'last_checked_at' => now(),
                 'last_error' => null,
             ]);
 
             return redirect()->route('super-admin.telephony-routes.index')
-                ->with('status', 'O IP SIP respondeu. A TECH sera validada na primeira chamada de teste.');
+                ->with('status', $wasOutboundValidated
+                    ? 'O IP SIP respondeu. A validacao de chamada externa anterior foi mantida.'
+                    : 'O IP SIP respondeu. A TECH sera validada na primeira chamada de teste.');
         } catch (Throwable $exception) {
             report($exception);
             $telephonyRoute->update([

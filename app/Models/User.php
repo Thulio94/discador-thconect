@@ -101,7 +101,10 @@ class User extends Authenticatable
 
     public function currentAgentStatus(): HasOne
     {
-        return $this->hasOne(AgentStatus::class)->latestOfMany();
+        return $this->hasOne(AgentStatus::class)->ofMany(
+            ['id' => 'max'],
+            fn ($query) => $query->whereNull('ended_at'),
+        );
     }
 
     public function agentPauses(): HasMany
@@ -122,6 +125,11 @@ class User extends Authenticatable
     public function calls(): HasMany
     {
         return $this->hasMany(Call::class);
+    }
+
+    public function webRtcPresences(): HasMany
+    {
+        return $this->hasMany(AgentWebRtcPresence::class);
     }
 
     public function reportExports(): HasMany

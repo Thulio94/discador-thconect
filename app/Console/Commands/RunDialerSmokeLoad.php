@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AgentStatus;
+use App\Models\AgentWebRtcPresence;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
@@ -217,6 +218,13 @@ class RunDialerSmokeLoad extends Command
             $team->users()->attach($agent, [
                 'company_id' => $company->id,
                 'membership_type' => 'agent',
+            ]);
+            AgentWebRtcPresence::query()->create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'connection_id' => (string) Str::uuid(),
+                'registered' => true,
+                'last_seen_at' => now(),
             ]);
             AgentStatus::query()->create([
                 'company_id' => $company->id,

@@ -12,6 +12,7 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
     let offlineUpdates = 0;
     let reconciliations = 0;
     let uaStopReceiver = null;
+    const reportedPresence = [];
     const ua = {
         on: (event, callback) => { handlers[event] = callback; },
         start: () => handlers.registered?.(),
@@ -36,9 +37,11 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         raw,
         markOffline: async () => { offlineUpdates += 1; },
         reconcile: () => { reconciliations += 1; },
+        reportPresence: async (_url, _csrf, _connectionId, registered) => { reportedPresence.push(registered); },
     };
     const softphone = createAgentSoftphone({
         sessionUrl: '/session',
+        presenceUrl: '/presence',
         csrfToken: 'token',
         currentStatus: 'available',
         acceptIncoming,
@@ -61,6 +64,7 @@ function harness({ acceptIncoming = true, acceptIncomingNow = null, getUserMedia
         reconciliations: () => reconciliations,
         ua,
         uaStopReceiver: () => uaStopReceiver,
+        reportedPresence: () => [...reportedPresence],
     };
 }
 
@@ -71,6 +75,30 @@ test('registers the agent endpoint only after microphone permission', async () =
     await context.softphone.start();
     assert.equal(context.softphone.registered, true);
     assert.equal(context.softphone.state, 'registered');
+    assert.deepEqual(context.reportedPresence(), [true]);
+});
+
+test('removes live SIP presence immediately when the WebSocket disconnects', async () => {
+    const context = harness();
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+    await context.softphone.start();
+
+    context.handlers.disconnected();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(context.reportedPresence(), [true, false]);
+});
+
+test('stops reporting a stale live SIP registration when the agent leaves the page', async () => {
+    const context = harness();
+    globalThis.RTCPeerConnection = class {};
+    globalThis.WebSocket = class {};
+    await context.softphone.start();
+    context.softphone.stop();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(context.reportedPresence(), [true, false]);
 });
 
 test('answers remote sessions while the operational status accepts calls', async () => {

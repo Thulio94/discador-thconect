@@ -6,6 +6,7 @@ use App\Events\AgentPresenceUpdated;
 use App\Contracts\Dialer\DialerGateway;
 use App\Models\AgentPause;
 use App\Models\AgentStatus;
+use App\Models\AgentWebRtcPresence;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
@@ -81,6 +82,45 @@ class TenantAgentPanelTest extends TestCase
                 && $event->agentStatus->user_id === $agent->id
                 && $event->agentStatus->status === 'available';
         });
+    }
+
+    public function test_agent_work_panel_renders_live_available_and_offline_states(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('x-show="agentStatus === \'available\'"', false)
+            ->assertSee('x-show="agentStatus === \'offline\'"', false);
+    }
+
+    public function test_agent_panel_prefers_open_presence_over_a_newer_closed_status_record(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now()->subMinutes(5),
+        ]);
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'offline',
+            'started_at' => now()->subMinute(),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertViewHas('currentStatus', 'available');
+
+        $this->actingAs($agent)
+            ->getJson(route('tenant.agent.state'))
+            ->assertOk()
+            ->assertJsonPath('agent_status', 'available');
     }
 
     public function test_only_available_active_agents_count_for_company_capacity(): void
@@ -301,10 +341,11 @@ class TenantAgentPanelTest extends TestCase
             'user_id' => $agent->id,
             'campaign_id' => $campaign->id,
             'direction' => 'outbound',
-            'status' => 'ended',
+            'status' => 'wrap_up',
             'channel' => 'simulated',
             'started_at' => now()->subMinute(),
             'ended_at' => now(),
+            'wrap_up_expires_at' => now()->addMinute(),
         ]);
 
         $service = app(AgentCapacityService::class);
@@ -1266,6 +1307,73 @@ class TenantAgentPanelTest extends TestCase
             ->assertJsonPath('message', 'Ligação iniciada. Aguarde o atendimento.');
     }
 
+    public function test_manual_call_is_rejected_while_the_sip_ramal_is_not_registered(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentWebRtcPresence::query()->where('user_id', $agent->id)->delete();
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('tenant.agent.calls.store'), [
+                'phone' => '(31) 99999-0001',
+                'channel' => 'manual',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'O ramal está reconectando. Aguarde o áudio ficar conectado antes de ligar.');
+
+        $this->assertDatabaseCount('calls', 0);
+    }
+
+    public function test_softphone_presence_is_bound_to_the_authenticated_agent_and_expires(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        $connectionId = (string) \Illuminate\Support\Str::uuid();
+
+        $this->actingAs($agent)
+            ->postJson(route('tenant.agent.softphone.presence'), [
+                'connection_id' => $connectionId,
+                'registered' => true,
+                'company_id' => $agent->company_id + 1000,
+                'user_id' => $agent->id + 1000,
+            ])
+            ->assertOk()
+            ->assertJsonPath('accepted', true);
+
+        $this->assertDatabaseHas('agent_webrtc_presences', [
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'connection_id' => $connectionId,
+            'registered' => true,
+        ]);
+
+        $this->travel(51)->seconds();
+        $this->assertFalse(app(\App\Services\Telephony\AgentWebRtcPresenceService::class)->isRegistered($agent));
+    }
+
+    public function test_power_campaign_does_not_reserve_mailing_for_an_unregistered_ramal(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        AgentWebRtcPresence::query()->where('user_id', $agent->id)->delete();
+        $campaign = $this->campaignWithAvailableAgents($company, [$agent]);
+        $list = ContactList::create(['company_id' => $company->id, 'name' => 'Sem Ramal', 'status' => 'active']);
+        $contact = $list->contacts()->create([
+            'company_id' => $company->id,
+            'name' => 'Lead sem ramal',
+            'phone' => '31999990011',
+            'status' => 'pending',
+        ]);
+        $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
+
+        $this->assertSame(0, app(SimulatedDialerService::class)->runCampaign($campaign));
+        $this->assertSame('pending', $contact->fresh()->status);
+        $this->assertDatabaseCount('calls', 0);
+    }
+
     public function test_agent_panel_shows_a_simple_message_when_a_provider_rejects_a_call(): void
     {
         [$agent] = $this->tenantUser('agent');
@@ -1285,6 +1393,27 @@ class TenantAgentPanelTest extends TestCase
             ->get(route('tenant.agent.index'))
             ->assertOk()
             ->assertSee('A rota recusou a ligação. Avise o administrador.');
+    }
+
+    public function test_agent_panel_explains_when_the_ramal_disconnects_before_a_campaign_call(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        Call::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990002',
+            'end_reason' => 'agent_unreachable',
+            'started_at' => now()->subSecond(),
+            'ended_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('tenant.agent.index'))
+            ->assertOk()
+            ->assertSee('A chamada chegou à operadora, mas o ramal desconectou antes de tocar. Reconecte o áudio para continuar.');
     }
 
     public function test_agent_can_schedule_callback_and_store_basic_service_fields_when_ending_call(): void
@@ -2405,6 +2534,12 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame(0, app(SimulatedDialerService::class)->runCampaign($campaign));
 
         $this->travel(16)->minutes();
+        $presence = $agent->webRtcPresences()->firstOrFail();
+        app(\App\Services\Telephony\AgentWebRtcPresenceService::class)->report(
+            $agent,
+            $presence->connection_id,
+            true,
+        );
 
         $this->assertSame(1, app(SimulatedDialerService::class)->runCampaign($campaign));
         $this->assertSame(2, Call::query()->where('campaign_id', $campaign->id)->count());
@@ -2916,7 +3051,9 @@ class TenantAgentPanelTest extends TestCase
         $this->assertStringContainsString('user_type = ?', $queries[$userLockIndex]);
         $this->assertStringContainsString('agent_statuses', $queries[$userLockIndex]);
         $this->assertStringContainsString('calls', $queries[$userLockIndex]);
-        $this->assertStringContainsString('disposition_id is null', $queries[$userLockIndex]);
+        $this->assertTrue(collect($queries)->contains(
+            fn (string $sql): bool => str_contains($sql, 'disposition_id is null')
+        ));
 
         if (DB::getDriverName() === 'mysql') {
             $this->assertStringContainsString('for update', $queries[$userLockIndex]);
@@ -3032,7 +3169,7 @@ PHP;
         }
     }
 
-    public function test_simulated_dialer_rejects_agent_with_ended_call_without_disposition(): void
+    public function test_simulated_dialer_allows_agent_after_ended_call_without_disposition(): void
     {
         [$agent, $company] = $this->tenantUser('agent');
         $team = Team::create(['company_id' => $company->id, 'name' => 'Fila Sem Tabulacao', 'slug' => 'fila-sem-tabulacao']);
@@ -3054,6 +3191,13 @@ PHP;
         $campaign->teams()->sync([$team->id => ['company_id' => $company->id]]);
         $campaign->contactLists()->sync([$list->id => ['company_id' => $company->id]]);
         AgentStatus::create(['company_id' => $company->id, 'user_id' => $agent->id, 'status' => 'available', 'started_at' => now()]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'offline',
+            'started_at' => now()->addSecond(),
+            'ended_at' => now()->addSecond(),
+        ]);
         Call::create([
             'company_id' => $company->id,
             'user_id' => $agent->id,
@@ -3065,12 +3209,16 @@ PHP;
             'ended_at' => now(),
         ]);
 
+        $this->assertSame(1, $campaign->teams()->count());
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+        $this->assertTrue(app(\App\Services\Telephony\AgentWebRtcPresenceService::class)->isRegistered($agent));
+        $this->assertSame(1, app(AgentCapacityService::class)->availableAgentsForCampaign($campaign));
         $created = app(SimulatedDialerService::class)->runCampaign($campaign);
 
-        $this->assertSame(0, $created);
-        $this->assertSame('pending', $contact->fresh()->status);
-        $this->assertSame(1, Call::where('company_id', $company->id)->count());
-        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+        $this->assertSame(1, $created);
+        $this->assertSame('dialing', $contact->fresh()->status);
+        $this->assertSame(2, Call::where('company_id', $company->id)->count());
+        $this->assertSame('in_call', $agent->fresh()->currentAgentStatus->status);
     }
 
     public function test_simulated_dialer_does_not_assign_new_call_to_agent_with_untabulated_call(): void
@@ -3193,6 +3341,16 @@ PHP;
             'extension' => fake()->unique()->numerify('2###'),
             'status' => 'active',
         ]);
+
+        if ($type === 'agent') {
+            AgentWebRtcPresence::create([
+                'company_id' => $company->id,
+                'user_id' => $user->id,
+                'connection_id' => (string) \Illuminate\Support\Str::uuid(),
+                'registered' => true,
+                'last_seen_at' => now(),
+            ]);
+        }
 
         return [$user, $company];
     }

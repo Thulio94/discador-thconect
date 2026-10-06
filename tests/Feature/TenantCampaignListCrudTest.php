@@ -432,6 +432,31 @@ class TenantCampaignListCrudTest extends TestCase
             ->assertDontSee('>Pausar<', false);
     }
 
+    public function test_active_campaign_explains_when_a_route_validation_blocks_dialing(): void
+    {
+        [$admin, $team] = $this->tenantAdmin();
+        $list = ContactList::create(['company_id' => $admin->company_id, 'name' => 'Lista de discagem', 'status' => 'active']);
+        $route = TelephonyRoute::create([
+            'name' => 'Rota em teste', 'tech' => '5001', 'host' => '201.23.69.26', 'transport' => 'udp',
+            'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound', 'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729', 'enabled' => true, 'connection_status' => 'pending_test',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $campaign = Campaign::create([
+            'company_id' => $admin->company_id, 'name' => 'Energia ativa', 'dialing_mode' => 'power', 'status' => 'active',
+            'fixed_telephony_route_id' => $route->id, 'mobile_telephony_route_id' => $route->id,
+        ]);
+        $campaign->teams()->attach($team, ['company_id' => $admin->company_id]);
+        $campaign->contactLists()->attach($list, ['company_id' => $admin->company_id]);
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertSee('Discagem bloqueada')
+            ->assertSee('Rota em teste')
+            ->assertSee('aguarda uma chamada real de validacao');
+    }
+
     public function test_new_campaign_form_does_not_inherit_an_existing_campaign_configuration(): void
     {
         [$admin, $team] = $this->tenantAdmin();
@@ -1015,6 +1040,13 @@ class TenantCampaignListCrudTest extends TestCase
             'user_type' => 'agent',
             'extension' => '1300',
             'status' => 'active',
+        ]);
+        \App\Models\AgentWebRtcPresence::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $agent->id,
+            'connection_id' => (string) \Illuminate\Support\Str::uuid(),
+            'registered' => true,
+            'last_seen_at' => now(),
         ]);
         $team->users()->attach($agent, ['company_id' => $admin->company_id, 'membership_type' => 'agent']);
         $agent->agentStatuses()->create([

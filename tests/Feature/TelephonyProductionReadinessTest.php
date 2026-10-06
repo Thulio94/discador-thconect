@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Contracts\Dialer\DialerGateway;
-use App\Models\AsteriskNode;
+use App\Jobs\CancelPowerBatchCall;
 use App\Models\AgentStatus;
+use App\Models\AgentWebRtcPresence;
+use App\Models\AsteriskNode;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\CampaignPhoneState;
@@ -13,18 +15,19 @@ use App\Models\Company;
 use App\Models\ContactList;
 use App\Models\Permission;
 use App\Models\Role;
-use App\Models\TelephonyRoute;
 use App\Models\Team;
+use App\Models\TelephonyRoute;
 use App\Models\User;
 use App\Services\Dialer\DialerCallRequest;
 use App\Services\Dialer\SimulatedDialerService;
-use App\Services\Telephony\AsteriskCallEventService;
-use App\Jobs\CancelPowerBatchCall;
+use App\Services\Telephony\AgentWebRtcPresenceService;
 use App\Services\Telephony\AsteriskBridgeClient;
+use App\Services\Telephony\AsteriskCallEventService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TelephonyProductionReadinessTest extends TestCase
@@ -45,8 +48,8 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertStringContainsString('test -f /opt/asterisk/usr/lib/asterisk/modules/res_pjsip_transport_websocket.so', $dockerfile);
         $this->assertStringContainsString('image: discador-piloto-asterisk:22.11.0-webrtc-r3', $productionCompose);
         $this->assertStringContainsString('ASTERISK_BUILD_REVISION: webrtc-r3', $productionCompose);
-        $this->assertStringContainsString("module show like res_http_websocket", $productionCompose);
-        $this->assertStringContainsString("module show like res_pjsip_transport_websocket", $productionCompose);
+        $this->assertStringContainsString('module show like res_http_websocket', $productionCompose);
+        $this->assertStringContainsString('module show like res_pjsip_transport_websocket', $productionCompose);
         $this->assertMatchesRegularExpression('/asterisk:.*?networks:.*?easypanel:/s', $productionCompose);
     }
 
@@ -136,6 +139,51 @@ class TelephonyProductionReadinessTest extends TestCase
             && $request['agent_endpoint'] === "t{$company->id}-e1301"
             && $request['phone'] === '50015581982143238'
         );
+    }
+
+    public function test_failed_agent_delivery_is_reported_and_agent_is_taken_out_of_rotation(): void
+    {
+        $company = Company::create(['name' => 'Empresa entrega falha']);
+        $agent = User::factory()->create([
+            'company_id' => $company->id,
+            'user_type' => 'agent',
+            'extension' => '1308',
+            'status' => 'active',
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        AgentWebRtcPresence::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'connection_id' => (string) Str::uuid(),
+            'registered' => true,
+            'last_seen_at' => now(),
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'ringing',
+            'channel' => 'asterisk_ami',
+            'phone' => '31999990008',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $company->id,
+            'call_id' => $call->id,
+            'event' => 'agent_delivery_failed',
+            'cause' => 'CHANUNAVAIL (3)',
+        ]);
+
+        $this->assertSame('cancelled', $call->fresh()->status);
+        $this->assertSame('agent_unreachable', $call->fresh()->end_reason);
+        $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
+        $this->assertFalse(app(AgentWebRtcPresenceService::class)->isRegistered($agent));
     }
 
     public function test_real_route_forwards_the_power_batch_id_to_the_asterisk_bridge(): void
@@ -307,6 +355,13 @@ class TelephonyProductionReadinessTest extends TestCase
                 'user_type' => 'agent',
                 'extension' => '14'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
                 'status' => 'active',
+            ]);
+            AgentWebRtcPresence::create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'connection_id' => (string) Str::uuid(),
+                'registered' => true,
+                'last_seen_at' => now(),
             ]);
             $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
             AgentStatus::create([

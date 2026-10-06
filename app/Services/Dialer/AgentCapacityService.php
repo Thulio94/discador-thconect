@@ -89,13 +89,12 @@ class AgentCapacityService
                     ->whereIn('team_user.team_id', $teamIds);
             })
             ->whereHas('currentAgentStatus', fn ($query) => $query->where('status', 'available'))
+            ->whereHas('webRtcPresences', fn ($query) => $query
+                ->where('registered', true)
+                ->where('last_seen_at', '>=', now()->subSeconds(50)))
             ->whereDoesntHave('calls', function ($query): void {
                 $query->whereIn('status', Call::ACTIVE_STATUSES)
-                    ->orWhere('status', 'wrap_up')
-                    ->orWhere(function ($query): void {
-                        $query->where('status', 'ended')
-                            ->whereNull('disposition_id');
-                    });
+                    ->orWhere('status', 'wrap_up');
             })
             ->when($assignedAgentIds->isNotEmpty(), fn ($query) => $query->whereIn('users.id', $assignedAgentIds))
             ->distinct('users.id')

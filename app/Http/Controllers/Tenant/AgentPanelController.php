@@ -20,6 +20,7 @@ use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\DialerCallRequest;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\PreviewLeadService;
+use App\Services\Telephony\AgentWebRtcPresenceService;
 use App\Services\Telephony\AgentWebRtcService;
 use App\Services\Telephony\BrazilianPhoneNormalizer;
 use Illuminate\Contracts\View\View;
@@ -40,8 +41,10 @@ class AgentPanelController extends Controller
     {
         $user = $request->user();
         $this->wrapUps->expireForUser($user);
-        $user->loadMissing('currentAgentStatus');
-        $activeStatus = $user->currentAgentStatus;
+        $activeStatus = $user->agentStatuses()
+            ->whereNull('ended_at')
+            ->latest('id')
+            ->first();
         $currentCall = $user->calls()
             ->whereIn('status', Call::ACTIVE_STATUSES)
             ->with(['campaign', 'contact.contactList', 'contact.phones', 'contactPhone'])
@@ -142,6 +145,10 @@ class AgentPanelController extends Controller
     {
         $reason = strtolower((string) $call->end_reason);
 
+        if ($reason === 'agent_unreachable') {
+            return 'A chamada chegou à operadora, mas o ramal desconectou antes de tocar. Reconecte o áudio para continuar.';
+        }
+
         if (str_contains($reason, 'capacity_')) {
             return 'Todos os canais de ligação estão ocupados. Aguarde e tente novamente.';
         }
@@ -220,6 +227,20 @@ class AgentPanelController extends Controller
                 ? [['urls' => [(string) config('services.asterisk_bridge.webrtc_stun_url')]]]
                 : [],
         ])->header('Cache-Control', 'no-store, private');
+    }
+
+    public function softphonePresence(Request $request, AgentWebRtcPresenceService $presence): JsonResponse
+    {
+        abort_unless($request->user()->status === 'active' && $request->user()->user_type === 'agent', 403);
+
+        $data = $request->validate([
+            'connection_id' => ['required', 'uuid'],
+            'registered' => ['required', 'boolean'],
+        ]);
+
+        $presence->report($request->user(), $data['connection_id'], (bool) $data['registered']);
+
+        return response()->json(['accepted' => true])->header('Cache-Control', 'no-store, private');
     }
 
     public function status(Request $request, AgentCapacityService $capacity): RedirectResponse|JsonResponse
@@ -426,6 +447,16 @@ class AgentPanelController extends Controller
         $phone = $phones->normalize($rawPhone);
         $channel = $data['channel'] ?? 'simulated';
         $parameters = OperationalParameter::forCompany($user->company_id);
+
+        if ($channel === 'manual' && $user->user_type === 'agent'
+            && ! app(AgentWebRtcPresenceService::class)->isRegistered($user)) {
+            $message = 'O ramal está reconectando. Aguarde o áudio ficar conectado antes de ligar.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['phone' => $message]);
+        }
 
         if ($channel === 'manual' && $phone === null) {
             if ($request->expectsJson()) {
@@ -812,7 +843,10 @@ class AgentPanelController extends Controller
 
     private function stateSignature(User $user): string
     {
-        $status = $user->agentStatuses()->latest('id')->first(['id', 'status', 'updated_at']);
+        $status = $user->agentStatuses()
+            ->whereNull('ended_at')
+            ->latest('id')
+            ->first(['id', 'status', 'updated_at']);
         $call = $user->calls()
             ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
             ->latest('id')
@@ -843,7 +877,10 @@ class AgentPanelController extends Controller
 
     private function agentConsoleState(User $user): array
     {
-        $status = $user->agentStatuses()->latest('id')->first(['status', 'started_at']);
+        $status = $user->agentStatuses()
+            ->whereNull('ended_at')
+            ->latest('id')
+            ->first(['status', 'started_at']);
         $call = $user->calls()
             ->whereIn('status', [...Call::ACTIVE_STATUSES, 'wrap_up'])
             ->with(['campaign:id,name,service_fields_schema', 'contact:id,name,contact_list_id', 'contact.contactList:id,name'])

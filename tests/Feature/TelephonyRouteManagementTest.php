@@ -58,6 +58,27 @@ class TelephonyRouteManagementTest extends TestCase
         $this->assertSame('pending_test', $route->fresh()->connection_status);
     }
 
+    public function test_successful_options_recheck_does_not_downgrade_a_previously_validated_route(): void
+    {
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+        $node = AsteriskNode::create([
+            'name' => 'No de teste', 'bridge_url' => 'http://asterisk-bridge.test', 'max_channels' => 30, 'status' => 'online',
+        ]);
+        $route = TelephonyRoute::create([
+            'asterisk_node_id' => $node->id, 'name' => 'Rota validada', 'tech' => '5001', 'host' => '201.23.69.26',
+            'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'enabled' => true, 'connection_status' => 'online',
+        ]);
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['connected' => true, 'sip_status' => 'SIP/2.0 200 OK'])]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('super-admin.telephony-routes.test', $route))
+            ->assertRedirect(route('super-admin.telephony-routes.index'));
+
+        $this->assertSame('online', $route->fresh()->connection_status);
+    }
+
     public function test_super_admin_can_create_an_ip_authenticated_route(): void
     {
         $this->actingAs($this->superAdmin())

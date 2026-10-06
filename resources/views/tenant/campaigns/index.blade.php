@@ -64,6 +64,11 @@
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                 Inicio {{ $campaign->starts_at?->format('d/m/Y H:i') ?? 'nao iniciado' }} | Fim {{ $campaign->ends_at?->format('d/m/Y H:i') ?? 'em aberto' }}
                             </p>
+                            @if ($dispatchWarnings[$campaign->id] ?? null)
+                                <p class="mt-2 rounded-md border px-3 py-2 text-sm" role="status" style="border-color: #f59e0b; background: #fffbeb; color: #92400e;">
+                                    {{ $dispatchWarnings[$campaign->id] }}
+                                </p>
+                            @endif
                             <p class="mt-1 text-xs" style="color: var(--fg-muted);">
                                 Agenda {{ count($campaign->operational_schedule ?? []) }} dias configurados
                                 @if (count($campaign->operational_schedule ?? []) > 0)

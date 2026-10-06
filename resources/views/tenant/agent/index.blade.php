@@ -73,6 +73,7 @@
             style="border-color: var(--border); background: var(--surface);"
             x-data="agentSoftphone({
                 sessionUrl: @js(route('tenant.agent.softphone.session')),
+                presenceUrl: @js(route('tenant.agent.softphone.presence')),
                 csrfToken: @js(csrf_token()),
                 statusUrl: @js(route('tenant.agent.status')),
                 currentStatus: @js($currentStatus),
@@ -226,31 +227,41 @@
                                     @csrf
                                     <x-ui.button type="submit">Ligar para o lead</x-ui.button>
                                 </form>
-                            @elseif ($currentStatus === 'available' && $selectedCampaign?->dialing_mode === 'preview')
-                                <div class="flex items-center justify-between gap-4">
-                                    <div>
-                                        <h2 class="text-2xl font-bold">Aguardando ficha Preview</h2>
-                                        <p class="mt-1 text-sm" style="color: var(--fg-muted);">A campanha Preview nunca inicia uma chamada automaticamente.</p>
-                                    </div>
-                                    <form method="POST" action="{{ route('tenant.agent.preview.reserve') }}">
-                                        @csrf
-                                        <x-ui.button type="submit">Carregar ficha</x-ui.button>
-                                    </form>
-                                </div>
-                            @elseif ($currentStatus === 'available')
-                                <div class="flex items-center gap-4">
-                                    <span class="grid h-14 w-14 shrink-0 place-items-center rounded-full animate-pulse" style="background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--primary); box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 8%, transparent);"><x-ui.icon name="phone" class="h-6 w-6" /></span>
-                                    <div>
-                                        <h2 class="text-2xl font-bold">Aguardando chamada</h2>
-                                        <p class="mt-1 text-sm" style="color: var(--fg-muted);">Ao ficar disponivel, as chamadas das campanhas serao entregues aqui.</p>
-                                    </div>
-                                </div>
-                            @elseif ($currentStatus === 'paused')
-                                <h2 class="mt-1 text-2xl font-bold">Em pausa</h2>
-                                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Voce pode fazer uma chamada manual autorizada, mas nao recebera chamadas de campanha.</p>
                             @else
-                                <h2 class="mt-1 text-2xl font-bold">Painel offline</h2>
-                                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Fique disponivel para receber chamadas ou iniciar uma chamada manual.</p>
+                                <div x-show="agentStatus === 'available'" x-cloak>
+                                    @if ($selectedCampaign?->dialing_mode === 'preview')
+                                        <div class="flex items-center justify-between gap-4">
+                                            <div>
+                                                <h2 class="text-2xl font-bold">Aguardando ficha Preview</h2>
+                                                <p class="mt-1 text-sm" style="color: var(--fg-muted);">A campanha Preview nunca inicia uma chamada automaticamente.</p>
+                                            </div>
+                                            <form method="POST" action="{{ route('tenant.agent.preview.reserve') }}">
+                                                @csrf
+                                                <x-ui.button type="submit">Carregar ficha</x-ui.button>
+                                            </form>
+                                        </div>
+                                    @else
+                                        <div class="flex items-center gap-4">
+                                            <span class="grid h-14 w-14 shrink-0 place-items-center rounded-full animate-pulse" style="background: color-mix(in srgb, var(--primary) 12%, var(--surface)); color: var(--primary); box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 8%, transparent);"><x-ui.icon name="phone" class="h-6 w-6" /></span>
+                                            <div>
+                                                <h2 class="text-2xl font-bold">Aguardando chamada</h2>
+                                                <p class="mt-1 text-sm" style="color: var(--fg-muted);">Ao ficar disponivel, as chamadas das campanhas serao entregues aqui.</p>
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
+                                <div x-show="agentStatus === 'paused'" x-cloak>
+                                    <h2 class="mt-1 text-2xl font-bold">Em pausa</h2>
+                                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">Voce pode fazer uma chamada manual autorizada, mas nao recebera chamadas de campanha.</p>
+                                </div>
+                                <div x-show="agentStatus === 'offline'" x-cloak>
+                                    <h2 class="mt-1 text-2xl font-bold">Painel offline</h2>
+                                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">Fique disponivel para receber chamadas ou iniciar uma chamada manual.</p>
+                                </div>
+                                <div x-show="['dialing', 'in_call', 'wrap_up'].includes(agentStatus) && !call" x-cloak>
+                                    <h2 class="mt-1 text-2xl font-bold">Atualizando atendimento</h2>
+                                    <p class="mt-1 text-sm" style="color: var(--fg-muted);">Aguarde a sincronizacao dos dados da chamada.</p>
+                                </div>
                             @endif
                         </div>
 

@@ -19,6 +19,7 @@ class AsteriskCallEventService
     public function __construct(
         private readonly ChannelCapacityService $capacity,
         private readonly CallWrapUpService $wrapUps,
+        private readonly AgentWebRtcPresenceService $webRtcPresence,
     ) {}
 
     /** @param array<string, mixed> $payload */
@@ -57,6 +58,7 @@ class AsteriskCallEventService
 
         if ($call->status === 'cancelled' && $call->end_reason === 'power_batch_winner' && $event === 'hangup') {
             $this->capacity->release($call->channel_reservation_id, 'power_batch_hangup');
+
             return [];
         }
 
@@ -106,6 +108,7 @@ class AsteriskCallEventService
 
             if ($winnerExists) {
                 $this->cancelBatchCall($call);
+
                 return [$call->id];
             }
 
@@ -143,6 +146,14 @@ class AsteriskCallEventService
             $this->markRouteRejected($call, $cause);
         }
 
+        if ($event === 'agent_delivery_failed' && $call->answered_at === null) {
+            $updates['status'] = 'cancelled';
+            $updates['end_reason'] = 'agent_unreachable';
+            $updates['hangup_party'] = 'system';
+            $updates['ended_at'] = now();
+            $this->capacity->release($call->channel_reservation_id, 'agent_delivery_failed');
+        }
+
         if ($event === 'hangup') {
             $answered = $call->answered_at !== null || $previousStatus === 'in_progress';
             $needsDisposition = $answered && $call->user_id && ! in_array($previousStatus, ['ended', 'cancelled', 'wrap_up'], true);
@@ -175,6 +186,14 @@ class AsteriskCallEventService
 
         if (($event === 'originate_failed' && $call->status === 'cancelled') || ($event === 'hangup' && $call->status === 'cancelled')) {
             app(MailingQueueService::class)->recordUnansweredAttempt($call, $event === 'hangup' ? 'no_answer' : 'failed');
+        }
+
+        if ($event === 'agent_delivery_failed' && $call->status === 'cancelled') {
+            app(MailingQueueService::class)->recordUnansweredAttempt($call, 'failed');
+            if ($call->user) {
+                $this->webRtcPresence->markDisconnected($call->user);
+                $this->moveAgentTo($call, 'offline');
+            }
         }
 
         if ($event === 'originate_failed' && $call->status === 'cancelled') {

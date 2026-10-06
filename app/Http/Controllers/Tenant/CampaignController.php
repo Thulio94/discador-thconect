@@ -59,6 +59,37 @@ class CampaignController extends Controller
             'scheduleStates' => $campaigns->getCollection()
                 ->mapWithKeys(fn (Campaign $campaign): array => [$campaign->id => $dialer->isCampaignInOperationalSchedule($campaign)])
                 ->all(),
+            'dispatchWarnings' => $campaigns->getCollection()
+                ->mapWithKeys(function (Campaign $campaign): array {
+                    if ($campaign->status !== 'active' || $campaign->dialing_mode !== 'power') {
+                        return [];
+                    }
+
+                    $routes = collect([$campaign->fixedTelephonyRoute, $campaign->mobileTelephonyRoute])
+                        ->filter()
+                        ->unique('id');
+
+                    if ($routes->isEmpty()) {
+                        return [$campaign->id => 'Discagem bloqueada: configure uma rota fixa ou móvel para esta campanha.'];
+                    }
+
+                    foreach ($routes as $route) {
+                        if (! $route->enabled) {
+                            return [$campaign->id => "Discagem bloqueada: a rota {$route->name} está desabilitada."];
+                        }
+
+                        if ($route->connection_status !== 'online') {
+                            $reason = $route->connection_status === 'pending_test'
+                                ? 'aguarda uma chamada real de validacao'
+                                : 'precisa ser validada pelo administrador';
+
+                            return [$campaign->id => "Discagem bloqueada: rota {$route->name} {$reason}."];
+                        }
+                    }
+
+                    return [];
+                })
+                ->all(),
             'teams' => Team::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'lists' => ContactList::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('name')->get(),
             'telephonyRoutes' => $request->user()->company

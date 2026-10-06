@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AgentStatus;
+use App\Models\AgentWebRtcPresence;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\Company;
@@ -12,6 +13,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Dialer\SimulatedDialerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class DialerDistributionStrategyTest extends TestCase
@@ -105,6 +107,13 @@ class DialerDistributionStrategyTest extends TestCase
                 'extension' => (string) (7100 + $index),
             ]);
             $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+            AgentWebRtcPresence::create([
+                'company_id' => $company->id,
+                'user_id' => $agent->id,
+                'connection_id' => (string) Str::uuid(),
+                'registered' => true,
+                'last_seen_at' => now(),
+            ]);
             AgentStatus::create([
                 'company_id' => $company->id,
                 'user_id' => $agent->id,

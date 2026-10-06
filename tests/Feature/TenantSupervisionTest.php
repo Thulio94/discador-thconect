@@ -164,6 +164,32 @@ class TenantSupervisionTest extends TestCase
         $this->assertSame('paused', $agent->currentAgentStatus()->value('status'));
     }
 
+    public function test_supervision_ignores_newer_closed_presence_when_counting_live_status(): void
+    {
+        [$supervisor, $company] = $this->tenantUser('supervisor');
+        [$agent] = $this->tenantUser('agent', $company, 'Agente Presenca Aberta');
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now()->subMinutes(5),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'offline',
+            'started_at' => now()->subMinute(),
+            'ended_at' => now(),
+        ]);
+
+        $response = $this->actingAs($supervisor)->get(route('tenant.supervision.index'));
+
+        $response->assertOk();
+        $this->assertSame('available', $response->viewData('agents')->first()->supervision_status);
+        $this->assertSame(1, $response->viewData('metrics')['available']);
+        $this->assertSame(0, $response->viewData('metrics')['offline']);
+    }
+
     public function test_supervision_shows_operational_times_current_campaign_and_alerts(): void
     {
         [$supervisor, $company] = $this->tenantUser('supervisor');

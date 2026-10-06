@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createAgentConsoleSync } from '../../resources/js/agent-console-sync.js';
+
+test('renders availability panels from the live agent state', () => {
+    const template = readFileSync(new URL('../../resources/views/tenant/agent/index.blade.php', import.meta.url), 'utf8');
+
+    assert.match(template, /x-show="agentStatus === 'available'" x-cloak/);
+    assert.match(template, /x-show="agentStatus === 'paused'" x-cloak/);
+    assert.match(template, /x-show="agentStatus === 'offline'" x-cloak/);
+});
 
 function harness(state) {
     const intervals = [];

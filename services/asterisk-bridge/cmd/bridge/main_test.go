@@ -49,6 +49,30 @@ func TestWebhooksForOneCallKeepAMIEventOrder(t *testing.T) {
 	}
 }
 
+func TestAgentDeliveryFailureIsForwardedInsteadOfBeingDropped(t *testing.T) {
+	m := newRouteManager(&bridge{}, routeConfig{CompanyID: 2})
+	m.companies[7] = 2
+	m.ids["linked-call"] = 7
+	m.webhookQueues = make([]chan map[string]any, 8)
+	for i := range m.webhookQueues {
+		m.webhookQueues[i] = make(chan map[string]any, 1)
+	}
+
+	m.processEvent(map[string]string{
+		"Event": "DialEnd", "Linkedid": "linked-call", "DialStatus": "CHANUNAVAIL",
+		"DestChannel": "PJSIP/t2-e1002-0000002a", "TechCause": "3",
+	})
+
+	select {
+	case event := <-m.webhookQueues[7%len(m.webhookQueues)]:
+		if event["event"] != "agent_delivery_failed" || event["cause"] != "CHANUNAVAIL (3)" {
+			t.Fatalf("unexpected agent delivery event: %#v", event)
+		}
+	default:
+		t.Fatal("expected failed agent delivery to reach the application")
+	}
+}
+
 func TestSupervisionTargetUsesExtensionPrefixForPersistentMonitoring(t *testing.T) {
 	target, err := supervisionTarget(superviseRequest{
 		CompanyID:      1,

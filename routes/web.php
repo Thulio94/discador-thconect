@@ -117,6 +117,7 @@ Route::middleware(['auth', 'verified', 'god-mode', 'tenant.active', 'tenant.user
         Route::get('agent', [AgentPanelController::class, 'index'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.index');
         Route::get('agent/state', [AgentPanelController::class, 'state'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-state'])->name('agent.state');
         Route::post('agent/softphone/session', [AgentPanelController::class, 'softphoneSession'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-softphone'])->name('agent.softphone.session');
+        Route::post('agent/softphone/presence', [AgentPanelController::class, 'softphonePresence'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe', 'throttle:agent-softphone'])->name('agent.softphone.presence');
         Route::patch('agent/status', [AgentPanelController::class, 'status'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.status');
         Route::patch('agent/campaign', [AgentPanelController::class, 'selectCampaign'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.campaign.select');
         Route::post('agent/preview/reserve', [AgentPanelController::class, 'reservePreview'])->middleware(['can:tenant.agent.access', 'god-mode.telephony-safe'])->name('agent.preview.reserve');

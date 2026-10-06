@@ -15,7 +15,7 @@ class AsteriskEventController extends Controller
         $payload = $request->validate([
             'company_id' => ['required', 'integer'],
             'call_id' => ['required', 'integer'],
-            'event' => ['required', Rule::in(['originate_succeeded', 'originate_failed', 'answered', 'amd', 'hangup', 'recording_ready'])],
+            'event' => ['required', Rule::in(['originate_succeeded', 'originate_failed', 'answered', 'agent_delivery_failed', 'amd', 'hangup', 'recording_ready'])],
             'action_id' => ['nullable', 'string', 'max:120'],
             'channel' => ['nullable', 'string', 'max:255'],
             'uniqueid' => ['nullable', 'string', 'max:120'],
