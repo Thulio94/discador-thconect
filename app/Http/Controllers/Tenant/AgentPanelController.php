@@ -149,6 +149,14 @@ class AgentPanelController extends Controller
             return 'A chamada chegou à operadora, mas o ramal desconectou antes de tocar. Reconecte o áudio para continuar.';
         }
 
+        if ($reason === 'route_unavailable') {
+            return 'A rota ainda não foi validada para chamadas. Avise o administrador para concluir uma chamada de teste.';
+        }
+
+        if ($reason === 'bridge_unavailable') {
+            return 'Falha de comunicação com a central de chamadas. Tente novamente e, se persistir, avise o administrador.';
+        }
+
         if (str_contains($reason, 'capacity_')) {
             return 'Todos os canais de ligação estão ocupados. Aguarde e tente novamente.';
         }
@@ -526,14 +534,15 @@ class AgentPanelController extends Controller
 
         if (! in_array($call->status, Call::ACTIVE_STATUSES, true)) {
             $this->wrapUps->releaseAgent($user, $call);
+            $message = $this->callFailureMessage($call);
 
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'A ligação não foi iniciada. Tente novamente ou avise o administrador.'], 422);
+                return response()->json(['message' => $message], 422);
             }
 
             return redirect()
                 ->route('tenant.agent.index')
-                ->withErrors(['phone' => 'A chamada nao foi iniciada. Verifique a rota de telefonia e tente novamente.']);
+                ->withErrors(['phone' => $message]);
         }
 
         $user->agentStatuses()->create([

@@ -23,6 +23,7 @@ class AsteriskDialerGateway implements DialerGateway
         private readonly AsteriskBridgeClient $bridge,
         private readonly CallReportSnapshot $snapshots,
         private readonly ChannelCapacityService $capacity,
+        private readonly CallWrapUpService $wrapUps,
     ) {}
 
     public function originate(DialerCallRequest $request): Call
@@ -109,6 +110,7 @@ class AsteriskDialerGateway implements DialerGateway
             DB::afterCommit(fn () => $this->originateCommittedCall($call->id, $route->id, $payload));
         } else {
             $this->originateCommittedCall($call->id, $route->id, $payload);
+            $call->refresh();
         }
 
         return $call;
@@ -204,6 +206,9 @@ class AsteriskDialerGateway implements DialerGateway
             $this->capacity->release($call->channel_reservation_id, 'bridge_unavailable');
             if ($call->campaign_id && $call->contact_phone_id) {
                 app(MailingQueueService::class)->recordUnansweredAttempt($call, 'failed');
+            }
+            if ($call->user_id && $user = User::query()->find($call->user_id)) {
+                $this->wrapUps->releaseAgent($user, $call);
             }
         }
     }

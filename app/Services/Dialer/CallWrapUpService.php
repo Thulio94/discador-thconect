@@ -7,6 +7,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\User;
 use App\Services\Capacity\ChannelCapacityService;
+use App\Services\Telephony\AgentWebRtcPresenceService;
 use Illuminate\Support\Facades\DB;
 
 final class CallWrapUpService
@@ -18,6 +19,7 @@ final class CallWrapUpService
     public function __construct(
         private readonly ChannelCapacityService $capacity,
         private readonly MailingQueueService $queue,
+        private readonly AgentWebRtcPresenceService $presence,
     ) {}
 
     public function expireForUser(User $user): bool
@@ -162,7 +164,10 @@ final class CallWrapUpService
 
         $user->agentStatuses()->create([
             'company_id' => $user->company_id,
-            'status' => $mustRemainOffline ? 'offline' : ($manualPauseReason ? 'paused' : 'available'),
+            'status' => $mustRemainOffline
+                || ($user->user_type === 'agent' && ! $this->presence->isRegistered($user))
+                ? 'offline'
+                : ($manualPauseReason ? 'paused' : 'available'),
             'reason' => $manualPauseReason,
             'started_at' => now(),
         ]);

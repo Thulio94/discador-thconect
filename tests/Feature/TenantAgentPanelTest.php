@@ -1345,6 +1345,101 @@ class TenantAgentPanelTest extends TestCase
         $this->assertDatabaseCount('calls', 0);
     }
 
+    public function test_manual_call_explains_when_the_outbound_route_has_not_been_validated(): void
+    {
+        [$agent] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $agent->company_id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->app->instance(DialerGateway::class, new class implements DialerGateway {
+            public function originate(DialerCallRequest $request): Call
+            {
+                return Call::create([
+                    'company_id' => $request->companyId,
+                    'user_id' => $request->userId,
+                    'direction' => 'outbound',
+                    'status' => 'cancelled',
+                    'end_reason' => 'route_unavailable',
+                    'channel' => 'capacity_guard',
+                    'phone' => $request->phone,
+                    'started_at' => now(),
+                    'ended_at' => now(),
+                ]);
+            }
+
+            public function cancel(DialerCallRequest $request, string $reason): Call
+            {
+                throw new LogicException('Not used by this test.');
+            }
+
+            public function hangup(Call $call): Call
+            {
+                return $call;
+            }
+        });
+
+        $this->actingAs($agent)
+            ->postJson(route('tenant.agent.calls.store'), [
+                'phone' => '(31) 99999-0001',
+                'channel' => 'manual',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'A rota ainda não foi validada para chamadas. Avise o administrador para concluir uma chamada de teste.');
+    }
+
+    public function test_manual_call_shows_bridge_rejection_and_keeps_agent_available(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+        $this->app->instance(DialerGateway::class, new class implements DialerGateway
+        {
+            public function originate(DialerCallRequest $request): Call
+            {
+                return Call::create([
+                    'company_id' => $request->companyId,
+                    'user_id' => $request->userId,
+                    'direction' => 'outbound',
+                    'status' => 'cancelled',
+                    'end_reason' => 'bridge_unavailable',
+                    'channel' => 'asterisk_ami',
+                    'phone' => $request->phone,
+                    'started_at' => now(),
+                    'ended_at' => now(),
+                ]);
+            }
+
+            public function cancel(DialerCallRequest $request, string $reason): Call
+            {
+                throw new LogicException('Not used by this test.');
+            }
+
+            public function hangup(Call $call): Call
+            {
+                return $call;
+            }
+        });
+
+        $this->actingAs($agent)
+            ->postJson(route('tenant.agent.calls.store'), [
+                'phone' => '(31) 99999-0001',
+                'channel' => 'manual',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Falha de comunicação com a central de chamadas. Tente novamente e, se persistir, avise o administrador.');
+
+        $this->assertSame('available', $agent->fresh()->currentAgentStatus->status);
+        $this->assertDatabaseHas('calls', ['user_id' => $agent->id, 'status' => 'cancelled', 'end_reason' => 'bridge_unavailable']);
+    }
+
     public function test_softphone_presence_is_bound_to_the_authenticated_agent_and_expires(): void
     {
         [$agent] = $this->tenantUser('agent');

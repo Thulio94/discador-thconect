@@ -18,6 +18,7 @@ use App\Models\Role;
 use App\Models\Team;
 use App\Models\TelephonyRoute;
 use App\Models\User;
+use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\DialerCallRequest;
 use App\Services\Dialer\SimulatedDialerService;
 use App\Services\Telephony\AgentWebRtcPresenceService;
@@ -184,6 +185,37 @@ class TelephonyProductionReadinessTest extends TestCase
         $this->assertSame('agent_unreachable', $call->fresh()->end_reason);
         $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
         $this->assertFalse(app(AgentWebRtcPresenceService::class)->isRegistered($agent));
+    }
+
+    public function test_call_release_keeps_an_agent_offline_without_a_fresh_webrtc_presence(): void
+    {
+        $company = Company::create(['name' => 'Empresa sem presenca WebRTC']);
+        $agent = User::factory()->create([
+            'company_id' => $company->id,
+            'user_type' => 'agent',
+            'extension' => '1311',
+            'status' => 'active',
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'dialing',
+            'started_at' => now(),
+        ]);
+        $call = Call::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+            'ended_at' => now(),
+        ]);
+
+        app(CallWrapUpService::class)->releaseAgent($agent, $call);
+
+        $this->assertSame('offline', $agent->fresh()->currentAgentStatus->status);
     }
 
     public function test_real_route_forwards_the_power_batch_id_to_the_asterisk_bridge(): void
