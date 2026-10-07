@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -397,6 +399,40 @@ func TestPowerBatchIDIsForwardedToTheAsteriskDialplan(t *testing.T) {
 		if !strings.Contains(variables, expected) {
 			t.Fatalf("expected AMI variables to contain %q, got %q", expected, variables)
 		}
+	}
+}
+
+func TestSynchronizingSharedRouteForAnotherCompanyDoesNotReloadPJSIP(t *testing.T) {
+	b := &bridge{}
+	config := validRouteConfig()
+	sharedRoute := config
+	sharedRoute.CompanyID = 2
+	if !sameRouteConfig(config, sharedRoute) {
+		t.Fatal("company association alone must not make the shared PJSIP route different")
+	}
+	changedRoute := sharedRoute
+	changedRoute.SIPHost = "new-sip.example.test"
+	if sameRouteConfig(config, changedRoute) {
+		t.Fatal("a real SIP host change must still reconfigure the route")
+	}
+
+	manager := newRouteManager(b, config)
+	b.routes.Store(config.RouteID, manager)
+
+	body, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest("PUT", "/v1/routes/2", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	b.syncRoute(response, request)
+
+	if response.Code != 200 {
+		t.Fatalf("expected a shared route to reuse its existing PJSIP config, got %d: %s", response.Code, response.Body.String())
+	}
+	current, ok := b.routes.Load(config.RouteID)
+	if !ok || current.(*routeManager) != manager {
+		t.Fatal("syncing the same shared route must not replace its AMI listener")
 	}
 }
 

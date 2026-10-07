@@ -310,6 +310,14 @@ func (b *bridge) syncRoute(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
+	if current, loaded := b.routes.Load(config.RouteID); loaded && sameRouteConfig(current.(*routeManager).config, config) {
+		if err := b.persistRoutes(); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"message": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"synchronized": true, "company_id": companyID})
+		return
+	}
 	manager := newRouteManager(b, config)
 	if current, loaded := b.routes.Swap(config.RouteID, manager); loaded {
 		current.(*routeManager).close()
@@ -424,6 +432,14 @@ func sameAgentConfig(left agentConfig, right agentConfig) bool {
 		left.Extension == right.Extension &&
 		left.Password == right.Password &&
 		left.Codecs == right.Codecs
+}
+
+func sameRouteConfig(left routeConfig, right routeConfig) bool {
+	left = normalizeRoute(left)
+	right = normalizeRoute(right)
+	left.CompanyID = 0
+	right.CompanyID = 0
+	return left == right
 }
 
 func (b *bridge) originate(w http.ResponseWriter, r *http.Request) {
