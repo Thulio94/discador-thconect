@@ -5,17 +5,17 @@ namespace Tests\Feature;
 use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\CallEvent;
+use App\Models\Campaign;
 use App\Models\ChannelReservation;
 use App\Models\Company;
-use App\Models\Campaign;
 use App\Models\ContactList;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TelephonyRoute;
 use App\Models\User;
-use App\Services\Telephony\AsteriskCallEventService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\MailingQueueService;
+use App\Services\Telephony\AsteriskCallEventService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -317,6 +317,86 @@ class TenantTelephonyConfigurationTest extends TestCase
 
         $this->assertSame('online', $route->fresh()->connection_status);
         $this->assertNull($route->fresh()->last_error);
+    }
+
+    public function test_late_successful_trunk_event_validates_route_without_reopening_call(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota validada apos encerramento',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'pending_test',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'user_id' => $admin->id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'cancelled',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now()->subMinute(),
+            'ended_at' => now(),
+            'end_reason' => 'agent_unreachable',
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'originate_succeeded',
+            'action_id' => 'late-trunk-success',
+        ]);
+
+        $this->assertSame('online', $route->fresh()->connection_status);
+        $this->assertSame('cancelled', $call->fresh()->status);
+        $this->assertSame('agent_unreachable', $call->fresh()->end_reason);
+    }
+
+    public function test_agent_delivery_failure_confirms_that_the_outbound_route_answered(): void
+    {
+        $admin = $this->tenantAdmin();
+        $route = TelephonyRoute::create([
+            'name' => 'Rota confirmada antes da falha no ramal',
+            'tech' => '5001',
+            'host' => 'sip.example.test',
+            'transport' => 'udp',
+            'authentication_mode' => 'ip',
+            'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's',
+            'codecs' => 'alaw,g729',
+            'enabled' => true,
+            'connection_status' => 'pending_test',
+        ]);
+        $admin->company->telephonyRoutes()->attach($route);
+        $call = Call::create([
+            'company_id' => $admin->company_id,
+            'telephony_route_id' => $route->id,
+            'direction' => 'outbound',
+            'status' => 'dialing',
+            'channel' => 'asterisk_ami',
+            'phone' => '81982143238',
+            'started_at' => now(),
+        ]);
+
+        app(AsteriskCallEventService::class)->apply([
+            'company_id' => $admin->company_id,
+            'call_id' => $call->id,
+            'event' => 'agent_delivery_failed',
+            'cause' => 'CHANUNAVAIL (3)',
+            'uniqueid' => 'trunk-answered-agent-unreachable',
+        ]);
+
+        $this->assertSame('online', $route->fresh()->connection_status);
+        $this->assertSame('cancelled', $call->fresh()->status);
+        $this->assertSame('agent_unreachable', $call->fresh()->end_reason);
     }
 
     public function test_busy_or_no_answer_does_not_mark_the_route_unavailable(): void

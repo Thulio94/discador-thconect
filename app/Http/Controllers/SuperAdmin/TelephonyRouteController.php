@@ -91,6 +91,7 @@ class TelephonyRouteController extends Controller
             $telephonyRoute->update([
                 'connection_status' => $wasOutboundValidated ? 'online' : 'pending_test',
                 'last_checked_at' => now(),
+                'preflight_config_hash' => $telephonyRoute->preflightFingerprint(),
                 'last_error' => null,
             ]);
 
@@ -103,6 +104,7 @@ class TelephonyRouteController extends Controller
             $telephonyRoute->update([
                 'connection_status' => 'error',
                 'last_checked_at' => now(),
+                'preflight_config_hash' => null,
                 'last_error' => $this->safeRouteTestError($exception),
             ]);
 
@@ -145,6 +147,8 @@ class TelephonyRouteController extends Controller
         $data['tech'] = filled($data['tech'] ?? null) ? $data['tech'] : null;
         $data['asterisk_node_id'] ??= AsteriskNode::query()->orderBy('priority')->value('id');
         $data['connection_status'] = $data['enabled'] ? 'pending_test' : 'not_configured';
+        $data['last_checked_at'] = null;
+        $data['preflight_config_hash'] = null;
         $data['last_error'] = null;
 
         return $data;

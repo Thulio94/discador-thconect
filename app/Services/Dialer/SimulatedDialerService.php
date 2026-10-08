@@ -8,6 +8,7 @@ use App\Models\AgentStatus;
 use App\Models\Call;
 use App\Models\Campaign;
 use App\Models\CompanyLicense;
+use App\Models\TelephonyRoute;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,10 @@ class SimulatedDialerService
     public function runCampaign(Campaign $campaign): int
     {
         if ($campaign->status !== 'active' || $campaign->dialing_mode !== 'power') {
+            return 0;
+        }
+
+        if (! $this->hasRoutesReadyToDial($campaign)) {
             return 0;
         }
 
@@ -290,6 +295,25 @@ class SimulatedDialerService
             ->where('users.company_id', $campaign->company_id)
             ->where('users.user_type', 'agent')
             ->pluck('users.id');
+    }
+
+    private function hasRoutesReadyToDial(Campaign $campaign): bool
+    {
+        if ($this->gateway instanceof SimulatedDialerGateway
+            || (app()->environment('testing') && ! config('app.force_real_telephony', false))) {
+            return true;
+        }
+
+        $campaign->loadMissing(['fixedTelephonyRoute', 'mobileTelephonyRoute']);
+        $routes = collect([$campaign->fixedTelephonyRoute, $campaign->mobileTelephonyRoute])
+            ->filter()
+            ->unique('id');
+
+        if ($routes->isEmpty()) {
+            return false;
+        }
+
+        return $routes->every(fn (TelephonyRoute $route): bool => $route->isReady() && $route->canStartOutboundCall());
     }
 
     private function applyDistributionStrategy($agents, Campaign $campaign)

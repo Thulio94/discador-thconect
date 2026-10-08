@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgentWebRtcPresence;
 use App\Models\BlacklistNumber;
 use App\Models\Campaign;
 use App\Models\CampaignPhoneState;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Services\Dialer\MailingQueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TenantCampaignListCrudTest extends TestCase
@@ -449,12 +451,28 @@ class TenantCampaignListCrudTest extends TestCase
         $campaign->teams()->attach($team, ['company_id' => $admin->company_id]);
         $campaign->contactLists()->attach($list, ['company_id' => $admin->company_id]);
 
+        $this->assertSame('pending_test', $route->fresh()->connection_status);
+        $this->assertNull($route->fresh()->last_checked_at);
+        $this->assertFalse($route->fresh()->hasSuccessfulSipPreflight());
+
         $this->actingAs($admin)
             ->get(route('tenant.campaigns.index'))
             ->assertOk()
             ->assertSee('Discagem bloqueada')
             ->assertSee('Rota em teste')
-            ->assertSee('aguarda uma chamada real de validacao');
+            ->assertSee('ainda nao passou no teste de conexao SIP');
+
+        $route->forceFill([
+            'last_checked_at' => now()->addSecond(),
+            'last_error' => null,
+            'preflight_config_hash' => null,
+        ])->saveQuietly();
+
+        $this->actingAs($admin)
+            ->get(route('tenant.campaigns.index'))
+            ->assertOk()
+            ->assertDontSee('Discagem bloqueada')
+            ->assertSee('Teste SIP aprovado; a primeira chamada confirmara a rota e a TECH.');
     }
 
     public function test_new_campaign_form_does_not_inherit_an_existing_campaign_configuration(): void
@@ -471,7 +489,7 @@ class TenantCampaignListCrudTest extends TestCase
         $campaign->contactLists()->attach($list, ['company_id' => $admin->company_id]);
 
         $response = $this->actingAs($admin)->get(route('tenant.campaigns.index'))->assertOk();
-        $document = new \DOMDocument();
+        $document = new \DOMDocument;
         $previousErrorSetting = libxml_use_internal_errors(true);
         $document->loadHTML($response->getContent());
         libxml_clear_errors();
@@ -1007,7 +1025,7 @@ class TenantCampaignListCrudTest extends TestCase
             ->patch(route('tenant.campaigns.recycle', $campaign), [
                 'list_id' => $list->id,
                 'statuses' => ['no_answer'],
-                'request_key' => (string) \Illuminate\Support\Str::uuid(),
+                'request_key' => (string) Str::uuid(),
             ])
             ->assertRedirect(route('tenant.campaigns.index'))
             ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '1 contato reciclado'));
@@ -1041,10 +1059,10 @@ class TenantCampaignListCrudTest extends TestCase
             'extension' => '1300',
             'status' => 'active',
         ]);
-        \App\Models\AgentWebRtcPresence::create([
+        AgentWebRtcPresence::create([
             'company_id' => $admin->company_id,
             'user_id' => $agent->id,
-            'connection_id' => (string) \Illuminate\Support\Str::uuid(),
+            'connection_id' => (string) Str::uuid(),
             'registered' => true,
             'last_seen_at' => now(),
         ]);

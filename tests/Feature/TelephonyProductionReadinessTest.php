@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Contracts\Dialer\DialerGateway;
 use App\Jobs\CancelPowerBatchCall;
+use App\Jobs\RunPowerCampaign;
 use App\Models\AgentStatus;
 use App\Models\AgentWebRtcPresence;
 use App\Models\AsteriskNode;
@@ -573,6 +574,50 @@ class TelephonyProductionReadinessTest extends TestCase
         AgentStatus::query()->update(['status' => 'available']);
 
         return $campaign;
+    }
+
+    public function test_power_waits_for_route_validation_without_creating_failed_calls_or_marking_a_dispatch(): void
+    {
+        $campaign = $this->freshPowerRegressionScenario();
+        config()->set('app.force_real_telephony', true);
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+        $campaign->fixedTelephonyRoute->update(['connection_status' => 'pending_test']);
+        $campaign->mobileTelephonyRoute->update(['connection_status' => 'pending_test']);
+
+        (new RunPowerCampaign($campaign->id))->handle(app(SimulatedDialerService::class));
+
+        $this->assertDatabaseCount('calls', 0);
+        $this->assertSame(0, (int) CampaignPhoneState::query()->sum('attempts_count'));
+        $this->assertNull($campaign->fresh()->last_dispatched_at);
+    }
+
+    public function test_power_can_originate_after_successful_options_preflight_while_tech_is_pending_real_validation(): void
+    {
+        $campaign = $this->freshPowerRegressionScenario();
+        config()->set('app.force_real_telephony', true);
+        config()->set('services.asterisk_bridge.token', 'bridge-test-token');
+        config()->set('services.asterisk_bridge.webhook_secret', 'webhook-test-secret');
+        $route = $campaign->fixedTelephonyRoute;
+        $route->update(['connection_status' => 'pending_test']);
+        $route->forceFill([
+            'connection_status' => 'pending_test',
+            'last_checked_at' => now()->addSecond(),
+            'last_error' => null,
+            'preflight_config_hash' => null,
+        ])->saveQuietly();
+        Http::fake(['http://asterisk-bridge.test/*' => Http::response(['accepted' => true], 202)]);
+
+        (new RunPowerCampaign($campaign->id))->handle(app(SimulatedDialerService::class));
+
+        $calls = Call::query()->where('campaign_id', $campaign->id)->get();
+        $this->assertCount(15, $calls);
+        $this->assertTrue($calls->every(fn (Call $call): bool => $call->status === 'dialing'));
+        $this->assertSame(15, (int) CampaignPhoneState::query()->sum('attempts_count'));
+        $this->assertNotNull($campaign->fresh()->last_dispatched_at);
+        Http::assertSentCount(15);
+        Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'http://asterisk-bridge.test/v1/calls/originate'
+            && $request['route_id'] === $campaign->fixed_telephony_route_id);
     }
 
     public function test_power_does_not_consume_mailing_attempts_when_route_capacity_is_exhausted(): void

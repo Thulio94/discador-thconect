@@ -29,8 +29,9 @@ class RunPowerCampaign implements ShouldQueue
         }
 
         try {
-            $dialer->runCampaign($campaign);
-            $campaign->update(['last_dispatched_at' => now()]);
+            if ($dialer->runCampaign($campaign) > 0) {
+                $campaign->update(['last_dispatched_at' => now()]);
+            }
         } finally {
             $lock->release();
         }

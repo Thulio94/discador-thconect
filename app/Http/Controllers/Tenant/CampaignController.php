@@ -9,10 +9,10 @@ use App\Models\ContactList;
 use App\Models\Disposition;
 use App\Models\Team;
 use App\Models\TelephonyRoute;
+use App\Services\Campaigns\CampaignOperationalGuard;
 use App\Services\Capacity\ResourceLimitService;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerService;
-use App\Services\Campaigns\CampaignOperationalGuard;
 use App\Support\Notifications\AppNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -78,9 +78,13 @@ class CampaignController extends Controller
                             return [$campaign->id => "Discagem bloqueada: a rota {$route->name} está desabilitada."];
                         }
 
+                        if ($route->hasSuccessfulSipPreflight()) {
+                            return [$campaign->id => 'Teste SIP aprovado; a primeira chamada confirmara a rota e a TECH.'];
+                        }
+
                         if ($route->connection_status !== 'online') {
                             $reason = $route->connection_status === 'pending_test'
-                                ? 'aguarda uma chamada real de validacao'
+                                ? 'ainda nao passou no teste de conexao SIP'
                                 : 'precisa ser validada pelo administrador';
 
                             return [$campaign->id => "Discagem bloqueada: rota {$route->name} {$reason}."];

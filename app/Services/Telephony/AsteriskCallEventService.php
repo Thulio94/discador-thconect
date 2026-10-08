@@ -56,6 +56,10 @@ class AsteriskCallEventService
             return [];
         }
 
+        if (in_array($event, ['originate_succeeded', 'agent_delivery_failed'], true)) {
+            $this->markRouteValidated($call);
+        }
+
         if ($call->status === 'cancelled' && $call->end_reason === 'power_batch_winner' && $event === 'hangup') {
             $this->capacity->release($call->channel_reservation_id, 'power_batch_hangup');
 
@@ -95,7 +99,6 @@ class AsteriskCallEventService
 
         if ($event === 'originate_succeeded' && $call->answered_at === null && in_array($call->status, ['dialing', 'ringing'], true)) {
             $updates['status'] = 'ringing';
-            $this->markRouteValidated($call);
         }
 
         if ($event === 'answered' && $call->answered_at === null) {
@@ -360,6 +363,7 @@ class AsteriskCallEventService
         $query->update([
             'connection_status' => 'error',
             'last_checked_at' => now(),
+            'preflight_config_hash' => null,
             'last_error' => $message,
         ]);
     }

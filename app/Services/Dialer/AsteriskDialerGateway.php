@@ -3,12 +3,12 @@
 namespace App\Services\Dialer;
 
 use App\Contracts\Dialer\DialerGateway;
+use App\Exceptions\CapacityExceededException;
 use App\Models\Call;
 use App\Models\Campaign;
-use App\Models\TelephonyRoute;
 use App\Models\Company;
+use App\Models\TelephonyRoute;
 use App\Models\User;
-use App\Exceptions\CapacityExceededException;
 use App\Services\Capacity\ChannelCapacityService;
 use App\Services\Reports\CallReportSnapshot;
 use App\Services\Telephony\AsteriskBridgeClient;
@@ -37,8 +37,9 @@ class AsteriskDialerGateway implements DialerGateway
         $route = $this->routeForPhone($campaign, $request->phone, $request->companyId);
 
         $manualRouteValidation = $campaign === null && $route?->connection_status === 'pending_test';
+        $routeCanOriginate = $route?->canStartOutboundCall() || $manualRouteValidation;
 
-        if (! $route?->isReady() || ($route->connection_status !== 'online' && ! $manualRouteValidation)) {
+        if (! $route?->isReady() || ! $routeCanOriginate) {
             if (app()->environment('testing') && ! config('app.force_real_telephony', false)) {
                 return $this->simulated->originate($request);
             }
@@ -60,6 +61,7 @@ class AsteriskDialerGateway implements DialerGateway
                 'end_reason' => 'capacity_'.$exception->limitKey, 'hangup_party' => 'system',
             ]);
             $this->snapshots->capture($call);
+
             return $call;
         }
 

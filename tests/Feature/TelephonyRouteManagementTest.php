@@ -56,6 +56,8 @@ class TelephonyRouteManagementTest extends TestCase
             ->assertSessionHas('status', 'O IP SIP respondeu. A TECH sera validada na primeira chamada de teste.');
 
         $this->assertSame('pending_test', $route->fresh()->connection_status);
+        $this->assertNotNull($route->fresh()->last_checked_at);
+        $this->assertSame($route->fresh()->preflightFingerprint(), $route->fresh()->preflight_config_hash);
     }
 
     public function test_options_health_check_does_not_resynchronize_routes_or_reload_pjsip(): void
@@ -93,6 +95,7 @@ class TelephonyRouteManagementTest extends TestCase
             'asterisk_node_id' => $node->id, 'name' => 'Rota editada', 'tech' => '5005', 'host' => '201.23.69.26',
             'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
             'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'enabled' => true,
+            'connection_status' => 'pending_test', 'last_checked_at' => now(), 'preflight_config_hash' => str_repeat('a', 64),
         ]);
         $company = Company::create(['name' => 'Empresa vinculada']);
         $company->telephonyRoutes()->attach($route);
@@ -109,6 +112,8 @@ class TelephonyRouteManagementTest extends TestCase
             ->assertRedirect(route('super-admin.telephony-routes.index'));
 
         $this->assertSame('5001', $route->fresh()->tech);
+        $this->assertNull($route->fresh()->last_checked_at);
+        $this->assertNull($route->fresh()->preflight_config_hash);
         Http::assertSentCount(1);
         Http::assertSent(fn ($request): bool => $request->method() === 'PUT'
             && $request->url() === 'http://asterisk-bridge.test/v1/routes/'.$company->id
@@ -134,6 +139,24 @@ class TelephonyRouteManagementTest extends TestCase
             ->assertRedirect(route('super-admin.telephony-routes.index'));
 
         $this->assertSame('online', $route->fresh()->connection_status);
+    }
+
+    public function test_options_preflight_is_invalidated_when_sip_settings_change(): void
+    {
+        $route = TelephonyRoute::create([
+            'name' => 'Rota preflight vinculada a configuracao', 'tech' => '5001', 'host' => '201.23.69.26',
+            'transport' => 'udp', 'authentication_mode' => 'ip', 'dialplan_context' => 'thconect-outbound',
+            'dialplan_extension' => 's', 'codecs' => 'alaw,g729', 'enabled' => true,
+            'connection_status' => 'pending_test', 'last_checked_at' => now(),
+        ]);
+        $route->update(['preflight_config_hash' => $route->preflightFingerprint()]);
+
+        $this->assertTrue($route->fresh()->hasSuccessfulSipPreflight());
+
+        $route->update(['tech' => '5002']);
+
+        $this->assertFalse($route->fresh()->hasSuccessfulSipPreflight());
+        $this->assertFalse($route->fresh()->canStartOutboundCall());
     }
 
     public function test_super_admin_can_create_an_ip_authenticated_route(): void
