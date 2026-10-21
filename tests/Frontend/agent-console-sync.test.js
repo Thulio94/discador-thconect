@@ -107,6 +107,24 @@ test('does nothing while the state signature is unchanged', async () => {
     assert.equal(sync.call, null);
 });
 
+test('does not claim availability when server state cannot be confirmed', async () => {
+    const context = harness({});
+    context.dependencies.fetch = async () => ({
+        ok: false,
+        status: 403,
+        json: async () => ({}),
+    });
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        initialState: { agent_status: 'available' },
+    }, context.dependencies);
+
+    await sync.check();
+
+    assert.equal(sync.statusLabel(), 'Sem sincronização');
+    assert.match(sync.stateSyncError, /confirmar seu status/i);
+});
+
 test('uses the realtime event to fetch and apply state without a navigation', async () => {
     let listener;
     const context = harness({
@@ -200,6 +218,71 @@ test('changes agent availability through JSON without navigating away from the s
     assert.equal(request.options.method, 'PATCH');
     assert.equal(request.options.headers['X-CSRF-TOKEN'], 'csrf-token');
     assert.equal(sync.agentStatus, 'available');
+});
+
+test('does not drop a status change while polling and ignores the older poll response', async () => {
+    let finishPoll;
+    let statusRequestSent = false;
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        statusUrl: '/tenant/agent/status',
+        csrfToken: 'csrf-token',
+        initialState: { agent_status: 'offline' },
+    }, {
+        fetch: async (url) => {
+            if (url === '/tenant/agent/state') {
+                return new Promise((resolve) => { finishPoll = resolve; });
+            }
+
+            statusRequestSent = true;
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ agent_status: 'available', status_elapsed_seconds: 0 }),
+            };
+        },
+        setInterval: () => 1,
+        clearInterval: () => {},
+        visibility: () => 'visible',
+    });
+
+    const poll = sync.check();
+    await sync.setAgentStatus('available');
+    finishPoll({
+        ok: true,
+        status: 200,
+        json: async () => ({ agent_status: 'offline', status_elapsed_seconds: 0 }),
+    });
+    await poll;
+
+    assert.equal(statusRequestSent, true);
+    assert.equal(sync.agentStatus, 'available');
+});
+
+test('shows the server reason when availability is rejected and keeps the agent offline', async () => {
+    const toasts = [];
+    const sync = createAgentConsoleSync({
+        url: '/tenant/agent/state',
+        statusUrl: '/tenant/agent/status',
+        csrfToken: 'csrf-token',
+        initialState: { agent_status: 'offline' },
+    }, {
+        fetch: async () => ({
+            ok: false,
+            status: 422,
+            json: async () => ({ message: 'Escolha a campanha antes de ficar disponível.' }),
+        }),
+        setInterval: () => 1,
+        clearInterval: () => {},
+        visibility: () => 'visible',
+        toast: (detail) => toasts.push(detail),
+    });
+
+    await sync.setAgentStatus('available');
+
+    assert.equal(sync.agentStatus, 'offline');
+    assert.equal(toasts.length, 1);
+    assert.equal(toasts[0].message, 'Escolha a campanha antes de ficar disponível.');
 });
 
 test('marks the current availability action as unavailable while keeping pause changes explicit', () => {

@@ -100,6 +100,24 @@ class OperationalDashboardScopeTest extends TestCase
             ->assertSee('2');
     }
 
+    public function test_super_admin_god_mode_dashboard_uses_the_company_being_observed(): void
+    {
+        [$administrator, $company] = $this->user('company_admin');
+        [$agent] = $this->user('agent', $company, 'Agente observado');
+        $this->createAgentStatus($agent, 'available');
+        $this->createCall($agent, 'in_progress');
+        $superAdmin = User::factory()->create(['is_super_admin' => true, 'user_type' => 'super_admin']);
+
+        $this->actingAs($superAdmin)
+            ->withSession(['god_mode.company_id' => $company->id])
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertViewHas('scopeLabel', 'Escopo: Toda a empresa')
+            ->assertViewHas('metrics.available', 1)
+            ->assertViewHas('metrics.active_calls', 1)
+            ->assertViewHas('metrics.agent_capacity', 3);
+    }
+
     private function user(string $type, ?Company $company = null, ?string $name = null): array
     {
         $company ??= Company::create(['name' => 'Empresa Dashboard '.fake()->unique()->numerify('###')]);

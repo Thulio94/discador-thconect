@@ -502,6 +502,13 @@ class MailingQueueService
             ->where('contact_phones.company_id', $campaign->company_id)
             ->where('contacts.company_id', $campaign->company_id)
             ->whereIn('contacts.contact_list_id', $listIds)
+            ->whereNotExists(function ($query) use ($campaign): void {
+                $query->selectRaw('1')
+                    ->from('campaign_phone_states as existing_state')
+                    ->whereColumn('existing_state.contact_phone_id', 'contact_phones.id')
+                    ->where('existing_state.company_id', $campaign->company_id)
+                    ->where('existing_state.campaign_id', $campaign->id);
+            })
             ->select([
                 'contact_phones.id as contact_phone_id',
                 'contact_phones.contact_id',

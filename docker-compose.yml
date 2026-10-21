@@ -254,6 +254,10 @@ services:
     volumes:
       - discador_asterisk_config:/etc/asterisk/pjsip.d
       - discador_asterisk_recordings:/var/spool/asterisk/monitor/thconect
+    networks:
+      default:
+        aliases:
+          - pilot-asterisk
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "asterisk -rx 'core show uptime' >/dev/null 2>&1"]

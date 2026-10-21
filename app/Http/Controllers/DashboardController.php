@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Company;
 use App\Models\Call;
+use App\Models\Company;
 use App\Services\Dashboard\OperationalDashboardSnapshot;
 use App\Services\Licensing\LicenseUsageService;
 use App\Support\GodMode\GodModeContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\Response;
 
 class DashboardController extends Controller
 {
@@ -27,7 +27,7 @@ class DashboardController extends Controller
             Gate::authorize('tenant.dashboard.read');
         }
 
-        return view('dashboard', $this->dashboardData($user, $isGodMode, $usage, $snapshot));
+        return view('dashboard', $this->dashboardData($user, $isGodMode, $usage, $snapshot, $godMode->company()));
     }
 
     public function poll(Request $request, LicenseUsageService $usage, GodModeContext $godMode, OperationalDashboardSnapshot $snapshot): Response
@@ -40,12 +40,12 @@ class DashboardController extends Controller
         }
         abort_if($user->user_type === 'agent' && ! $isGodMode, 404);
 
-        return response(view('dashboard', $this->dashboardData($user, $isGodMode, $usage, $snapshot))->fragment('operational-dashboard'))
+        return response(view('dashboard', $this->dashboardData($user, $isGodMode, $usage, $snapshot, $godMode->company()))->fragment('operational-dashboard'))
             ->header('Cache-Control', 'no-store, private')
             ->header('X-Poll-Interval', '10');
     }
 
-    private function dashboardData($user, bool $isGodMode, LicenseUsageService $usage, OperationalDashboardSnapshot $snapshot): array
+    private function dashboardData($user, bool $isGodMode, LicenseUsageService $usage, OperationalDashboardSnapshot $snapshot, ?Company $godModeCompany = null): array
     {
         if ($user->is_super_admin && ! $isGodMode) {
             return [
@@ -53,6 +53,14 @@ class DashboardController extends Controller
                 'companiesCount' => Company::query()->where('status', '!=', 'inactive')->count(),
                 'realtimeCompanyId' => null,
             ];
+        }
+
+        if ($user->is_super_admin && $isGodMode && $godModeCompany) {
+            $companyUser = clone $user;
+            $companyUser->forceFill(['company_id' => $godModeCompany->id]);
+            $companyUser->setRelation('company', $godModeCompany);
+
+            return [...$snapshot->forUser($companyUser), 'realtimeCompanyId' => $godModeCompany->id];
         }
 
         return [...$snapshot->forUser($user), 'realtimeCompanyId' => $user->company_id];

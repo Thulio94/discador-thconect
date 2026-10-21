@@ -12,6 +12,7 @@ use App\Models\ContactList;
 use App\Models\Role;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Dialer\AgentCampaignEligibilityService;
 use App\Services\Dialer\AgentCapacityService;
 use App\Services\Dialer\MailingQueueService;
 use App\Services\Dialer\SimulatedDialerGateway;
@@ -34,9 +35,10 @@ class RunDialerSmokeLoad extends Command
         AgentCapacityService $capacity,
         MailingQueueService $queue,
         SimulatedDialerGateway $gateway,
+        AgentCampaignEligibilityService $eligibility,
         ExtensionAllocator $extensions,
     ): int {
-        $dialer = new SimulatedDialerService($capacity, $queue, $gateway);
+        $dialer = new SimulatedDialerService($capacity, $queue, $gateway, $eligibility);
         $agentCounts = collect(explode(',', (string) $this->option('agents')))
             ->map(fn (string $value): int => (int) trim($value))
             ->filter()

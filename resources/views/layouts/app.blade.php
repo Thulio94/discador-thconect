@@ -25,7 +25,7 @@
             ['label' => 'Perfis', 'href' => route('tenant.roles.index'), 'icon' => 'lock', 'active' => request()->routeIs('tenant.roles.*'), 'ability' => 'tenant.roles.read'],
             ['label' => 'Listas', 'href' => route('tenant.lists.index'), 'icon' => 'list', 'active' => request()->routeIs('tenant.lists.*'), 'ability' => 'tenant.lists.read'],
             ['label' => 'Campanhas', 'href' => route('tenant.campaigns.index'), 'icon' => 'campaign', 'active' => request()->routeIs('tenant.campaigns.*'), 'ability' => 'tenant.campaigns.read'],
-            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access'],
+            ['label' => 'Agente', 'href' => route('tenant.agent.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.agent.*'), 'ability' => 'tenant.agent.access', 'hide_in_god_mode' => true],
             ['label' => 'Supervisao', 'href' => route('tenant.supervision.index'), 'icon' => 'view', 'active' => request()->routeIs('tenant.supervision.*'), 'ability' => 'tenant.supervision.read'],
             ['label' => 'Relatorios', 'href' => route('tenant.reports.index'), 'icon' => 'report', 'active' => request()->routeIs('tenant.reports.*'), 'ability' => 'tenant.reports.read'],
             ['label' => 'Telefonia', 'href' => route('tenant.telephony.index'), 'icon' => 'phone', 'active' => request()->routeIs('tenant.telephony.*'), 'ability' => 'tenant.telephony.read'],
@@ -33,7 +33,8 @@
             ['label' => 'Integracoes', 'href' => route('tenant.integrations.index'), 'icon' => 'open', 'active' => request()->routeIs('tenant.integrations.*'), 'ability' => 'tenant.integrations.read', 'soon' => true],
         ];
     $navItems = collect($navItems)
-        ->filter(fn (array $item): bool => ! isset($item['ability']) || Gate::allows($item['ability']))
+        ->filter(fn (array $item): bool => (! $isGodMode || ! ($item['hide_in_god_mode'] ?? false))
+            && (! isset($item['ability']) || Gate::allows($item['ability'])))
         ->values()
         ->all();
 @endphp

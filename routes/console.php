@@ -59,7 +59,7 @@ Schedule::call(fn () => app(CallWrapUpService::class)->expireDue())
     ->everyMinute()
     ->withoutOverlapping();
 
-Schedule::job((new DispatchPowerCampaigns)->onQueue('telephony'))
+Schedule::call(fn () => app(DispatchPowerCampaigns::class)->handle())
     ->name('dialer:dispatch-power-campaigns')
     ->everySecond()
-    ->withoutOverlapping();
+    ->withoutOverlapping(1);

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
@@ -76,6 +77,33 @@ func TestAgentDeliveryFailureIsForwardedInsteadOfBeingDropped(t *testing.T) {
 		}
 	default:
 		t.Fatal("expected failed agent delivery to reach the application")
+	}
+}
+
+func TestWebhookRetriesTransientApplicationFailures(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if r.Method != http.MethodPost || r.Header.Get("X-THCONECT-Signature") == "" {
+			t.Errorf("webhook request is missing expected method or signature: %#v", r.Header)
+		}
+		if attempts < 3 {
+			http.Error(w, "temporary application failure", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	manager := &bridge{
+		webhookURL:    server.URL,
+		webhookSecret: "test-secret",
+		client:        server.Client(),
+	}
+	manager.sendWebhook(map[string]any{"company_id": 2, "call_id": 42, "event": "originate_succeeded"})
+
+	if attempts != 3 {
+		t.Fatalf("expected webhook delivery to retry twice, got %d attempts", attempts)
 	}
 }
 

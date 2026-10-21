@@ -45,7 +45,8 @@ class GodModeTest extends TestCase
             ->assertOk()
             ->assertSee('Usuario Empresa A')
             ->assertDontSee('Usuario Empresa B')
-            ->assertSee('Modo Deus ativo');
+            ->assertSee('Modo Deus ativo')
+            ->assertDontSee('href="'.route('tenant.agent.index').'"', false);
 
         $this->assertSame($usersBefore, User::query()->count());
         $this->assertDatabaseMissing('audit_logs', [
@@ -76,6 +77,40 @@ class GodModeTest extends TestCase
 
         $this->actingAs($superAdmin)
             ->post(route('super-admin.companies.god-mode.enter', $company));
+
+        $this->get(route('tenant.agent.index'))->assertForbidden();
+    }
+
+    public function test_super_admin_can_open_each_company_module_in_god_mode(): void
+    {
+        $superAdmin = User::factory()->create([
+            'is_super_admin' => true,
+            'user_type' => 'super_admin',
+            'company_id' => null,
+        ]);
+        $company = $this->company('Empresa Acompanhada');
+
+        $this->actingAs($superAdmin)
+            ->post(route('super-admin.companies.god-mode.enter', $company))
+            ->assertRedirect(route('dashboard'));
+
+        foreach ([
+            route('dashboard'),
+            route('tenant.users.index'),
+            route('tenant.teams.index'),
+            route('tenant.roles.index'),
+            route('tenant.lists.index'),
+            route('tenant.campaigns.index'),
+            route('tenant.supervision.index'),
+            route('tenant.reports.index'),
+            route('tenant.telephony.index'),
+            route('tenant.settings.index'),
+            route('tenant.integrations.index'),
+        ] as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertSee('Modo Deus ativo');
+        }
 
         $this->get(route('tenant.agent.index'))->assertForbidden();
     }

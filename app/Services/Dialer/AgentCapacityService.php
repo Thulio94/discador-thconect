@@ -11,6 +11,8 @@ use App\Models\User;
 
 class AgentCapacityService
 {
+    public function __construct(private readonly AgentCampaignEligibilityService $eligibility) {}
+
     /**
      * Must be called inside the status-change transaction so the license row
      * serializes simultaneous attempts to become available.
@@ -66,7 +68,12 @@ class AgentCapacityService
 
     public function availableAgentsForCampaign(Campaign $campaign): int
     {
-        $teamIds = $campaign->teams()->pluck('teams.id');
+        $teamIds = $campaign->teams()
+            ->wherePivot('company_id', $campaign->company_id)
+            ->where('teams.company_id', $campaign->company_id)
+            ->where('teams.status', 'active')
+            ->where('teams.operational_type', 'power')
+            ->pluck('teams.id');
 
         if ($teamIds->isEmpty()) {
             return 0;
@@ -77,7 +84,7 @@ class AgentCapacityService
             ->where('users.user_type', 'agent')
             ->pluck('users.id');
 
-        return User::query()
+        $agents = User::query()
             ->where('users.company_id', $campaign->company_id)
             ->where('users.status', 'active')
             ->where('users.user_type', 'agent')
@@ -98,7 +105,11 @@ class AgentCapacityService
             })
             ->when($assignedAgentIds->isNotEmpty(), fn ($query) => $query->whereIn('users.id', $assignedAgentIds))
             ->distinct('users.id')
-            ->count('users.id');
+            ->get();
+
+        return $agents
+            ->filter(fn (User $agent): bool => $this->eligibility->canReceivePowerCampaign($agent, $campaign))
+            ->count();
     }
 
     public function allowedCallsForCampaign(Campaign $campaign): int

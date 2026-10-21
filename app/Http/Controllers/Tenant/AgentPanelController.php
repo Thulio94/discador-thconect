@@ -13,9 +13,9 @@ use App\Models\Disposition;
 use App\Models\OperationalParameter;
 use App\Models\PauseReason;
 use App\Models\User;
-use App\Models\Campaign;
 use App\Services\Campaigns\ServiceFieldValidator;
 use App\Services\Dialer\AgentCapacityService;
+use App\Services\Dialer\AgentCampaignEligibilityService;
 use App\Services\Dialer\CallWrapUpService;
 use App\Services\Dialer\DialerCallRequest;
 use App\Services\Dialer\MailingQueueService;
@@ -27,6 +27,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -35,6 +36,7 @@ class AgentPanelController extends Controller
     public function __construct(
         private readonly ServiceFieldValidator $serviceFieldValidator,
         private readonly CallWrapUpService $wrapUps,
+        private readonly AgentCampaignEligibilityService $campaignEligibility,
     ) {}
 
     public function index(Request $request): View
@@ -275,17 +277,31 @@ class AgentPanelController extends Controller
         }
 
         if ($this->wrapUps->hasPendingForUser($user)) {
-            return back()->withErrors(['status' => 'Conclua a tabulacao pendente antes de mudar seu status.']);
+            $message = 'Conclua a tabulacao pendente antes de mudar seu status.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['status' => $message]);
         }
 
         $parameters = OperationalParameter::forCompany($user->company_id);
 
         if ($data['status'] === 'available' && $message = $this->pauseMinimumMessage($user->id, $user->company_id, $parameters)) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
             return back()->withErrors(['status' => $message]);
         }
 
         if ($data['status'] === 'available' && $this->campaignSelectionRequired($user) && ! $user->currentAgentCampaignSession()->exists()) {
-            return back()->withErrors(['status' => 'Escolha a campanha antes de ficar disponível.']);
+            $message = 'Escolha a campanha antes de ficar disponível.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['status' => $message]);
         }
 
         $statusUpdated = DB::transaction(function () use ($capacity, $data, $user): bool {
@@ -308,9 +324,12 @@ class AgentPanelController extends Controller
         });
 
         if (! $statusUpdated) {
-            return back()->withErrors([
-                'status' => 'O limite de usuarios disponiveis desta empresa foi atingido. Peca que outro usuario entre em pausa ou fique offline para liberar uma licenca.',
-            ]);
+            $message = 'O limite de usuarios disponiveis desta empresa foi atingido. Peca que outro usuario entre em pausa ou fique offline para liberar uma licenca.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['status' => $message]);
         }
 
         if ($request->expectsJson()) {
@@ -713,35 +732,15 @@ class AgentPanelController extends Controller
 
     private function eligibleCampaigns(User $user)
     {
-        $teamIds = $user->teams()
-            ->wherePivot('membership_type', 'agent')
-            ->where('teams.status', 'active')
-            ->pluck('teams.id');
-
-        return Campaign::query()
-            ->where('company_id', $user->company_id)
-            ->where('status', 'active')
-            ->whereIn('id', function ($query) use ($teamIds): void {
-                $query->select('campaign_team.campaign_id')
-                    ->from('campaign_team')
-                    ->whereIn('campaign_team.team_id', $teamIds);
-            })
-            ->orderByDesc('priority')
-            ->orderBy('last_dispatched_at')
-            ->get();
+        return $this->campaignEligibility->eligibleCampaigns($user);
     }
 
     private function campaignSelectionRequired(User $user, mixed $campaigns = null): bool
     {
-        $campaigns ??= $this->eligibleCampaigns($user);
-        if ($campaigns->count() < 2) {
-            return false;
-        }
-
-        return $user->teams()
-            ->wherePivot('membership_type', 'agent')
-            ->where('teams.allow_agent_campaign_selection', true)
-            ->exists();
+        return $this->campaignEligibility->requiresSelection(
+            $user,
+            $campaigns instanceof Collection ? $campaigns : null,
+        );
     }
 
     private function closeOpenRecords(int $userId, int $companyId): void

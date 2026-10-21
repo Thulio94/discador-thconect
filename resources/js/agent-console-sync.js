@@ -16,6 +16,8 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         timerId: null,
         clockTimerId: null,
         inFlight: false,
+        statusUpdateInFlight: false,
+        statusRequestVersion: 0,
         stopped: false,
         unsubscribe: null,
         agentStatus: config.initialState?.agent_status ?? 'offline',
@@ -24,6 +26,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         callActive: Boolean(config.initialState?.call_active),
         callStatus: config.initialState?.call_status ?? null,
         callFailureMessage: config.initialState?.call_failure ?? null,
+        stateSyncError: null,
 
         start() {
             this.applyState(config.initialState ?? {});
@@ -35,11 +38,12 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         },
 
         async check(force = false) {
-            if (this.stopped || this.inFlight || (!force && dependencies.visibility() !== 'visible')) {
+            if (this.stopped || this.inFlight || this.statusUpdateInFlight || (!force && dependencies.visibility() !== 'visible')) {
                 return;
             }
 
             this.inFlight = true;
+            const statusRequestVersion = this.statusRequestVersion;
 
             try {
                 const response = await dependencies.fetch(this.url, {
@@ -51,7 +55,12 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                     },
                 });
 
+                if (statusRequestVersion !== this.statusRequestVersion) {
+                    return;
+                }
+
                 if ([401, 403, 404, 419, 429].includes(response.status)) {
+                    this.stateSyncError = 'Não foi possível confirmar seu status no servidor. Tentando sincronizar novamente.';
                     return;
                 }
 
@@ -62,6 +71,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                 const state = await response.json();
                 this.applyState(state);
             } catch (error) {
+                this.stateSyncError = 'Sem comunicação com o servidor. Tentando sincronizar novamente.';
                 if (import.meta.env?.DEV) {
                     console.warn(error);
                 }
@@ -75,6 +85,7 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                 return;
             }
 
+            this.stateSyncError = null;
             this.signature = state.signature ?? this.signature;
             this.agentStatus = state.agent_status ?? this.agentStatus;
             this.statusElapsedSeconds = this.agentStatus === 'offline'
@@ -93,11 +104,12 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         },
 
         async setAgentStatus(status) {
-            if (!config.statusUrl || this.inFlight) {
+            if (!config.statusUrl || this.statusUpdateInFlight) {
                 return;
             }
 
-            this.inFlight = true;
+            this.statusUpdateInFlight = true;
+            this.statusRequestVersion += 1;
 
             try {
                 const response = await dependencies.fetch(config.statusUrl, {
@@ -131,11 +143,13 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
                     severity: 'error',
                 });
             } finally {
-                this.inFlight = false;
+                this.statusUpdateInFlight = false;
             }
         },
 
         statusLabel() {
+            if (this.stateSyncError) return 'Sem sincronização';
+
             return {
                 available: 'Disponivel',
                 dialing: 'Discando',
@@ -147,6 +161,8 @@ export function createAgentConsoleSync(config, dependencies = browserDependencie
         },
 
         statusColor() {
+            if (this.stateSyncError) return 'var(--status-warning)';
+
             return {
                 available: 'var(--status-success)',
                 dialing: 'var(--status-info)',

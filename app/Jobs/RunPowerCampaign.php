@@ -4,17 +4,25 @@ namespace App\Jobs;
 
 use App\Models\Campaign;
 use App\Services\Dialer\SimulatedDialerService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
 
-class RunPowerCampaign implements ShouldQueue
+class RunPowerCampaign implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public int $tries = 1;
 
+    public int $uniqueFor = 60;
+
     public function __construct(public readonly int $campaignId) {}
+
+    public function uniqueId(): string
+    {
+        return (string) $this->campaignId;
+    }
 
     public function handle(SimulatedDialerService $dialer): void
     {

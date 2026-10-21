@@ -945,26 +945,48 @@ func (b *bridge) sendWebhook(payload map[string]any) {
 	if err != nil {
 		return
 	}
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	h := hmac.New(sha256.New, []byte(b.webhookSecret))
-	_, _ = h.Write([]byte(timestamp + "."))
-	_, _ = h.Write(body)
-	request, err := http.NewRequest(http.MethodPost, b.webhookURL, bytes.NewReader(body))
-	if err != nil {
-		return
+
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+		h := hmac.New(sha256.New, []byte(b.webhookSecret))
+		_, _ = h.Write([]byte(timestamp + "."))
+		_, _ = h.Write(body)
+		request, err := http.NewRequest(http.MethodPost, b.webhookURL, bytes.NewReader(body))
+		if err != nil {
+			log.Printf("webhook request could not be created: %v", err)
+			return
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-THCONECT-Signature", hex.EncodeToString(h.Sum(nil)))
+		request.Header.Set("X-THCONECT-Timestamp", timestamp)
+
+		response, requestErr := b.client.Do(request)
+		if requestErr == nil {
+			status := response.StatusCode
+			_, _ = io.Copy(io.Discard, response.Body)
+			_ = response.Body.Close()
+			if status < http.StatusMultipleChoices {
+				return
+			}
+			requestErr = fmt.Errorf("HTTP status %d", status)
+			if !retryableWebhookStatus(status) {
+				log.Printf("webhook delivery failed with status %d", status)
+				return
+			}
+		}
+
+		if attempt == maxAttempts {
+			log.Printf("webhook delivery failed after %d attempts: %v", attempt, requestErr)
+			return
+		}
+		log.Printf("webhook delivery attempt %d/%d failed: %v", attempt, maxAttempts, requestErr)
+		time.Sleep(time.Duration(attempt) * 250 * time.Millisecond)
 	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-THCONECT-Signature", hex.EncodeToString(h.Sum(nil)))
-	request.Header.Set("X-THCONECT-Timestamp", timestamp)
-	response, err := b.client.Do(request)
-	if err != nil {
-		log.Printf("webhook delivery failed: %v", err)
-		return
-	}
-	defer response.Body.Close()
-	if response.StatusCode >= 300 {
-		log.Printf("webhook delivery failed with status %d", response.StatusCode)
-	}
+}
+
+func retryableWebhookStatus(status int) bool {
+	return status == http.StatusRequestTimeout || status == http.StatusTooEarly || status == http.StatusTooManyRequests || status >= http.StatusInternalServerError
 }
 
 func testAMI(config routeConfig) error {

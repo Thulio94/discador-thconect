@@ -203,6 +203,19 @@ class CampaignMailingStateTest extends TestCase
         $this->assertNotNull($phone);
         $this->assertSame(1_200, DB::table('campaign_phone_states')->where('campaign_id', $campaign->id)->count());
         $this->assertLessThanOrEqual(12, count($queries), 'A primeira discagem de um mailing grande nao pode executar consultas por telefone.');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(MailingQueueService::class)->nextContactPhoneForCampaign($campaign);
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $stateMaterializationQueries = collect($queries)
+            ->filter(fn (array $query): bool => str_contains($query['query'], 'contact_phones')
+                && preg_match('/\bas\s+[`"]?contact_phone_id[`"]?/i', $query['query']) === 1)
+            ->count();
+
+        $this->assertSame(1, $stateMaterializationQueries, 'Uma fila ja materializada deve consultar somente os estados ausentes, sem percorrer novamente os telefones existentes.');
     }
 
     public function test_discador_does_not_expose_the_pbx_workspace_or_permissions(): void

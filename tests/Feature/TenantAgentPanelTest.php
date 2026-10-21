@@ -1047,6 +1047,88 @@ class TenantAgentPanelTest extends TestCase
         $this->assertSame('paused', $agent->fresh()->currentAgentStatus->status);
     }
 
+    public function test_json_status_change_returns_pause_minimum_error_without_redirecting(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        OperationalParameter::create([
+            'company_id' => $company->id,
+            'min_pause_minutes' => 10,
+            'max_pause_minutes' => 120,
+            'pause_alert_minutes' => 20,
+            'call_alert_minutes' => 15,
+        ]);
+        AgentPause::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'reason' => 'Almoco',
+            'started_at' => now()->subMinutes(4),
+        ]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $agent->id,
+            'status' => 'paused',
+            'reason' => 'Almoco',
+            'started_at' => now()->subMinutes(4),
+        ]);
+
+        $this->actingAs($agent)
+            ->patchJson(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'A pausa minima configurada e de 10 minutos.');
+
+        $this->assertSame('paused', $agent->fresh()->currentAgentStatus->status);
+    }
+
+    public function test_json_status_change_returns_campaign_selection_error_without_redirecting(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        $team = Team::create([
+            'company_id' => $company->id,
+            'name' => 'Equipe de selecao',
+            'slug' => 'equipe-selecao',
+            'operational_type' => 'power',
+            'allow_agent_campaign_selection' => true,
+        ]);
+        $team->users()->attach($agent, ['company_id' => $company->id, 'membership_type' => 'agent']);
+
+        foreach (['Primeira campanha', 'Segunda campanha'] as $name) {
+            $campaign = Campaign::create([
+                'company_id' => $company->id,
+                'name' => $name,
+                'dialing_mode' => 'power',
+                'status' => 'active',
+            ]);
+            $campaign->teams()->attach($team, ['company_id' => $company->id]);
+        }
+
+        $this->actingAs($agent)
+            ->patchJson(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Escolha a campanha antes de ficar disponível.');
+
+        $this->assertNull($agent->fresh()->currentAgentStatus);
+    }
+
+    public function test_json_status_change_returns_license_capacity_error_without_redirecting(): void
+    {
+        [$agent, $company] = $this->tenantUser('agent');
+        [$alreadyAvailable] = $this->tenantUser('agent', $company);
+        $company->licenses()->firstOrFail()->update(['max_concurrent_agents' => 1]);
+        AgentStatus::create([
+            'company_id' => $company->id,
+            'user_id' => $alreadyAvailable->id,
+            'status' => 'available',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($agent)
+            ->patchJson(route('tenant.agent.status'), ['status' => 'available'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'O limite de usuarios disponiveis desta empresa foi atingido. Peca que outro usuario entre em pausa ou fique offline para liberar uma licenca.');
+
+        $this->assertNull($agent->fresh()->currentAgentStatus);
+    }
+
     public function test_operational_parameters_control_manual_call_while_paused_and_post_call_status(): void
     {
         [$agent] = $this->tenantUser('agent');

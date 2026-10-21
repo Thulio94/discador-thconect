@@ -30,6 +30,7 @@ class SimulatedDialerService
         private readonly AgentCapacityService $capacity,
         private readonly MailingQueueService $queue,
         private readonly DialerGateway $gateway,
+        private readonly AgentCampaignEligibilityService $eligibility,
     ) {}
 
     public function runCampaign(Campaign $campaign): int
@@ -183,34 +184,11 @@ class SimulatedDialerService
             ->lockForUpdate()
             ->first();
 
-        if (! $agent || ! $this->agentCanReceiveCampaign($agent, $campaign)) {
+        if (! $agent || ! $this->eligibility->canReceivePowerCampaign($agent, $campaign)) {
             return null;
         }
 
         return $agent;
-    }
-
-    private function agentCanReceiveCampaign(User $agent, Campaign $campaign): bool
-    {
-        $team = $agent->teams()
-            ->wherePivot('membership_type', 'agent')
-            ->where('teams.status', 'active')
-            ->first();
-        if (! $team || $team->operational_type !== 'power') {
-            return false;
-        }
-
-        $campaignCount = $team->campaigns()
-            ->where('campaigns.status', 'active')
-            ->where('campaigns.dialing_mode', 'power')
-            ->count();
-        if (! $team->allow_agent_campaign_selection || $campaignCount < 2) {
-            return true;
-        }
-
-        return $agent->currentAgentCampaignSession()
-            ->where('campaign_id', $campaign->id)
-            ->exists();
     }
 
     private function createBatch(Campaign $campaign, User $agent, int $batchSize): int

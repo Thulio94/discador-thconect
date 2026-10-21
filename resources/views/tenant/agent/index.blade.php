@@ -79,7 +79,7 @@
                 currentStatus: @js($currentStatus),
                 shouldMarkOffline: () => ['available', 'paused', 'dialing', 'in_call'].includes(agentStatus),
                 acceptIncoming: @js(in_array($currentStatus, ['available', 'paused', 'dialing', 'in_call'], true)),
-                acceptIncomingNow: () => ['available', 'paused', 'dialing', 'in_call'].includes(agentStatus),
+                acceptIncomingNow: () => !stateSyncError && ['available', 'paused', 'dialing', 'in_call'].includes(agentStatus),
             })"
             x-init="start()"
             x-on:beforeunload.window="stop()"
@@ -109,8 +109,9 @@
                         <p class="text-xs font-semibold uppercase" style="color: var(--fg-muted);">Status atual</p>
                         <div class="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                             <h2 class="text-2xl font-bold" x-bind:style="`color: ${statusColor()};`" x-text="statusLabel()">{{ $currentStatusMeta['label'] }}</h2>
-                            <span class="font-mono text-lg font-semibold" x-text="formatDuration(statusElapsedSeconds)">00:00:00</span>
+                            <span class="font-mono text-lg font-semibold" x-show="!stateSyncError" x-text="formatDuration(statusElapsedSeconds)">00:00:00</span>
                         </div>
+                        <p x-show="stateSyncError" x-cloak class="mt-1 text-sm" style="color: var(--status-warning);" role="status" x-text="stateSyncError"></p>
                         <p class="mt-1 text-sm" style="color: var(--fg-muted);">
                             Ramal {{ auth()->user()->extension }} | {{ auth()->user()->name }}
                         </p>
@@ -128,16 +129,16 @@
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="available">
-                            <x-ui.button type="submit" x-bind:disabled="!$store.softphone.registered || isCurrentStatus('available')" x-bind:aria-pressed="isCurrentStatus('available')">Disponivel</x-ui.button>
+                            <x-ui.button type="submit" x-bind:disabled="statusUpdateInFlight || stateSyncError || !$store.softphone.registered || isCurrentStatus('available')" x-bind:aria-pressed="isCurrentStatus('available')">Disponivel</x-ui.button>
                         </form>
-                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'agent-pause')" x-bind:aria-label="pauseActionLabel()" x-bind:title="pauseActionLabel()" x-text="pauseActionLabel()">
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'agent-pause')" x-bind:disabled="statusUpdateInFlight || stateSyncError" x-bind:aria-label="pauseActionLabel()" x-bind:title="pauseActionLabel()" x-text="pauseActionLabel()">
                             Pausar
                         </x-ui.button>
                         <form method="POST" action="{{ route('tenant.agent.status') }}" x-on:submit.prevent="setAgentStatus('offline')">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="offline">
-                            <x-ui.button type="submit" variant="ghost" x-bind:disabled="isCurrentStatus('offline')" x-bind:aria-pressed="isCurrentStatus('offline')">Ficar offline</x-ui.button>
+                            <x-ui.button type="submit" variant="ghost" x-bind:disabled="statusUpdateInFlight || stateSyncError || isCurrentStatus('offline')" x-bind:aria-pressed="isCurrentStatus('offline')">Ficar offline</x-ui.button>
                         </form>
                 </div>
             </div>
